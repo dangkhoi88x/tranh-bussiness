@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: backend-tranh
+  profiles:
+    default: dev
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+info:
+  app:
+    name: Backend Tranh
+    description: Backend for the custom art and framing store
