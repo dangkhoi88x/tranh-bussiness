@@ -14,6 +14,7 @@ import com.example.businessstore.mapper.ProductFrameOptionMapper;
 import com.example.businessstore.repository.FrameRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.ProductFrameOptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
     private final FrameRepository frameRepository;
     private final ProductFrameOptionRepository productFrameOptionRepository;
     private final ProductFrameOptionMapper productFrameOptionMapper;
+    private final ProductVariantRepository productVariantRepository;
 
     @Override
     @Transactional
@@ -44,6 +46,7 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
         option.setProduct(product);
         option.setFrame(frame);
         option.setPriceAdjustment(request.priceAdjustment() == null ? frame.getPriceAdjustment() : request.priceAdjustment());
+        applyCompatibility(option, request.minWidthCm(), request.maxWidthCm(), request.minHeightCm(), request.maxHeightCm());
         option.setAvailable(request.available() == null || request.available());
         return productFrameOptionMapper.toResponse(productFrameOptionRepository.save(option));
     }
@@ -63,6 +66,19 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
 
     @Override
     @Transactional(readOnly = true)
+    public List<ProductFrameOptionResponse> findPublishedByProductVariantId(UUID productId, UUID variantId) {
+        productRepository.findById(productId).filter(product -> product.getStatus() == ProductStatus.PUBLISHED)
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+        var variant = productVariantRepository.findByIdAndProductId(variantId, productId)
+                .filter(item -> item.isAvailable())
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND, "Product variant not found"));
+        return productFrameOptionRepository.findAllByProductIdAndAvailableTrueAndFrameStatusOrderByPriceAdjustmentAsc(productId, FrameStatus.ACTIVE).stream()
+                .filter(option -> compatible(option, variant.getWidthCm(), variant.getHeightCm()))
+                .map(productFrameOptionMapper::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ProductFrameOptionResponse> findAllForManagement(UUID productId) {
         getProduct(productId);
         return productFrameOptionRepository.findAllByProductIdOrderByPriceAdjustmentAsc(productId).stream()
@@ -76,6 +92,7 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
         getProduct(productId);
         ProductFrameOption option = getOption(productId, optionId);
         if (request.priceAdjustment() != null) option.setPriceAdjustment(request.priceAdjustment());
+        applyCompatibility(option, request.minWidthCm(), request.maxWidthCm(), request.minHeightCm(), request.maxHeightCm());
         if (request.available() != null) option.setAvailable(request.available());
         return productFrameOptionMapper.toResponse(option);
     }
@@ -100,5 +117,16 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
     private ProductFrameOption getOption(UUID productId, UUID optionId) {
         return productFrameOptionRepository.findByIdAndProductId(optionId, productId)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Product frame option not found"));
+    }
+    private void applyCompatibility(ProductFrameOption option, java.math.BigDecimal minWidth, java.math.BigDecimal maxWidth, java.math.BigDecimal minHeight, java.math.BigDecimal maxHeight) {
+        if (minWidth != null) option.setMinWidthCm(minWidth); if (maxWidth != null) option.setMaxWidthCm(maxWidth); if (minHeight != null) option.setMinHeightCm(minHeight); if (maxHeight != null) option.setMaxHeightCm(maxHeight);
+        if (option.getMinWidthCm() != null && option.getMaxWidthCm() != null && option.getMinWidthCm().compareTo(option.getMaxWidthCm()) > 0) throw new AppException(ErrorCode.INVALID_FRAME_COMPATIBILITY, "Minimum width cannot exceed maximum width");
+        if (option.getMinHeightCm() != null && option.getMaxHeightCm() != null && option.getMinHeightCm().compareTo(option.getMaxHeightCm()) > 0) throw new AppException(ErrorCode.INVALID_FRAME_COMPATIBILITY, "Minimum height cannot exceed maximum height");
+    }
+    private boolean compatible(ProductFrameOption option, java.math.BigDecimal width, java.math.BigDecimal height) {
+        return (option.getMinWidthCm() == null || width.compareTo(option.getMinWidthCm()) >= 0)
+                && (option.getMaxWidthCm() == null || width.compareTo(option.getMaxWidthCm()) <= 0)
+                && (option.getMinHeightCm() == null || height.compareTo(option.getMinHeightCm()) >= 0)
+                && (option.getMaxHeightCm() == null || height.compareTo(option.getMaxHeightCm()) <= 0);
     }
 }

@@ -30,6 +30,14 @@ public class MediaTransactionSynchronizer {
     }
 
     public void deleteAfterRollback(String publicId) {
+        deleteAfterRollback(publicId, false);
+    }
+
+    public void deleteCustomOrderImageAfterRollback(String publicId) {
+        deleteAfterRollback(publicId, true);
+    }
+
+    private void deleteAfterRollback(String publicId, boolean customOrderImage) {
         if (isBlank(publicId) || !TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -37,18 +45,27 @@ public class MediaTransactionSynchronizer {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
-                    deleteQuietly(publicId);
+                    deleteQuietly(publicId, customOrderImage);
                 }
             }
         });
     }
 
     public void deleteQuietly(String publicId) {
+        deleteQuietly(publicId, false);
+    }
+
+    public void deleteCustomOrderImageQuietly(String publicId) {
+        deleteQuietly(publicId, true);
+    }
+
+    private void deleteQuietly(String publicId, boolean customOrderImage) {
         if (isBlank(publicId)) {
             return;
         }
         try {
-            mediaStorageService.deleteImage(publicId);
+            if (customOrderImage) mediaStorageService.deleteCustomOrderImage(publicId);
+            else mediaStorageService.deleteImage(publicId);
         } catch (RuntimeException exception) {
             log.error("Media cleanup failed for publicId={}", publicId, exception);
         }

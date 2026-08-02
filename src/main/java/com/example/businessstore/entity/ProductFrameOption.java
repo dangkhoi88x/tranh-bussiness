@@ -31,6 +31,15 @@ public class ProductFrameOption extends BaseEntity {
     @Column(name = "price_adjustment", nullable = false, precision = 19, scale = 2)
     private BigDecimal priceAdjustment;
 
+    @Column(name = "min_width_cm", precision = 10, scale = 2)
+    private BigDecimal minWidthCm;
+    @Column(name = "max_width_cm", precision = 10, scale = 2)
+    private BigDecimal maxWidthCm;
+    @Column(name = "min_height_cm", precision = 10, scale = 2)
+    private BigDecimal minHeightCm;
+    @Column(name = "max_height_cm", precision = 10, scale = 2)
+    private BigDecimal maxHeightCm;
+
     @Column(nullable = false)
     private boolean available;
 }

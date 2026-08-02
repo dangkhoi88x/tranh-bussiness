@@ -7,10 +7,12 @@ import com.example.businessstore.dto.request.UpdateCartItemRequest;
 import com.example.businessstore.dto.response.CartItemResponse;
 import com.example.businessstore.dto.response.CartResponse;
 import com.example.businessstore.dto.response.ProductFrameOptionResponse;
+import com.example.businessstore.dto.response.ProductVariantResponse;
 import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
+import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
@@ -20,6 +22,7 @@ import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.CartService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,6 +42,7 @@ public class CartServiceImpl implements CartService {
     private final ProductRepository productRepository;
     private final ProductFrameOptionRepository productFrameOptionRepository;
     private final ProductFrameOptionMapper productFrameOptionMapper;
+    private final ProductVariantRepository productVariantRepository;
 
     @Override
     @Transactional
@@ -51,14 +55,16 @@ public class CartServiceImpl implements CartService {
     public CartResponse addItem(UUID userId, AddCartItemRequest request) {
         Cart cart = getOrCreateCart(userId);
         Product product = getPurchasableProduct(request.productId());
+        ProductVariant variant = getSelectedVariant(product, request.productVariantId());
         ProductFrameOption frameOption = request.productFrameOptionId() == null
                 ? null
                 : getAvailableFrameOption(product.getId(), request.productFrameOptionId());
+        validateFrameCompatibility(frameOption, variant);
 
-        CartItem item = findExistingItem(cart, product.getId(), frameOption == null ? null : frameOption.getId())
-                .orElseGet(() -> createItem(cart, product, frameOption));
+        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId())
+                .orElseGet(() -> createItem(cart, product, variant, frameOption));
         int requestedQuantity = item.getQuantity() + request.quantity();
-        validateStock(product, requestedQuantity);
+        validateStock(product, variant, requestedQuantity);
         item.setQuantity(requestedQuantity);
         if (item.getId() == null) {
             cartItemRepository.save(item);
@@ -71,10 +77,12 @@ public class CartServiceImpl implements CartService {
     public CartResponse updateItem(UUID userId, UUID itemId, UpdateCartItemRequest request) {
         CartItem item = getOwnedItem(userId, itemId);
         Product product = getPurchasableProduct(item.getProduct().getId());
+        ProductVariant variant = item.getProductVariant() == null ? null : getSelectedVariant(product, item.getProductVariant().getId());
         if (item.getProductFrameOption() != null) {
-            getAvailableFrameOption(product.getId(), item.getProductFrameOption().getId());
+            ProductFrameOption frameOption = getAvailableFrameOption(product.getId(), item.getProductFrameOption().getId());
+            validateFrameCompatibility(frameOption, variant);
         }
-        validateStock(product, request.quantity());
+        validateStock(product, variant, request.quantity());
         item.setQuantity(request.quantity());
         return toResponse(getOrCreateCart(userId));
     }
@@ -116,17 +124,18 @@ public class CartServiceImpl implements CartService {
         return option;
     }
 
-    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID frameOptionId) {
+    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId) {
         if (frameOptionId == null) {
-            return cartItemRepository.findByCartIdAndProductIdAndProductFrameOptionIsNull(cart.getId(), productId);
+            return cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, variantId);
         }
-        return cartItemRepository.findByCartIdAndProductIdAndProductFrameOptionId(cart.getId(), productId, frameOptionId);
+        return cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionId(cart.getId(), productId, variantId, frameOptionId);
     }
 
-    private CartItem createItem(Cart cart, Product product, ProductFrameOption frameOption) {
+    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption) {
         CartItem item = new CartItem();
         item.setCart(cart);
         item.setProduct(product);
+        item.setProductVariant(variant);
         item.setProductFrameOption(frameOption);
         item.setQuantity(0);
         cart.getItems().add(item);
@@ -138,8 +147,9 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new AppException(ErrorCode.CART_ITEM_NOT_FOUND, "Cart item not found"));
     }
 
-    private void validateStock(Product product, int quantity) {
-        if (quantity > product.getStockQuantity()) {
+    private void validateStock(Product product, ProductVariant variant, int quantity) {
+        int availableStock = variant == null ? product.getStockQuantity() : variant.getStockQuantity();
+        if (quantity > availableStock) {
             throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Requested quantity exceeds available stock");
         }
     }
@@ -157,7 +167,9 @@ public class CartServiceImpl implements CartService {
         ProductFrameOptionResponse frameOption = item.getProductFrameOption() == null
                 ? null
                 : productFrameOptionMapper.toResponse(item.getProductFrameOption());
-        BigDecimal unitPrice = item.getProduct().getPrice();
+        ProductVariant variant = item.getProductVariant();
+        BigDecimal basePrice = variant == null ? item.getProduct().getPrice() : variant.getPrice();
+        BigDecimal unitPrice = basePrice;
         if (item.getProductFrameOption() != null) {
             unitPrice = unitPrice.add(item.getProductFrameOption().getPriceAdjustment());
         }
@@ -166,10 +178,36 @@ public class CartServiceImpl implements CartService {
                 item.getProduct().getId(),
                 item.getProduct().getName(),
                 item.getProduct().getSlug(),
-                item.getProduct().getPrice(),
+                toVariantResponse(variant),
+                basePrice,
                 frameOption,
                 unitPrice,
                 item.getQuantity(),
                 unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+    }
+
+    private ProductVariant getSelectedVariant(Product product, UUID variantId) {
+        boolean hasVariants = productVariantRepository.existsByProductId(product.getId());
+        if (variantId == null) {
+            if (hasVariants) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Select a product variant before adding this product to cart");
+            return null;
+        }
+        return productVariantRepository.findByIdAndProductId(variantId, product.getId())
+                .filter(variant -> variant.isAvailable() && variant.getStockQuantity() > 0)
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Product variant is not available"));
+    }
+
+    private void validateFrameCompatibility(ProductFrameOption option, ProductVariant variant) {
+        if (option == null || variant == null) return;
+        boolean compatible = (option.getMinWidthCm() == null || variant.getWidthCm().compareTo(option.getMinWidthCm()) >= 0)
+                && (option.getMaxWidthCm() == null || variant.getWidthCm().compareTo(option.getMaxWidthCm()) <= 0)
+                && (option.getMinHeightCm() == null || variant.getHeightCm().compareTo(option.getMinHeightCm()) >= 0)
+                && (option.getMaxHeightCm() == null || variant.getHeightCm().compareTo(option.getMaxHeightCm()) <= 0);
+        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Frame is not compatible with the selected variant");
+    }
+
+    private ProductVariantResponse toVariantResponse(ProductVariant variant) {
+        if (variant == null) return null;
+        return new ProductVariantResponse(variant.getId(), variant.getProduct().getId(), variant.getSku(), variant.getName(), variant.getWidthCm(), variant.getHeightCm(), variant.getMaterial(), variant.getPrice(), variant.getStockQuantity(), variant.isAvailable());
     }
 }

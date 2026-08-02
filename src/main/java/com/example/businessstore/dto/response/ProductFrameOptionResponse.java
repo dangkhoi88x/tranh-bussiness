@@ -12,5 +12,9 @@ public record ProductFrameOptionResponse(
         String frameColor,
         String frameImageUrl,
         BigDecimal priceAdjustment,
+        BigDecimal minWidthCm,
+        BigDecimal maxWidthCm,
+        BigDecimal minHeightCm,
+        BigDecimal maxHeightCm,
         boolean available) {
 }

@@ -2,13 +2,50 @@
 
 ## Cart
 
-Cart belongs to the authenticated user. A cart item may optionally select a compatible `productFrameOption`; its displayed unit price is the current product price plus that option's price adjustment. Adding the same product and frame selection again increases its quantity.
+Cart belongs to the authenticated user. When a product has variants, the customer must select a `productVariantId`; unit price and available quantity then come from that variant, not the parent product. A cart item may optionally select a compatible `productFrameOption`; its displayed unit price is the product or variant price plus that option's price adjustment. Adding the same product, variant and frame selection again increases its quantity.
 
 - `GET /api/v1/cart` - get the current user's cart.
-- `POST /api/v1/cart/items` - add an item. Body: `productId`, optional `productFrameOptionId`, and `quantity`.
+- `POST /api/v1/cart/items` - add an item. Body: `productId`, required `productVariantId` when the product has variants, optional `productFrameOptionId`, and `quantity`.
 - `PUT /api/v1/cart/items/{itemId}` - replace an item's quantity.
 - `DELETE /api/v1/cart/items/{itemId}` - remove one item.
 - `DELETE /api/v1/cart` - remove all items from the current cart.
+
+## Orders
+
+Checkout creates an immutable purchase snapshot from the authenticated user's cart: product, variant (ID/SKU/name/material/dimensions/price), frame and selected delivery address are retained. The matching product or variant stock row is pessimistically locked and decremented in the same transaction; cancelling an eligible order restores that same stock row. `totalAmount` starts as `subtotalAmount`, then includes the shipment fee once staff creates a shipment. The cart is cleared only after the order is persisted.
+
+- `POST /api/v1/orders/checkout` — create a `PENDING` order. Body: `shippingAddressId`.
+- `GET /api/v1/orders/my-orders`, `GET /api/v1/orders/my-orders/{id}` — authenticated customer's orders only.
+- `GET /api/v1/orders/my-orders/{id}/history` — status and payment/shipment events for the owning customer only.
+- `PUT /api/v1/orders/my-orders/{id}/cancel` — customer may cancel only `PENDING` or `CONFIRMED`; stock is restored.
+- `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `GET /api/v1/orders/{id}/history`, `PUT /api/v1/orders/{id}/status` — requires `ORDER_MANAGE`. Status updates accept an optional `note` and are stored with the actor and timestamp.
+
+## Shipping addresses
+
+Customers manage their own delivery-address book. A user may have one default address, but deleting or editing an address never changes its snapshot on a previous order.
+
+- `POST /api/v1/shipping-addresses`, `GET /api/v1/shipping-addresses`
+- `PUT /api/v1/shipping-addresses/{id}`, `DELETE /api/v1/shipping-addresses/{id}`
+
+## Payments
+
+The first supported method is COD. A customer creates one pending COD payment for an order; staff may mark it paid only once the order is `DELIVERED`. A shipment can be created only for a `CONFIRMED` order with a pending COD payment; its shipping fee updates both `Order.totalAmount` and the pending COD amount. Cancelling an eligible order automatically changes its pending COD payment to `CANCELLED`. This does not yet include an online payment provider.
+
+- `POST /api/v1/orders/{orderId}/payments` — body: `{ "method": "COD" }`.
+- `GET /api/v1/payments/my-payments`, `GET /api/v1/payments/my-payments/{id}` — authenticated customer's payments only.
+- `GET /api/v1/payments`, `PUT /api/v1/payments/{id}/cod/confirm` — requires `PAYMENT_MANAGE`.
+
+## Custom framing and printing requests
+
+Customers can ask for a bespoke frame, a print-and-frame service, or a family-photo print. Each request records dimensions, material, an optional frame, reference images, a quoted price and a separate production workflow. When the customer accepts a quote, the backend requires a delivery address and creates a normal `PENDING` Order linked through `orderId`; the Order snapshots the custom dimensions, material, selected frame and quoted price in `customDetails`, so the existing Payment and Shipment APIs work without a separate flow.
+
+- `POST /api/v1/custom-order-requests` — create a request with type `FRAME_ONLY`, `PRINT_AND_FRAME`, or `FAMILY_PHOTO`.
+- `GET /api/v1/custom-order-requests/mine`, `GET /api/v1/custom-order-requests/mine/{id}` — customer's requests only.
+- `POST /api/v1/custom-order-requests/mine/{id}/images` (`multipart/form-data`, field `file`) — upload a reference image while request is `NEW`.
+- `PUT /api/v1/custom-order-requests/mine/{id}/quote-decision` — body `{ "accepted": true, "shippingAddressId": "..." }` creates the linked Order; `{ "accepted": false }` declines and cancels the request.
+- `GET /api/v1/custom-order-requests`, `PUT /api/v1/custom-order-requests/{id}/quote` — requires `CUSTOM_ORDER_MANAGE`. The workflow is `NEW → QUOTED → CONFIRMED → IN_PRODUCTION → COMPLETED`; only the customer can accept or decline a quote.
+
+New custom reference images are uploaded with Cloudinary delivery type `authenticated`. The API generates a signed URL only after ownership or staff authorization; it does not store a reusable public URL. Legacy images already uploaded as public assets remain marked as legacy and should be re-uploaded if they need the same protection.
 
 Backend Spring Boot cho website bán tranh, khung tranh và dịch vụ đặt theo yêu cầu. Dự án đang tổ chức theo **package by layer** với package gốc `com.example.businessstore`.
 
@@ -54,6 +91,20 @@ Khung tranh có vật liệu, màu, bề rộng (mm), giá cộng thêm và tr�
 - `GET /api/v1/frames`, `GET /api/v1/frames/{id}`, `GET /api/v1/frames/slug/{slug}` — public, chỉ frame ACTIVE.
 - `POST`, `PUT`, `DELETE /api/v1/frames/{id}` — cần `FRAME_MANAGE`.
 - `POST /api/v1/frames/{id}/image` (`multipart/form-data`, field `file`) và `DELETE /api/v1/frames/{id}/image` — cần `FRAME_MANAGE`.
+
+## Product variants
+
+A product can expose independent print sizes and materials, each with its own SKU, price and stock. These variants are now used by Cart and Order: a variant product requires a selection, and frame compatibility is checked against its width and height.
+
+- `GET /api/v1/products/{productId}/variants` — public variants for a published product.
+- `GET /api/v1/products/management/{productId}/variants`, `POST`, `PUT`, `DELETE /api/v1/products/{productId}/variants` — requires `PRODUCT_MANAGE`.
+
+## Shipments
+
+Staff create one shipment for a confirmed order with pending COD payment, then update the carrier lifecycle. `IN_TRANSIT` moves the order to `SHIPPING`; `DELIVERED` moves it to `DELIVERED`; `DELIVERY_FAILED` moves it to `DELIVERY_FAILED`. Delivered or cancelled shipments cannot be changed, and orders cannot be cancelled once shipping has begun.
+
+- `POST /api/v1/orders/{orderId}/shipment`, `GET /api/v1/orders/{orderId}/shipment`, `PUT /api/v1/shipments/{id}/status` — requires `SHIPMENT_MANAGE`.
+- `GET /api/v1/orders/my-orders/{orderId}/shipment` — owning customer only.
 
 ## Product frame options
 

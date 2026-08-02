@@ -27,6 +27,10 @@ public class CartItem extends BaseEntity {
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_variant_id")
+    private ProductVariant productVariant;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_frame_option_id")
     private ProductFrameOption productFrameOption;
 

@@ -12,6 +12,7 @@ public interface ProductFrameOptionService {
     ProductFrameOptionResponse create(UUID productId, CreateProductFrameOptionRequest request);
 
     List<ProductFrameOptionResponse> findPublishedByProductId(UUID productId);
+    List<ProductFrameOptionResponse> findPublishedByProductVariantId(UUID productId, UUID variantId);
 
     List<ProductFrameOptionResponse> findAllForManagement(UUID productId);
 

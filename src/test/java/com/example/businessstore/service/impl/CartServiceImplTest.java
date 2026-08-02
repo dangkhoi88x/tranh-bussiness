@@ -7,6 +7,7 @@ import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.User;
+import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.mapper.ProductFrameOptionMapper;
@@ -15,6 +16,7 @@ import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +48,8 @@ class CartServiceImplTest {
     private ProductFrameOptionRepository productFrameOptionRepository;
     @Mock
     private ProductFrameOptionMapper productFrameOptionMapper;
+    @Mock
+    private ProductVariantRepository productVariantRepository;
 
     @InjectMocks
     private CartServiceImpl cartService;
@@ -78,7 +82,7 @@ class CartServiceImplTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(cartRepository.save(any(Cart.class))).thenReturn(cart);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(cartItemRepository.findByCartIdAndProductIdAndProductFrameOptionIsNull(cart.getId(), productId))
+        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, null))
                 .thenReturn(Optional.empty());
         when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> {
             CartItem item = invocation.getArgument(0);
@@ -86,7 +90,7 @@ class CartServiceImplTest {
             return item;
         });
 
-        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, null, 2));
+        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, null, null, 2));
 
         assertThat(response.totalQuantity()).isEqualTo(2);
         assertThat(response.subtotal()).isEqualByComparingTo("500000.00");
@@ -108,12 +112,60 @@ class CartServiceImplTest {
 
         when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(cartItemRepository.findByCartIdAndProductIdAndProductFrameOptionIsNull(cart.getId(), productId))
+        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, null))
                 .thenReturn(Optional.of(existingItem));
 
-        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, 2)))
+        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, null, 2)))
                 .isInstanceOf(AppException.class)
                 .extracting(exception -> ((AppException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INSUFFICIENT_PRODUCT_STOCK);
+    }
+
+    @Test
+    void addItem_requiresVariantWhenProductHasVariants() {
+        Cart cart = new Cart();
+        cart.setId(UUID.randomUUID());
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productVariantRepository.existsByProductId(productId)).thenReturn(true);
+
+        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, null, 1)))
+                .isInstanceOf(AppException.class)
+                .extracting(exception -> ((AppException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PRODUCT_VARIANT_REQUIRED);
+    }
+
+    @Test
+    void addItem_usesVariantPriceAndStock() {
+        Cart cart = new Cart();
+        cart.setId(UUID.randomUUID());
+        UUID variantId = UUID.randomUUID();
+        ProductVariant variant = new ProductVariant();
+        variant.setId(variantId);
+        variant.setProduct(product);
+        variant.setSku("CANVAS-40X60");
+        variant.setName("Canvas 40x60");
+        variant.setMaterial("Canvas");
+        variant.setWidthCm(new BigDecimal("40"));
+        variant.setHeightCm(new BigDecimal("60"));
+        variant.setPrice(new BigDecimal("350000.00"));
+        variant.setStockQuantity(3);
+        variant.setAvailable(true);
+
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productVariantRepository.existsByProductId(productId)).thenReturn(true);
+        when(productVariantRepository.findByIdAndProductId(variantId, productId)).thenReturn(Optional.of(variant));
+        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, variantId)).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> {
+            CartItem item = invocation.getArgument(0);
+            item.setId(UUID.randomUUID());
+            return item;
+        });
+
+        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, variantId, null, 2));
+
+        assertThat(response.subtotal()).isEqualByComparingTo("700000.00");
+        assertThat(response.items().getFirst().selectedVariant().sku()).isEqualTo("CANVAS-40X60");
     }
 }

@@ -8,6 +8,7 @@ public record CartItemResponse(
         UUID productId,
         String productName,
         String productSlug,
+        ProductVariantResponse selectedVariant,
         BigDecimal basePrice,
         ProductFrameOptionResponse selectedFrameOption,
         BigDecimal unitPrice,

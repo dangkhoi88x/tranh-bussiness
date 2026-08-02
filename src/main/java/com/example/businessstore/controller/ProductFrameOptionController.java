@@ -35,6 +35,11 @@ public class ProductFrameOptionController {
         return ResponseEntity.ok(ApiResponse.success(productFrameOptionService.findPublishedByProductId(productId)));
     }
 
+    @GetMapping("/{productId}/variants/{variantId}/frame-options")
+    public ResponseEntity<ApiResponse<List<ProductFrameOptionResponse>>> findForVariant(@PathVariable UUID productId, @PathVariable UUID variantId) {
+        return ResponseEntity.ok(ApiResponse.success(productFrameOptionService.findPublishedByProductVariantId(productId, variantId)));
+    }
+
     @GetMapping("/management/{productId}/frame-options")
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_FRAMES)
     public ResponseEntity<ApiResponse<List<ProductFrameOptionResponse>>> findForManagement(@PathVariable UUID productId) {

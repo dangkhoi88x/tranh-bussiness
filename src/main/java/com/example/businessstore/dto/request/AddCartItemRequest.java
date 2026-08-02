@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record AddCartItemRequest(
         @NotNull UUID productId,
+        UUID productVariantId,
         UUID productFrameOptionId,
         @NotNull @Min(1) @Max(999) Integer quantity) {
 }

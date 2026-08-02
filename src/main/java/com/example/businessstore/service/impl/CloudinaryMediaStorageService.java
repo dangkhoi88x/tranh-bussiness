@@ -40,7 +40,16 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
         return uploadImage("business-store/frames/" + frameId, file);
     }
 
+    @Override
+    public UploadedMedia uploadCustomOrderImage(UUID requestId, MultipartFile file) {
+        return uploadImage("business-store/custom-order-requests/" + requestId, file, "authenticated");
+    }
+
     private UploadedMedia uploadImage(String folder, MultipartFile file) {
+        return uploadImage(folder, file, "upload");
+    }
+
+    private UploadedMedia uploadImage(String folder, MultipartFile file, String deliveryType) {
         validateImage(file);
         requireConfigured();
         try {
@@ -48,6 +57,7 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
                     "folder", folder,
                     "public_id", UUID.randomUUID().toString(),
                     "resource_type", "image",
+                    "type", deliveryType,
                     "overwrite", false));
             String publicId = stringResult(result, "public_id");
             String secureUrl = stringResult(result, "secure_url");
@@ -63,10 +73,31 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
 
     @Override
     public void deleteImage(String publicId) {
+        destroyImage(publicId, "upload");
+    }
+
+    @Override
+    public void deleteCustomOrderImage(String publicId) {
+        destroyImage(publicId, "authenticated");
+    }
+
+    @Override
+    public String signedCustomOrderImageUrl(String publicId) {
+        requireConfigured();
+        return cloudinary.url()
+                .resourceType("image")
+                .type("authenticated")
+                .secure(true)
+                .signed(true)
+                .generate(publicId);
+    }
+
+    private void destroyImage(String publicId, String deliveryType) {
         requireConfigured();
         try {
             Map<?, ?> result = cloudinary.uploader().destroy(publicId, ObjectUtils.asMap(
                     "resource_type", "image",
+                    "type", deliveryType,
                     "invalidate", true));
             String status = stringResult(result, "result");
             if (status != null && !"ok".equals(status) && !"not found".equals(status)) {
