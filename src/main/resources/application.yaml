@@ -1,8 +1,12 @@
 spring:
   application:
-    name: backend-tranh
+    name: business-store
   profiles:
     default: dev
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -19,5 +23,34 @@ management:
 
 info:
   app:
-    name: Backend Tranh
+    name: Business Store API
     description: Backend for the custom art and framing store
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  media:
+    max-image-size-bytes: ${MEDIA_MAX_IMAGE_SIZE_BYTES:10485760}
+    cloudinary:
+      cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+      api-key: ${CLOUDINARY_API_KEY:}
+      api-secret: ${CLOUDINARY_API_SECRET:}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  security:
+    cookie:
+      secure: ${COOKIE_SECURE:false}
+    jwt:
+      issuer: tranh-store-api
+      audience: tranh-store-web
+      secret: ${JWT_SECRET:dGhpcy1pcy1hLWxvY2FsLWRldmVsb3BtZW50LXNlY3JldC1rZXktMzItYnl0ZXM=}
+      access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
+      refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P14D}
+    password-reset:
+      ttl: ${PASSWORD_RESET_TOKEN_TTL:PT30M}
+    oauth:
+      google:
+        client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+        client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+
+  mail:
+    from: ${MAIL_FROM:no-reply@business-store.local}
