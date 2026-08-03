@@ -22,6 +22,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service @RequiredArgsConstructor
@@ -43,7 +45,13 @@ public class PaymentServiceImpl implements PaymentService {
     }
     @Override @Transactional(readOnly = true) public PageResponse<PaymentResponse> getMine(UUID userId, int page, int size) { return toPage(paymentRepository.findByOrderUserId(userId, pageRequest(page, size)), page); }
     @Override @Transactional(readOnly = true) public PaymentResponse getMineById(UUID userId, UUID paymentId) { return toResponse(paymentRepository.findByIdAndOrderUserId(paymentId, userId).orElseThrow(() -> new AppException(ErrorCode.PAYMENT_NOT_FOUND, "Payment not found"))); }
-    @Override @Transactional(readOnly = true) public PageResponse<PaymentResponse> getAll(int page, int size) { return toPage(paymentRepository.findAll(pageRequest(page, size)), page); }
+    @Override @Transactional(readOnly = true) public PageResponse<PaymentResponse> getAll(PaymentStatus status, String orderCode, LocalDate createdFrom, LocalDate createdTo, int page, int size) {
+        if (createdFrom != null && createdTo != null && createdFrom.isAfter(createdTo)) throw new AppException(ErrorCode.INVALID_REQUEST, "Created-from date must not be after created-to date");
+        Instant from = createdFrom == null ? null : createdFrom.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant toExclusive = createdTo == null ? null : createdTo.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        String code = orderCode == null || orderCode.isBlank() ? null : orderCode.trim();
+        return toPage(paymentRepository.searchForManagement(status, code, from, toExclusive, pageRequest(page, size)), page);
+    }
     @Override @Transactional
     public PaymentResponse confirmCod(UUID changedBy, UUID paymentId) {
         Payment existing = paymentRepository.findById(paymentId).orElseThrow(() -> new AppException(ErrorCode.PAYMENT_NOT_FOUND, "Payment not found"));

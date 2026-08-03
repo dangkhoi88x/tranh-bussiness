@@ -1,6 +1,8 @@
 package com.example.businessstore.controller;
 
 import com.example.businessstore.constant.ProductCatalogSort;
+import com.example.businessstore.constant.ProductStatus;
+import com.example.businessstore.constant.ProductStockLevel;
 import com.example.businessstore.constant.SecurityExpressions;
 import com.example.businessstore.dto.request.CreateProductRequest;
 import com.example.businessstore.dto.request.ProductCatalogFilter;
@@ -64,9 +66,13 @@ public class ProductController {
     @GetMapping("/management")
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> findForManagement(
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) ProductStockLevel stockLevel,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(productService.findAllForManagement(page, size)));
+        return ResponseEntity.ok(ApiResponse.success(productService.findAllForManagement(categoryId, name, status, stockLevel, page, size)));
     }
 
     @GetMapping("/management/{id}")

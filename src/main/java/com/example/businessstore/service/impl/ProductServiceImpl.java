@@ -1,6 +1,7 @@
 package com.example.businessstore.service.impl;
 
 import com.example.businessstore.constant.ProductStatus;
+import com.example.businessstore.constant.ProductStockLevel;
 import com.example.businessstore.dto.request.CreateProductRequest;
 import com.example.businessstore.dto.request.ProductCatalogFilter;
 import com.example.businessstore.dto.request.UpdateProductRequest;
@@ -130,8 +131,14 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ProductResponse> findAllForManagement(int page, int size) {
-        return toPageResponse(productRepository.findAll(pageRequest(page, size)), page);
+    public PageResponse<ProductResponse> findAllForManagement(UUID categoryId, String name, ProductStatus status, ProductStockLevel stockLevel, int page, int size) {
+        Integer minStock = null;
+        Integer maxStock = null;
+        if (stockLevel == ProductStockLevel.OUT_OF_STOCK) { minStock = 0; maxStock = 0; }
+        else if (stockLevel == ProductStockLevel.LOW_STOCK) { minStock = 1; maxStock = 5; }
+        else if (stockLevel == ProductStockLevel.IN_STOCK) { minStock = 6; }
+        String normalizedName = name == null || name.isBlank() ? null : name.trim();
+        return toPageResponse(productRepository.searchForManagement(normalizedName, categoryId, status, minStock, maxStock, pageRequest(page, size)), page);
     }
 
     @Override

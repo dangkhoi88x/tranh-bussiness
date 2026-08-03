@@ -43,6 +43,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -148,8 +150,13 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PromotionResponse> getAll(int page, int size) {
-        Page<Promotion> promotions = promotionRepository.findAll(pageRequest(page, size));
+    public PageResponse<PromotionResponse> getAll(String code, PromotionStatus status, LocalDate effectiveFrom, LocalDate effectiveTo, int page, int size) {
+        if (effectiveFrom != null && effectiveTo != null && effectiveFrom.isAfter(effectiveTo)) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Effective-from date must not be after effective-to date");
+        }
+        Instant from = effectiveFrom == null ? null : effectiveFrom.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant toExclusive = effectiveTo == null ? null : effectiveTo.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Page<Promotion> promotions = promotionRepository.searchForManagement(normalize(code), status, from, toExclusive, pageRequest(page, size));
         return new PageResponse<>(promotions.getContent().stream().map(this::toResponse).toList(),
                 Math.max(page, 1), promotions.getSize(), promotions.getTotalElements(),
                 promotions.getTotalPages(), promotions.hasNext());

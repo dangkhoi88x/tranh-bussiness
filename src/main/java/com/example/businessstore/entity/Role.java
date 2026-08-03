@@ -26,6 +26,9 @@ public class Role extends BaseEntity {
     @Column(length = 255)
     private String description;
 
+    @Column(name = "permissions_customized", nullable = false)
+    private boolean permissionsCustomized;
+
     @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<RolePermission> rolePermissions = new LinkedHashSet<>();
 }

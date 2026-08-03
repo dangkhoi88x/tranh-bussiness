@@ -44,6 +44,7 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -149,7 +150,10 @@ public class OrderServiceImpl implements OrderService {
 
     @Override @Transactional(readOnly = true) public PageResponse<OrderResponse> getMine(UUID userId, int page, int size) { return toPage(orderRepository.findByUserId(userId, pageRequest(page, size)), page); }
     @Override @Transactional(readOnly = true) public OrderResponse getMineById(UUID userId, UUID orderId) { return toResponse(orderRepository.findByIdAndUserId(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"))); }
-    @Override @Transactional(readOnly = true) public PageResponse<OrderResponse> getAll(int page, int size) { return toPage(orderRepository.findAll(pageRequest(page, size)), page); }
+    @Override @Transactional(readOnly = true) public PageResponse<OrderResponse> getAll(String orderCode, OrderStatus status, String customer, LocalDate createdFrom, LocalDate createdTo, int page, int size) {
+        validateDateRange(createdFrom, createdTo);
+        return toPage(orderRepository.searchForManagement(clean(orderCode), status, clean(customer), startOfDay(createdFrom), startOfNextDay(createdTo), pageRequest(page, size)), page);
+    }
     @Override @Transactional(readOnly = true) public OrderResponse getForManagement(UUID orderId) { return toResponse(getOrder(orderId)); }
 
     @Override @Transactional
@@ -186,6 +190,10 @@ public class OrderServiceImpl implements OrderService {
     private void changeStatus(Order order, OrderStatus next, UUID changedBy, String note) { OrderStatus from = order.getStatus(); order.setStatus(next); orderStatusHistoryService.record(order, from, next, changedBy, note); }
     private Order getOrder(UUID id) { return orderRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
     private Order getOrderForUpdate(UUID id) { return orderRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
+    private void validateDateRange(LocalDate from, LocalDate to) { if (from != null && to != null && from.isAfter(to)) throw new AppException(ErrorCode.INVALID_REQUEST, "Created-from date must not be after created-to date"); }
+    private Instant startOfDay(LocalDate date) { return date == null ? null : date.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
+    private Instant startOfNextDay(LocalDate date) { return date == null ? null : date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
+    private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private PageRequest pageRequest(int page, int size) { return PageRequest.of(Math.max(page, 1) - 1, Math.min(Math.max(size, 1), MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt")); }
     private PageResponse<OrderResponse> toPage(Page<Order> orders, int requestedPage) { return new PageResponse<>(orders.getContent().stream().map(this::toResponse).toList(), Math.max(requestedPage, 1), orders.getSize(), orders.getTotalElements(), orders.getTotalPages(), orders.hasNext()); }
     private OrderResponse toResponse(Order order) { List<OrderItemResponse> items = order.getItems().stream().map(i -> new OrderItemResponse(i.getId(), i.getProductId(), i.getProductName(), i.getProductSlug(), i.getProductVariantId(), i.getVariantSku(), i.getVariantName(), i.getVariantMaterial(), i.getVariantWidthCm(), i.getVariantHeightCm(), i.getProductFrameOptionId(), i.getFrameName(), i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal())).toList(); OrderShippingAddress snapshot = order.getShippingAddressSnapshot(); OrderShippingAddressResponse address = snapshot == null ? null : new OrderShippingAddressResponse(snapshot.getRecipientName(), snapshot.getPhone(), snapshot.getProvince(), snapshot.getDistrict(), snapshot.getWard(), snapshot.getAddressLine()); OrderCustomDetails details = order.getCustomDetails(); OrderCustomDetailsResponse customDetails = details == null ? null : new OrderCustomDetailsResponse(details.getCustomOrderRequestId(), details.getRequestCode(), details.getRequestType(), details.getWidthCm(), details.getHeightCm(), details.getMaterial(), details.getFrameId(), details.getFrameName(), details.getQuotedPrice()); return new OrderResponse(order.getId(), order.getOrderCode(), order.getStatus(), order.getShippingAddress(), address, order.getSubtotalAmount(), order.getDiscountAmount(), order.getTotalAmount(), order.getPromotionId(), order.getPromotionCode(), customDetails, items, order.getCreatedAt()); }

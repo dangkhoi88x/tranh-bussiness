@@ -5,6 +5,8 @@ import com.example.businessstore.dto.request.ProductCatalogFilter;
 import com.example.businessstore.dto.request.UpdateProductRequest;
 import com.example.businessstore.dto.response.PageResponse;
 import com.example.businessstore.dto.response.ProductResponse;
+import com.example.businessstore.constant.ProductStatus;
+import com.example.businessstore.constant.ProductStockLevel;
 
 import java.util.UUID;
 
@@ -26,7 +28,7 @@ public interface ProductService {
 
     ProductResponse findPublishedBySlug(String slug);
 
-    PageResponse<ProductResponse> findAllForManagement(int page, int size);
+    PageResponse<ProductResponse> findAllForManagement(UUID categoryId, String name, ProductStatus status, ProductStockLevel stockLevel, int page, int size);
 
     ProductResponse findForManagement(UUID id);
 }

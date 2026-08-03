@@ -40,6 +40,9 @@ public class User extends BaseEntity implements UserDetails {
     @Column(length = 30)
     private String phone;
 
+    @Column(nullable = false)
+    private boolean enabled = true;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<UserRole> userRoles = new LinkedHashSet<>();
 
@@ -97,5 +100,10 @@ public class User extends BaseEntity implements UserDetails {
     @Override
     public String getUsername() {
         return email;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return enabled;
     }
 }

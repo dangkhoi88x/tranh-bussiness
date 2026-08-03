@@ -2,6 +2,7 @@ package com.example.businessstore.service.impl;
 import com.example.businessstore.constant.*;
 import com.example.businessstore.dto.request.*;
 import com.example.businessstore.dto.response.ShipmentResponse;
+import com.example.businessstore.dto.response.PageResponse;
 import com.example.businessstore.entity.*;
 import com.example.businessstore.exception.*;
 import com.example.businessstore.repository.*;
@@ -10,10 +11,14 @@ import com.example.businessstore.service.OrderStatusHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import java.time.Instant;
 import java.util.UUID;
 @Service @RequiredArgsConstructor
 public class ShipmentServiceImpl implements ShipmentService {
+    private static final int MAX_PAGE_SIZE = 100;
     private final ShipmentRepository shipmentRepository; private final OrderRepository orderRepository; private final PaymentRepository paymentRepository; private final OrderStatusHistoryService orderStatusHistoryService;
     @Override @Transactional public ShipmentResponse create(UUID changedBy, UUID orderId, CreateShipmentRequest input) {
         Order order = orderRepository.findByIdForUpdate(orderId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"));
@@ -31,6 +36,12 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
     @Override @Transactional(readOnly = true) public ShipmentResponse getMine(UUID userId, UUID orderId) { return toResponse(shipmentRepository.findByOrderIdAndOrderUserId(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.SHIPMENT_NOT_FOUND, "Shipment not found"))); }
     @Override @Transactional(readOnly = true) public ShipmentResponse getForManagement(UUID orderId) { return toResponse(shipmentRepository.findByOrderId(orderId).orElseThrow(() -> new AppException(ErrorCode.SHIPMENT_NOT_FOUND, "Shipment not found"))); }
+    @Override @Transactional(readOnly = true) public PageResponse<ShipmentResponse> getAll(ShipmentStatus status, String carrier, String trackingCode, int page, int size) {
+        int normalizedPage = Math.max(page, 1);
+        Page<Shipment> shipments = shipmentRepository.searchForManagement(status, normalizeFilter(carrier), normalizeFilter(trackingCode),
+                PageRequest.of(normalizedPage - 1, Math.min(Math.max(size, 1), MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt")));
+        return new PageResponse<>(shipments.getContent().stream().map(this::toResponse).toList(), normalizedPage, shipments.getSize(), shipments.getTotalElements(), shipments.getTotalPages(), shipments.hasNext());
+    }
     @Override @Transactional public ShipmentResponse updateStatus(UUID changedBy, UUID id, UpdateShipmentStatusRequest input) {
         Shipment shipment = shipmentRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.SHIPMENT_NOT_FOUND, "Shipment not found"));
         Order order = orderRepository.findByIdForUpdate(shipment.getOrder().getId()).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"));
@@ -44,5 +55,6 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
     private boolean allowed(ShipmentStatus current, ShipmentStatus next) { return (current == ShipmentStatus.READY && (next == ShipmentStatus.IN_TRANSIT || next == ShipmentStatus.CANCELLED)) || (current == ShipmentStatus.IN_TRANSIT && (next == ShipmentStatus.DELIVERED || next == ShipmentStatus.DELIVERY_FAILED)) || (current == ShipmentStatus.DELIVERY_FAILED && next == ShipmentStatus.IN_TRANSIT); }
     private void changeOrderStatus(Order order, OrderStatus next, UUID changedBy, String note) { OrderStatus from = order.getStatus(); order.setStatus(next); orderStatusHistoryService.record(order, from, next, changedBy, note); }
-    private ShipmentResponse toResponse(Shipment s) { return new ShipmentResponse(s.getId(), s.getOrder().getId(), s.getOrder().getOrderCode(), s.getCarrier(), s.getTrackingCode(), s.getShippingFee(), s.getStatus(), s.getShippedAt(), s.getDeliveredAt(), s.getFailedAt(), s.getFailureReason()); }
+    private String normalizeFilter(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+    private ShipmentResponse toResponse(Shipment s) { return new ShipmentResponse(s.getId(), s.getOrder().getId(), s.getOrder().getOrderCode(), s.getCarrier(), s.getTrackingCode(), s.getShippingFee(), s.getStatus(), s.getShippedAt(), s.getDeliveredAt(), s.getFailedAt(), s.getFailureReason(), s.getCreatedAt(), s.getUpdatedAt()); }
 }

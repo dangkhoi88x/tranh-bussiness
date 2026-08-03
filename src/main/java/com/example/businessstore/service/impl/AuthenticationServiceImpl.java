@@ -116,6 +116,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     private AuthSession issueSession(User user) {
+        if (!user.isEnabled()) {
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Account is disabled");
+        }
         String accessToken = jwtService.createAccessToken(user);
         String refreshToken = refreshTokenService.create(user);
         return new AuthSession(AuthResponse.from(user, accessToken), refreshToken);

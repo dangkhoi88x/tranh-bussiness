@@ -7,7 +7,11 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
+import com.example.businessstore.constant.OrderStatus;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +23,38 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from Order o where o.id = :id and o.user.id = :userId") Optional<Order> findByIdAndUserIdForUpdate(UUID id, UUID userId);
     boolean existsByOrderCode(String orderCode);
+
+    @EntityGraph(attributePaths = {"items", "user"})
+    @Query("""
+            select o from Order o join o.user customer
+            where (:orderCode is null or lower(o.orderCode) like lower(concat('%', :orderCode, '%')))
+              and (:status is null or o.status = :status)
+              and (:customerQuery is null
+                   or lower(customer.email) like lower(concat('%', :customerQuery, '%'))
+                   or lower(customer.firstName) like lower(concat('%', :customerQuery, '%'))
+                   or lower(customer.lastName) like lower(concat('%', :customerQuery, '%')))
+              and (:createdFrom is null or o.createdAt >= :createdFrom)
+              and (:createdToExclusive is null or o.createdAt < :createdToExclusive)
+            """)
+    Page<Order> searchForManagement(
+            @Param("orderCode") String orderCode,
+            @Param("status") OrderStatus status,
+            @Param("customerQuery") String customerQuery,
+            @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusive") Instant createdToExclusive,
+            Pageable pageable);
+
+    @Query("select count(o) from Order o where o.createdAt >= :from and o.createdAt < :toExclusive")
+    long countCreatedBetween(@Param("from") Instant from, @Param("toExclusive") Instant toExclusive);
+
+    @Query("select o.status, count(o) from Order o where o.createdAt >= :from and o.createdAt < :toExclusive group by o.status")
+    List<Object[]> countCreatedByStatusBetween(@Param("from") Instant from, @Param("toExclusive") Instant toExclusive);
+
+    @Query(value = """
+            select (created_at at time zone 'Asia/Ho_Chi_Minh')::date, count(*)
+            from orders
+            where created_at >= :from and created_at < :toExclusive
+            group by 1 order by 1
+            """, nativeQuery = true)
+    List<Object[]> countCreatedByDayBetween(@Param("from") Instant from, @Param("toExclusive") Instant toExclusive);
 }

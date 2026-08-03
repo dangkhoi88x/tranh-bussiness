@@ -90,7 +90,21 @@ docker compose up -d
 
 Trên Windows PowerShell, dùng `./mvnw.cmd spring-boot:run`. API mặc định chạy ở `http://localhost:8080`; health check là `GET /actuator/health`.
 
+### Chạy database bằng Docker
+
+1. Copy `.env.example` thành `.env` (có thể giữ các giá trị development mặc định).
+2. Chỉ khởi động PostgreSQL: `docker compose up -d postgres`.
+3. Kiểm tra database đã sẵn sàng: `docker compose ps` hoặc `docker compose logs -f postgres`.
+
+PostgreSQL được lưu trong Docker volume `postgres_data`, nên `docker compose down` không xóa dữ liệu. Chỉ dùng `docker compose down -v` khi muốn xóa toàn bộ dữ liệu local và chạy lại Flyway từ đầu.
+
 PostgreSQL local dùng database `art_store`, user `art_store`, password `art_store_dev`; Redis chạy tại cổng `6379`. Mailpit nhận email local tại SMTP `localhost:1025` và cho xem thư tại `http://localhost:8025`. Các giá trị production phải cấu hình bằng biến môi trường; xem `.env.example`.
+
+### Dữ liệu development
+
+Với profile `dev`, ứng dụng tự tạo dữ liệu mẫu theo cách idempotent: 3 category, 3 frame, 4 product đã publish, variant, ảnh placeholder và lựa chọn khung. Tài khoản quản trị local là `admin@tranh.local` / `Admin@123456`; có thể đổi bằng `APP_SEED_ADMIN_EMAIL` và `APP_SEED_ADMIN_PASSWORD`.
+
+Seed chỉ chạy trong `dev` và có thể tắt bằng `APP_SEED_ENABLED=false`. Không có dữ liệu mẫu nào được chạy trong profile `prod`.
 
 ## IAM
 

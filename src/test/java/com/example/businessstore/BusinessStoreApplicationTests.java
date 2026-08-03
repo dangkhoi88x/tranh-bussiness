@@ -1,6 +1,8 @@
 package com.example.businessstore;
 
 import com.example.businessstore.constant.OrderStatus;
+import com.example.businessstore.constant.PaymentMethod;
+import com.example.businessstore.constant.PaymentStatus;
 import com.example.businessstore.constant.ProductCatalogSort;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.constant.NotificationType;
@@ -10,6 +12,7 @@ import com.example.businessstore.dto.request.ProductCatalogFilter;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.OrderItem;
+import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Promotion;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductVariant;
@@ -17,12 +20,14 @@ import com.example.businessstore.entity.User;
 import com.example.businessstore.entity.WishlistItem;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.OrderRepository;
+import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.NotificationRepository;
 import com.example.businessstore.repository.PromotionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.WishlistItemRepository;
+import com.example.businessstore.service.DashboardService;
 import com.example.businessstore.repository.specification.ProductCatalogSpecifications;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +44,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -61,6 +68,8 @@ class BusinessStoreApplicationTests {
     @Autowired ProductRepository productRepository;
     @Autowired ProductVariantRepository productVariantRepository;
     @Autowired OrderRepository orderRepository;
+    @Autowired PaymentRepository paymentRepository;
+    @Autowired DashboardService dashboardService;
     @Autowired NotificationRepository notificationRepository;
     @Autowired WishlistItemRepository wishlistItemRepository;
     @Autowired PlatformTransactionManager transactionManager;
@@ -187,6 +196,43 @@ class BusinessStoreApplicationTests {
         assertThat(first).isEqualTo(1);
         assertThat(duplicate).isZero();
         assertThat(notificationRepository.countByUserIdAndReadAtIsNull(savedUser.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void dashboardAggregatesPaidRevenueOrdersAndLowStockOnPostgres() {
+        String suffix = Long.toString(System.nanoTime());
+        User user = new User();
+        user.setEmail("dashboard-" + suffix + "@example.com"); user.setPasswordHash("hash");
+        user.setFirstName("Dashboard"); user.setLastName("User");
+        User savedUser = userRepository.saveAndFlush(user);
+
+        Category category = new Category();
+        category.setName("Dashboard category " + suffix); category.setSlug("dashboard-category-" + suffix);
+        Category savedCategory = categoryRepository.saveAndFlush(category);
+        Product product = savePublishedProduct(savedCategory, "Dashboard product " + suffix, "dashboard-product-" + suffix, new BigDecimal("400000"));
+        product.setStockQuantity(1);
+        productRepository.saveAndFlush(product);
+
+        Order order = new Order();
+        order.setOrderCode("DASH-" + suffix); order.setUser(savedUser); order.setShippingAddress("Test address");
+        order.setSubtotalAmount(new BigDecimal("400000")); order.setDiscountAmount(BigDecimal.ZERO);
+        order.setTotalAmount(new BigDecimal("400000")); order.setStatus(OrderStatus.DELIVERED);
+        Order savedOrder = orderRepository.saveAndFlush(order);
+        Payment payment = new Payment();
+        payment.setOrder(savedOrder); payment.setAmount(new BigDecimal("400000")); payment.setMethod(PaymentMethod.COD);
+        payment.setStatus(PaymentStatus.SUCCESS); payment.setTransactionCode("DASH-PAY-" + suffix); payment.setPaidAt(Instant.now());
+        paymentRepository.saveAndFlush(payment);
+
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        var dashboard = dashboardService.getOverview(today, today);
+
+        assertThat(dashboard.revenue()).isGreaterThanOrEqualTo(new BigDecimal("400000"));
+        assertThat(dashboard.orderCount()).isGreaterThanOrEqualTo(1);
+        assertThat(dashboard.orderStatuses()).anySatisfy(status -> {
+            assertThat(status.status()).isEqualTo(OrderStatus.DELIVERED);
+            assertThat(status.count()).isGreaterThanOrEqualTo(1);
+        });
+        assertThat(dashboard.lowStockProducts()).extracting(productResponse -> productResponse.id()).contains(product.getId());
     }
 
     private Product savePublishedProduct(Category category, String name, String slug, BigDecimal price) {

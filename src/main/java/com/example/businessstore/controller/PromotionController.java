@@ -1,6 +1,7 @@
 package com.example.businessstore.controller;
 
 import com.example.businessstore.constant.SecurityExpressions;
+import com.example.businessstore.constant.PromotionStatus;
 import com.example.businessstore.dto.request.CreatePromotionRequest;
 import com.example.businessstore.dto.request.PreviewPromotionRequest;
 import com.example.businessstore.dto.request.UpdatePromotionRequest;
@@ -30,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
 
 @RestController
 @RequestMapping("/api/v1/promotions")
@@ -48,9 +51,13 @@ public class PromotionController {
     @GetMapping
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_PROMOTIONS)
     public ResponseEntity<ApiResponse<PageResponse<PromotionResponse>>> getAll(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) PromotionStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate effectiveFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate effectiveTo,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(promotionService.getAll(page, size)));
+        return ResponseEntity.ok(ApiResponse.success(promotionService.getAll(code, status, effectiveFrom, effectiveTo, page, size)));
     }
 
     @GetMapping("/{id}")

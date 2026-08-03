@@ -26,13 +26,16 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public Role createRole(RoleName roleName) {
-        Role role = roleRepository.findByNameIgnoreCase(roleName.name())
-                .orElseGet(() -> {
+        Role role = roleRepository.findByNameIgnoreCase(roleName.name()).orElse(null);
+        if (role == null) {
                     Role newRole = new Role();
                     newRole.setName(roleName.name());
-                    return roleRepository.save(newRole);
-                });
-        defaultPermissions(roleName).forEach(permissionName -> assignPermission(role, permissionName));
+                    role = roleRepository.save(newRole);
+        }
+        if (!role.isPermissionsCustomized()) {
+            Role roleToConfigure = role;
+            defaultPermissions(roleName).forEach(permissionName -> assignPermission(roleToConfigure, permissionName));
+        }
         return role;
     }
 

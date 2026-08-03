@@ -7,11 +7,12 @@ import com.example.businessstore.dto.response.OrderStatusHistoryResponse;
 import com.example.businessstore.entity.CustomOrderRequest;
 import java.util.UUID;
 import java.util.List;
+import java.time.LocalDate;
 public interface OrderService {
     OrderResponse checkout(UUID userId, CheckoutOrderRequest request);
     PageResponse<OrderResponse> getMine(UUID userId, int page, int size);
     OrderResponse getMineById(UUID userId, UUID orderId);
-    PageResponse<OrderResponse> getAll(int page, int size);
+    PageResponse<OrderResponse> getAll(String orderCode, OrderStatus status, String customer, LocalDate createdFrom, LocalDate createdTo, int page, int size);
     OrderResponse getForManagement(UUID orderId);
     OrderResponse updateStatus(UUID changedBy, UUID orderId, OrderStatus status, String note);
     OrderResponse cancel(UUID userId, UUID orderId);

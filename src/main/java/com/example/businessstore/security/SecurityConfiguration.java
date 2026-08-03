@@ -17,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -24,6 +25,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
+
+import com.example.businessstore.repository.UserRepository;
 
 @Configuration
 @EnableMethodSecurity
@@ -33,6 +37,7 @@ public class SecurityConfiguration {
     private final CorsProperties corsProperties;
     private final ApiAuthenticationEntryPoint authenticationEntryPoint;
     private final ApiAccessDeniedHandler accessDeniedHandler;
+    private final UserRepository userRepository;
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, @Qualifier("jwtDecoder") JwtDecoder jwtDecoder) throws Exception {
@@ -86,12 +91,20 @@ public class SecurityConfiguration {
 
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        authoritiesConverter.setAuthoritiesClaimName("roles");
-        authoritiesConverter.setAuthorityPrefix("");
-
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            UUID userId;
+            try { userId = UUID.fromString(jwt.getSubject()); }
+            catch (IllegalArgumentException exception) { throw new InvalidBearerTokenException("Invalid token subject", exception); }
+            var user = userRepository.findWithRolesById(userId)
+                    .orElseThrow(() -> new InvalidBearerTokenException("Account no longer exists"));
+            if (!user.isEnabled()) {
+                throw new InvalidBearerTokenException("Account is disabled");
+            }
+            return user.getAuthorities().stream()
+                    .map(org.springframework.security.core.GrantedAuthority.class::cast)
+                    .toList();
+        });
         return converter;
     }
 

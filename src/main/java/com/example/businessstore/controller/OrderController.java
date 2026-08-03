@@ -18,6 +18,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
+import java.time.LocalDate;
+import com.example.businessstore.constant.OrderStatus;
+import org.springframework.format.annotation.DateTimeFormat;
 
 @RestController @RequestMapping("/api/v1/orders") @RequiredArgsConstructor
 public class OrderController {
@@ -27,7 +30,7 @@ public class OrderController {
     @GetMapping("/my-orders/{id}") public ResponseEntity<ApiResponse<OrderResponse>> mineById(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getMineById(userId(jwt), id))); }
     @GetMapping("/my-orders/{id}/history") public ResponseEntity<ApiResponse<List<OrderStatusHistoryResponse>>> mineHistory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getMineHistory(userId(jwt), id))); }
     @PutMapping("/my-orders/{id}/cancel") public ResponseEntity<ApiResponse<OrderResponse>> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.cancel(userId(jwt), id), "Order cancelled")); }
-    @GetMapping @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> all(@RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) { return ResponseEntity.ok(ApiResponse.success(orderService.getAll(page, size))); }
+    @GetMapping @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> all(@RequestParam(required = false) String orderCode, @RequestParam(required = false) OrderStatus status, @RequestParam(required = false) String customer, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) { return ResponseEntity.ok(ApiResponse.success(orderService.getAll(orderCode, status, customer, createdFrom, createdTo, page, size))); }
     @GetMapping("/{id}") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<OrderResponse>> managementDetail(@PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getForManagement(id))); }
     @GetMapping("/{id}/history") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<List<OrderStatusHistoryResponse>>> history(@PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getHistoryForManagement(id))); }
     @PutMapping("/{id}/status") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<OrderResponse>> status(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody UpdateOrderStatusRequest request) { return ResponseEntity.ok(ApiResponse.success(orderService.updateStatus(userId(jwt), id, request.status(), request.note()), "Order status updated")); }

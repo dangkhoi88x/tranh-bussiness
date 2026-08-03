@@ -17,7 +17,10 @@ public class RefreshTokenValidator implements OAuth2TokenValidator<Jwt> {
 
     @Override
     public OAuth2TokenValidatorResult validate(Jwt token) {
-        boolean validIssuer = jwtProperties.issuer().equals(token.getIssuer() == null ? null : token.getIssuer().toString());
+        // getIssuer() converts the claim to URL in Spring Security 7. Our issuer is an
+        // application identifier (for example "tranh-store-api"), so compare the raw
+        // registered claim just like the access-token validator does.
+        boolean validIssuer = jwtProperties.issuer().equals(token.getClaimAsString("iss"));
         boolean validAudience = token.getAudience().contains(jwtProperties.audience());
         boolean isRefreshToken = "refresh".equals(token.getClaimAsString("token_type"));
 

@@ -26,6 +26,21 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
     @Query("select promotion from Promotion promotion where promotion.id = :id")
     Optional<Promotion> findWithScopesById(@Param("id") UUID id);
 
+    @EntityGraph(attributePaths = {"scopes", "scopes.category", "scopes.product", "scopes.productVariant"})
+    @Query("""
+            select promotion from Promotion promotion
+            where (:code is null or lower(promotion.code) like lower(concat('%', :code, '%')))
+              and (:status is null or promotion.status = :status)
+              and (:effectiveFrom is null or promotion.endAt >= :effectiveFrom)
+              and (:effectiveToExclusive is null or promotion.startAt < :effectiveToExclusive)
+            """)
+    Page<Promotion> searchForManagement(
+            @Param("code") String code,
+            @Param("status") com.example.businessstore.constant.PromotionStatus status,
+            @Param("effectiveFrom") Instant effectiveFrom,
+            @Param("effectiveToExclusive") Instant effectiveToExclusive,
+            Pageable pageable);
+
     @Modifying
     @Query(value = """
             UPDATE promotions
