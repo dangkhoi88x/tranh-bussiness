@@ -5,6 +5,7 @@ import com.example.businessstore.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 
 import jakarta.persistence.LockModeType;
@@ -12,7 +13,7 @@ import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ProductRepository extends JpaRepository<Product, UUID> {
+public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
 
     boolean existsBySlug(String slug);
 

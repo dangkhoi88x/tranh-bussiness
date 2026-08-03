@@ -2,6 +2,7 @@ package com.example.businessstore.service.impl;
 
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.dto.request.CreateProductRequest;
+import com.example.businessstore.dto.request.ProductCatalogFilter;
 import com.example.businessstore.dto.request.UpdateProductRequest;
 import com.example.businessstore.dto.response.PageResponse;
 import com.example.businessstore.dto.response.ProductResponse;
@@ -13,6 +14,7 @@ import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductImageRepository;
+import com.example.businessstore.repository.specification.ProductCatalogSpecifications;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
 import com.example.businessstore.service.ProductService;
 import com.example.businessstore.util.SlugUtils;
@@ -24,6 +26,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -101,11 +104,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ProductResponse> findPublished(UUID categoryId, int page, int size) {
-        Pageable pageable = pageRequest(page, size);
-        Page<Product> products = categoryId == null
-                ? productRepository.findAllByStatusOrderByCreatedAtDesc(ProductStatus.PUBLISHED, pageable)
-                : productRepository.findAllByCategoryIdAndStatusOrderByCreatedAtDesc(categoryId, ProductStatus.PUBLISHED, pageable);
+    public PageResponse<ProductResponse> findPublished(ProductCatalogFilter filter, int page, int size) {
+        ProductCatalogFilter validatedFilter = validateCatalogFilter(filter);
+        Page<Product> products = productRepository.findAll(
+                ProductCatalogSpecifications.published(validatedFilter), catalogPageRequest(page, size));
         return toPageResponse(products, page);
     }
 
@@ -152,6 +154,41 @@ public class ProductServiceImpl implements ProductService {
         int pageNumber = Math.max(page, 1) - 1;
         int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         return PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+
+    private Pageable catalogPageRequest(int page, int size) {
+        int pageNumber = Math.max(page, 1) - 1;
+        int pageSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        return PageRequest.of(pageNumber, pageSize);
+    }
+
+    private ProductCatalogFilter validateCatalogFilter(ProductCatalogFilter filter) {
+        ProductCatalogFilter value = filter == null
+                ? new ProductCatalogFilter(null, null, null, null, null, null, null, null)
+                : filter;
+        if (isNegative(value.minPrice()) || isNegative(value.maxPrice())
+                || isNegative(value.widthCm()) || isNegative(value.heightCm())) {
+            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
+                    "Price and dimensions must not be negative");
+        }
+        if (value.minPrice() != null && value.maxPrice() != null
+                && value.minPrice().compareTo(value.maxPrice()) > 0) {
+            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
+                    "minPrice must be less than or equal to maxPrice");
+        }
+        if (isZero(value.widthCm()) || isZero(value.heightCm())) {
+            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
+                    "Dimensions must be greater than zero");
+        }
+        return value;
+    }
+
+    private boolean isNegative(BigDecimal value) {
+        return value != null && value.signum() < 0;
+    }
+
+    private boolean isZero(BigDecimal value) {
+        return value != null && value.signum() == 0;
     }
 
     private Category getCategory(UUID id) {

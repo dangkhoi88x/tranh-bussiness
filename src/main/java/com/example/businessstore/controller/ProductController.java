@@ -1,7 +1,9 @@
 package com.example.businessstore.controller;
 
+import com.example.businessstore.constant.ProductCatalogSort;
 import com.example.businessstore.constant.SecurityExpressions;
 import com.example.businessstore.dto.request.CreateProductRequest;
+import com.example.businessstore.dto.request.ProductCatalogFilter;
 import com.example.businessstore.dto.request.UpdateProductRequest;
 import com.example.businessstore.dto.response.ApiResponse;
 import com.example.businessstore.dto.response.PageResponse;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @RestController
@@ -34,9 +37,18 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> findPublished(
             @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String material,
+            @RequestParam(required = false) BigDecimal widthCm,
+            @RequestParam(required = false) BigDecimal heightCm,
+            @RequestParam(defaultValue = "NEWEST") ProductCatalogSort sort,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "12") int size) {
-        return ResponseEntity.ok(ApiResponse.success(productService.findPublished(categoryId, page, size)));
+        ProductCatalogFilter filter = new ProductCatalogFilter(
+                categoryId, keyword, minPrice, maxPrice, material, widthCm, heightCm, sort);
+        return ResponseEntity.ok(ApiResponse.success(productService.findPublished(filter, page, size)));
     }
 
     @GetMapping("/slug/{slug}")

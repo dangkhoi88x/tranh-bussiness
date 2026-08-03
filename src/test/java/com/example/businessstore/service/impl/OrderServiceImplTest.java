@@ -10,6 +10,7 @@ import com.example.businessstore.constant.CustomOrderRequestType;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
+import com.example.businessstore.event.OrderConfirmedEvent;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -44,6 +46,7 @@ class OrderServiceImplTest {
     @Mock private ShippingAddressService shippingAddressService;
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
     @Mock private PromotionService promotionService;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @InjectMocks private OrderServiceImpl orderService;
 
     @Test
@@ -83,6 +86,10 @@ class OrderServiceImplTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         verify(orderStatusHistoryService).record(order, OrderStatus.PENDING, OrderStatus.CONFIRMED, staffId,
                 "Confirmed; Coupon SAVE10 consumed");
+        org.mockito.ArgumentCaptor<OrderConfirmedEvent> event = org.mockito.ArgumentCaptor.forClass(OrderConfirmedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().orderId()).isEqualTo(orderId);
+        assertThat(event.getValue().email()).isEqualTo("customer@example.com");
     }
 
     @Test
@@ -139,6 +146,8 @@ class OrderServiceImplTest {
         Order order = new Order();
         order.setId(id);
         order.setOrderCode("ART-001");
+        User user = new User(); user.setId(UUID.randomUUID()); user.setEmail("customer@example.com"); user.setFirstName("Customer");
+        order.setUser(user);
         order.setStatus(status);
         order.setSubtotalAmount(BigDecimal.TEN);
         order.setTotalAmount(BigDecimal.TEN);

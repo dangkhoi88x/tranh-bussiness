@@ -10,6 +10,22 @@ Cart belongs to the authenticated user. When a product has variants, the custome
 - `DELETE /api/v1/cart/items/{itemId}` - remove one item.
 - `DELETE /api/v1/cart` - remove all items from the current cart.
 
+## Wishlist
+
+Wishlist is fully server-authoritative for authenticated users. A user may save a whole Product or one exact ProductVariant; the two intents are distinct, but the database prevents duplicate generic or duplicate variant entries even when requests are retried concurrently. The response includes the current Product, selected variant and primary image so the frontend can render saved-product cards directly.
+
+- `GET /api/v1/wishlist` — get the authenticated user's current wishlist.
+- `POST /api/v1/wishlist` — body: required `productId`, optional `productVariantId`. Only a published Product and an available variant belonging to it can be saved.
+- `DELETE /api/v1/wishlist/{itemId}` — remove only an item owned by the authenticated user.
+
+## Notifications
+
+The backend creates a durable, per-user in-app notification and sends a plain-text email after a new password or Google account is committed. When staff confirms an order, it creates one `ORDER_CONFIRMED` notification and email for the owner. Notification event keys are unique, so a retried event cannot create or email duplicate welcome/order-confirmed messages. SMTP failures are logged after the business transaction has committed; they do not roll back account creation or order confirmation.
+
+- `GET /api/v1/notifications` — authenticated user's notifications, newest first.
+- `GET /api/v1/notifications/unread-count` — current unread count.
+- `PATCH /api/v1/notifications/{id}/read`, `PATCH /api/v1/notifications/read-all` — mark only the current user's notifications as read.
+
 ## Orders
 
 Checkout creates an immutable purchase snapshot from the authenticated user's cart: product, variant (ID/SKU/name/material/dimensions/price), frame and selected delivery address are retained. The matching product or variant stock row is pessimistically locked and decremented in the same transaction; cancelling an eligible order restores that same stock row. The backend calculates `totalAmount = subtotalAmount - discountAmount + shippingFee`; it never accepts price or discount values from the client. The cart is cleared only after the order and optional coupon reservation are persisted.
@@ -94,6 +110,17 @@ PostgreSQL local dùng database `art_store`, user `art_store`, password `art_sto
 - `GET /api/v1/products/{productId}/images` — chỉ ảnh của Product đã PUBLISHED.
 - `PATCH /api/v1/products/{productId}/images/{imageId}` — cập nhật alt text, thứ tự hoặc ảnh chính.
 - `DELETE /api/v1/products/{productId}/images/{imageId}` — xóa database và Cloudinary.
+
+## Product catalog search and filters
+
+`GET /api/v1/products` remains public and backward-compatible with `categoryId`, `page`, and `size`. It now accepts an optional `keyword` (matched case- and accent-insensitively against product name and description), `minPrice`, `maxPrice`, `material`, `widthCm`, `heightCm`, and `sort`.
+
+- `sort` is one of `NEWEST` (default), `PRICE_ASC`, `PRICE_DESC`, or `BEST_SELLING`.
+- `minPrice` and `maxPrice` form an inclusive price range; `widthCm` and `heightCm` are exact dimensions.
+- For a Product with variants, price/material/size conditions must match one available ProductVariant. A Product without variants is matched by its base price and dimensions; it cannot match a material filter.
+- Price sorting uses the lowest available variant price when variants exist. Best-selling sorting sums quantities from `DELIVERED` orders only.
+
+Example: `GET /api/v1/products?keyword=son%20dau&material=Canvas&widthCm=60&heightCm=90&minPrice=500000&maxPrice=2500000&sort=PRICE_ASC`
 
 ## Frames
 

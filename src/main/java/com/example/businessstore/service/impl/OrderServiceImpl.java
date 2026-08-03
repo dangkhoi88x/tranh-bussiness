@@ -21,6 +21,7 @@ import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ShippingAddress;
 import com.example.businessstore.entity.OrderShippingAddress;
+import com.example.businessstore.event.OrderConfirmedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.CartRepository;
@@ -39,6 +40,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -61,6 +63,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStatusHistoryService orderStatusHistoryService;
     private final ShippingAddressService shippingAddressService;
     private final PromotionService promotionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override @Transactional
     public OrderResponse checkout(UUID userId, CheckoutOrderRequest request) {
@@ -159,7 +162,9 @@ public class OrderServiceImpl implements OrderService {
             promotionService.consume(order);
             note = appendNote(note, "Coupon " + order.getPromotionCode() + " consumed");
         }
-        changeStatus(order, status, changedBy, note); return toResponse(order);
+        changeStatus(order, status, changedBy, note);
+        if (status == OrderStatus.CONFIRMED) publishOrderConfirmed(order);
+        return toResponse(order);
     }
     @Override @Transactional
     public OrderResponse cancel(UUID userId, UUID orderId) {
@@ -209,6 +214,11 @@ public class OrderServiceImpl implements OrderService {
     private void cancelPendingPayment(Order order) {
         paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.PENDING)
                 .ifPresent(payment -> payment.setStatus(PaymentStatus.CANCELLED));
+    }
+    private void publishOrderConfirmed(Order order) {
+        var user = order.getUser();
+        eventPublisher.publishEvent(new OrderConfirmedEvent(user.getId(), user.getEmail(), user.getFirstName(),
+                order.getId(), order.getOrderCode(), order.getTotalAmount()));
     }
     private String appendNote(String note, String addition) {
         return note == null || note.isBlank() ? addition : note.trim() + "; " + addition;

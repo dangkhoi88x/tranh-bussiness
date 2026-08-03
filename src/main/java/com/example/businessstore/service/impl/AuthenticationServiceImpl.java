@@ -7,6 +7,7 @@ import com.example.businessstore.dto.request.RegisterRequest;
 import com.example.businessstore.dto.response.UserResponse;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.constant.RoleName;
+import com.example.businessstore.event.UserRegisteredEvent;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
@@ -27,6 +28,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -43,6 +45,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final TokenStore tokenStore;
     private final GoogleOAuthService googleOAuthService;
     private final RoleService roleService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public AuthSession register(RegisterRequest request) {
@@ -59,6 +62,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         user.setPhone(normalizeOptional(request.phone()));
         user.addRole(roleService.createRole(RoleName.CUSTOMER));
         userRepository.save(user);
+        publishUserRegistered(user);
         return issueSession(user);
     }
 
@@ -76,8 +80,11 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional
     public AuthSession loginWithGoogle(GoogleOAuthCodeRequest request) {
         GoogleOAuthService.GoogleProfile profile = googleOAuthService.authenticate(request.code(), request.redirectUri());
-        User user = userRepository.findByEmail(normalizeEmail(profile.email()))
-                .orElseGet(() -> createGoogleUser(profile));
+        User user = userRepository.findByEmail(normalizeEmail(profile.email())).orElse(null);
+        if (user == null) {
+            user = createGoogleUser(profile);
+            publishUserRegistered(user);
+        }
         return issueSession(user);
     }
 
@@ -122,6 +129,10 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         user.setLastName(normalizeName(profile.familyName(), "User"));
         user.addRole(roleService.createRole(RoleName.CUSTOMER));
         return userRepository.save(user);
+    }
+
+    private void publishUserRegistered(User user) {
+        eventPublisher.publishEvent(new UserRegisteredEvent(user.getId(), user.getEmail(), user.getFirstName()));
     }
 
     private String normalizeEmail(String email) {
