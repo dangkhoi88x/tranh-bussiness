@@ -31,6 +31,13 @@ public class OrderStatusHistoryServiceImpl implements OrderStatusHistoryService 
         historyRepository.save(history);
     }
 
+    @Override @Transactional
+    public void recordSystem(Order order, OrderStatus fromStatus, OrderStatus toStatus, String note) {
+        OrderStatusHistory history = new OrderStatusHistory();
+        history.setOrder(order); history.setFromStatus(fromStatus); history.setToStatus(toStatus);
+        history.setChangedBy(null); history.setNote(normalize(note)); historyRepository.save(history);
+    }
+
     @Override @Transactional(readOnly = true)
     public List<OrderStatusHistoryResponse> getMine(UUID userId, UUID orderId) {
         return historyRepository.findAllByOrderIdAndOrderUserIdOrderByCreatedAtAsc(orderId, userId).stream().map(this::toResponse).toList();
@@ -43,8 +50,8 @@ public class OrderStatusHistoryServiceImpl implements OrderStatusHistoryService 
 
     private OrderStatusHistoryResponse toResponse(OrderStatusHistory history) {
         User user = history.getChangedBy();
-        String name = String.join(" ", user.getFirstName(), user.getLastName()).trim();
-        return new OrderStatusHistoryResponse(history.getId(), history.getOrder().getId(), history.getFromStatus(), history.getToStatus(), user.getId(), name, history.getNote(), history.getCreatedAt());
+        String name = user == null ? "SYSTEM" : String.join(" ", user.getFirstName(), user.getLastName()).trim();
+        return new OrderStatusHistoryResponse(history.getId(), history.getOrder().getId(), history.getFromStatus(), history.getToStatus(), user == null ? null : user.getId(), name, history.getNote(), history.getCreatedAt());
     }
 
     private String normalize(String value) { return value == null || value.isBlank() ? null : value.trim(); }

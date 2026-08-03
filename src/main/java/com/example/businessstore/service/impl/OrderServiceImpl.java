@@ -30,6 +30,8 @@ import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.OrderService;
 import com.example.businessstore.service.OrderStatusHistoryService;
+import com.example.businessstore.service.PromotionLine;
+import com.example.businessstore.service.PromotionService;
 import com.example.businessstore.service.ShippingAddressService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -43,6 +45,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.UUID;
 
@@ -57,6 +60,7 @@ public class OrderServiceImpl implements OrderService {
     private final PaymentRepository paymentRepository;
     private final OrderStatusHistoryService orderStatusHistoryService;
     private final ShippingAddressService shippingAddressService;
+    private final PromotionService promotionService;
 
     @Override @Transactional
     public OrderResponse checkout(UUID userId, CheckoutOrderRequest request) {
@@ -73,7 +77,9 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingAddressSnapshot(snapshot);
         order.setShippingAddress(formatAddress(address));
         order.setStatus(OrderStatus.PENDING);
+        order.setDiscountAmount(BigDecimal.ZERO);
         BigDecimal subtotal = BigDecimal.ZERO;
+        List<PromotionLine> promotionLines = new ArrayList<>();
         for (CartItem cartItem : cart.getItems()) {
             Product product = productRepository.findById(cartItem.getProduct().getId())
                     .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
@@ -94,11 +100,23 @@ public class OrderServiceImpl implements OrderService {
             if (variant != null) { item.setProductVariantId(variant.getId()); item.setVariantSku(variant.getSku()); item.setVariantName(variant.getName()); item.setVariantMaterial(variant.getMaterial()); item.setVariantWidthCm(variant.getWidthCm()); item.setVariantHeightCm(variant.getHeightCm()); }
             if (option != null) { item.setProductFrameOptionId(option.getId()); item.setFrameName(option.getFrame().getName()); }
             order.addItem(item); subtotal = subtotal.add(item.getLineTotal());
+            promotionLines.add(new PromotionLine(lockedProduct.getCategory().getId(), lockedProduct.getId(),
+                    variant == null ? null : variant.getId(),
+                    basePrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()))));
             if (variant == null) lockedProduct.setStockQuantity(stock - cartItem.getQuantity()); else variant.setStockQuantity(stock - cartItem.getQuantity());
         }
         order.setSubtotalAmount(subtotal);
         order.setTotalAmount(subtotal);
         Order saved = orderRepository.save(order);
+        if (request.couponCode() != null && !request.couponCode().isBlank()) {
+            var calculation = promotionService.reserve(userId, saved, request.couponCode(), subtotal, promotionLines);
+            saved.setPromotionId(calculation.promotionId());
+            saved.setPromotionCode(calculation.couponCode());
+            saved.setDiscountAmount(calculation.discountAmount());
+            saved.setTotalAmount(calculation.totalAmount());
+            orderStatusHistoryService.record(saved, OrderStatus.PENDING, OrderStatus.PENDING, userId,
+                    "Coupon " + calculation.couponCode() + " reserved; discount " + calculation.discountAmount());
+        }
         cart.getItems().clear();
         return toResponse(saved);
     }
@@ -117,6 +135,7 @@ public class OrderServiceImpl implements OrderService {
         order.setShippingAddressSnapshot(snapshot);
         order.setStatus(OrderStatus.PENDING);
         order.setSubtotalAmount(request.getQuotedPrice());
+        order.setDiscountAmount(BigDecimal.ZERO);
         order.setTotalAmount(request.getQuotedPrice());
         OrderCustomDetails details = new OrderCustomDetails();
         details.setOrder(order); details.setCustomOrderRequestId(request.getId()); details.setRequestCode(request.getRequestCode()); details.setRequestType(request.getType()); details.setWidthCm(request.getWidthCm()); details.setHeightCm(request.getHeightCm()); details.setMaterial(request.getMaterial()); details.setQuotedPrice(request.getQuotedPrice());
@@ -136,6 +155,10 @@ public class OrderServiceImpl implements OrderService {
         if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.DELIVERY_FAILED) throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Completed, failed, or cancelled orders cannot be changed");
         if (status == OrderStatus.CANCELLED) return cancelOrder(order, changedBy, note);
         if (!allowed(order.getStatus(), status)) throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Invalid order status transition");
+        if (status == OrderStatus.CONFIRMED && order.getPromotionId() != null) {
+            promotionService.consume(order);
+            note = appendNote(note, "Coupon " + order.getPromotionCode() + " consumed");
+        }
         changeStatus(order, status, changedBy, note); return toResponse(order);
     }
     @Override @Transactional
@@ -145,14 +168,12 @@ public class OrderServiceImpl implements OrderService {
     }
     private OrderResponse cancelOrder(Order order, UUID changedBy, String note) {
         if (!CANCELLABLE.contains(order.getStatus())) throw new AppException(ErrorCode.ORDER_CANNOT_BE_CANCELLED, "Orders can no longer be cancelled after shipping starts");
-        order.getItems().forEach(item -> {
-            if (item.getProductVariantId() != null) productVariantRepository.findByIdForUpdate(item.getProductVariantId())
-                    .ifPresent(variant -> variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity()));
-            else productRepository.findByIdForUpdate(item.getProductId())
-                    .ifPresent(product -> product.setStockQuantity(product.getStockQuantity() + item.getQuantity()));
-        });
-        paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.PENDING)
-                .ifPresent(payment -> payment.setStatus(PaymentStatus.CANCELLED));
+        restoreStock(order);
+        cancelPendingPayment(order);
+        if (order.getPromotionId() != null) {
+            promotionService.release(order);
+            note = appendNote(note, "Coupon " + order.getPromotionCode() + " released");
+        }
         changeStatus(order, OrderStatus.CANCELLED, changedBy, note == null ? "Order cancelled; pending COD payment cancelled" : note);
         return toResponse(order);
     }
@@ -162,9 +183,36 @@ public class OrderServiceImpl implements OrderService {
     private Order getOrderForUpdate(UUID id) { return orderRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
     private PageRequest pageRequest(int page, int size) { return PageRequest.of(Math.max(page, 1) - 1, Math.min(Math.max(size, 1), MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt")); }
     private PageResponse<OrderResponse> toPage(Page<Order> orders, int requestedPage) { return new PageResponse<>(orders.getContent().stream().map(this::toResponse).toList(), Math.max(requestedPage, 1), orders.getSize(), orders.getTotalElements(), orders.getTotalPages(), orders.hasNext()); }
-    private OrderResponse toResponse(Order order) { List<OrderItemResponse> items = order.getItems().stream().map(i -> new OrderItemResponse(i.getId(), i.getProductId(), i.getProductName(), i.getProductSlug(), i.getProductVariantId(), i.getVariantSku(), i.getVariantName(), i.getVariantMaterial(), i.getVariantWidthCm(), i.getVariantHeightCm(), i.getProductFrameOptionId(), i.getFrameName(), i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal())).toList(); OrderShippingAddress snapshot = order.getShippingAddressSnapshot(); OrderShippingAddressResponse address = snapshot == null ? null : new OrderShippingAddressResponse(snapshot.getRecipientName(), snapshot.getPhone(), snapshot.getProvince(), snapshot.getDistrict(), snapshot.getWard(), snapshot.getAddressLine()); OrderCustomDetails details = order.getCustomDetails(); OrderCustomDetailsResponse customDetails = details == null ? null : new OrderCustomDetailsResponse(details.getCustomOrderRequestId(), details.getRequestCode(), details.getRequestType(), details.getWidthCm(), details.getHeightCm(), details.getMaterial(), details.getFrameId(), details.getFrameName(), details.getQuotedPrice()); return new OrderResponse(order.getId(), order.getOrderCode(), order.getStatus(), order.getShippingAddress(), address, order.getSubtotalAmount(), order.getTotalAmount(), customDetails, items, order.getCreatedAt()); }
+    private OrderResponse toResponse(Order order) { List<OrderItemResponse> items = order.getItems().stream().map(i -> new OrderItemResponse(i.getId(), i.getProductId(), i.getProductName(), i.getProductSlug(), i.getProductVariantId(), i.getVariantSku(), i.getVariantName(), i.getVariantMaterial(), i.getVariantWidthCm(), i.getVariantHeightCm(), i.getProductFrameOptionId(), i.getFrameName(), i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal())).toList(); OrderShippingAddress snapshot = order.getShippingAddressSnapshot(); OrderShippingAddressResponse address = snapshot == null ? null : new OrderShippingAddressResponse(snapshot.getRecipientName(), snapshot.getPhone(), snapshot.getProvince(), snapshot.getDistrict(), snapshot.getWard(), snapshot.getAddressLine()); OrderCustomDetails details = order.getCustomDetails(); OrderCustomDetailsResponse customDetails = details == null ? null : new OrderCustomDetailsResponse(details.getCustomOrderRequestId(), details.getRequestCode(), details.getRequestType(), details.getWidthCm(), details.getHeightCm(), details.getMaterial(), details.getFrameId(), details.getFrameName(), details.getQuotedPrice()); return new OrderResponse(order.getId(), order.getOrderCode(), order.getStatus(), order.getShippingAddress(), address, order.getSubtotalAmount(), order.getDiscountAmount(), order.getTotalAmount(), order.getPromotionId(), order.getPromotionCode(), customDetails, items, order.getCreatedAt()); }
     @Override @Transactional(readOnly = true) public List<OrderStatusHistoryResponse> getMineHistory(UUID userId, UUID orderId) { return orderStatusHistoryService.getMine(userId, orderId); }
     @Override @Transactional(readOnly = true) public List<OrderStatusHistoryResponse> getHistoryForManagement(UUID orderId) { return orderStatusHistoryService.getForManagement(orderId); }
+    @Override @Transactional
+    public void expirePromotionReservation(UUID orderId) {
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || order.getStatus() != OrderStatus.PENDING || order.getPromotionId() == null) return;
+        restoreStock(order);
+        cancelPendingPayment(order);
+        promotionService.expire(order);
+        OrderStatus from = order.getStatus();
+        order.setStatus(OrderStatus.CANCELLED);
+        orderStatusHistoryService.recordSystem(order, from, OrderStatus.CANCELLED,
+                "Order cancelled because coupon " + order.getPromotionCode() + " reservation expired");
+    }
+    private void restoreStock(Order order) {
+        order.getItems().forEach(item -> {
+            if (item.getProductVariantId() != null) productVariantRepository.findByIdForUpdate(item.getProductVariantId())
+                    .ifPresent(variant -> variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity()));
+            else productRepository.findByIdForUpdate(item.getProductId())
+                    .ifPresent(product -> product.setStockQuantity(product.getStockQuantity() + item.getQuantity()));
+        });
+    }
+    private void cancelPendingPayment(Order order) {
+        paymentRepository.findByOrderIdAndStatus(order.getId(), PaymentStatus.PENDING)
+                .ifPresent(payment -> payment.setStatus(PaymentStatus.CANCELLED));
+    }
+    private String appendNote(String note, String addition) {
+        return note == null || note.isBlank() ? addition : note.trim() + "; " + addition;
+    }
     private ProductVariant lockSelectedVariant(Product product, ProductVariant selected) {
         if (selected == null) {
             if (productVariantRepository.existsByProductId(product.getId())) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Product variant is required");

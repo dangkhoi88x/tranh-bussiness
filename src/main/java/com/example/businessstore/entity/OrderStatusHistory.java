@@ -22,7 +22,7 @@ public class OrderStatusHistory extends BaseEntity {
     private OrderStatus fromStatus;
     @Enumerated(EnumType.STRING) @Column(name = "to_status", nullable = false, length = 20)
     private OrderStatus toStatus;
-    @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "changed_by", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "changed_by")
     private User changedBy;
     @Column(columnDefinition = "TEXT")
     private String note;

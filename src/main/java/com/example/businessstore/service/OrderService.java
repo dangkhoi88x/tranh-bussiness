@@ -18,4 +18,5 @@ public interface OrderService {
     OrderResponse createFromCustomRequest(UUID userId, UUID shippingAddressId, CustomOrderRequest request);
     List<OrderStatusHistoryResponse> getMineHistory(UUID userId, UUID orderId);
     List<OrderStatusHistoryResponse> getHistoryForManagement(UUID orderId);
+    void expirePromotionReservation(UUID orderId);
 }

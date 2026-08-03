@@ -20,6 +20,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter @Setter @Entity @Table(name = "orders") @NoArgsConstructor
 public class Order extends BaseEntity {
@@ -35,6 +36,12 @@ public class Order extends BaseEntity {
     private BigDecimal subtotalAmount;
     @Column(name = "total_amount", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalAmount;
+    @Column(name = "discount_amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
+    @Column(name = "promotion_id")
+    private UUID promotionId;
+    @Column(name = "promotion_code", length = 60)
+    private String promotionCode;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private OrderStatus status;
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)

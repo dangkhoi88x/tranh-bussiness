@@ -23,7 +23,7 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (shipmentRepository.findByOrderId(orderId).isPresent()) throw new AppException(ErrorCode.SHIPMENT_ALREADY_EXISTS, "Shipment already exists for this order");
         if (shipmentRepository.existsByTrackingCode(input.trackingCode().trim())) throw new AppException(ErrorCode.TRACKING_CODE_ALREADY_EXISTS, "Tracking code already exists");
         Shipment shipment = new Shipment(); shipment.setOrder(order); shipment.setCarrier(input.carrier().trim()); shipment.setTrackingCode(input.trackingCode().trim()); shipment.setShippingFee(input.shippingFee()); shipment.setStatus(ShipmentStatus.READY);
-        order.setTotalAmount(order.getSubtotalAmount().add(input.shippingFee()));
+        order.setTotalAmount(order.getSubtotalAmount().subtract(order.getDiscountAmount()).add(input.shippingFee()));
         payment.setAmount(order.getTotalAmount());
         Shipment saved = shipmentRepository.save(shipment);
         orderStatusHistoryService.record(order, order.getStatus(), order.getStatus(), changedBy, "Shipment READY created with carrier " + saved.getCarrier());

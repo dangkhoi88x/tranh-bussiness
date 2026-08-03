@@ -28,6 +28,9 @@ info:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  promotion:
+    reservation-ttl: ${PROMOTION_RESERVATION_TTL:PT30M}
+    expiry-scan-ms: ${PROMOTION_EXPIRY_SCAN_MS:60000}
   media:
     max-image-size-bytes: ${MEDIA_MAX_IMAGE_SIZE_BYTES:10485760}
     cloudinary:

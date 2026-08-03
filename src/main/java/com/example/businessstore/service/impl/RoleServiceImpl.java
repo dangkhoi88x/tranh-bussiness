@@ -42,7 +42,8 @@ public class RoleServiceImpl implements RoleService {
             case STAFF -> List.of(
                     PermissionName.CATEGORY_MANAGE,
                     PermissionName.PRODUCT_MANAGE,
-                    PermissionName.FRAME_MANAGE);
+                    PermissionName.FRAME_MANAGE,
+                    PermissionName.PROMOTION_MANAGE);
             case ADMIN -> List.of(PermissionName.values());
         };
     }

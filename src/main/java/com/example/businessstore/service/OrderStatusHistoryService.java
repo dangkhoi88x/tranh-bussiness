@@ -9,6 +9,7 @@ import java.util.UUID;
 
 public interface OrderStatusHistoryService {
     void record(Order order, OrderStatus fromStatus, OrderStatus toStatus, UUID changedBy, String note);
+    void recordSystem(Order order, OrderStatus fromStatus, OrderStatus toStatus, String note);
     List<OrderStatusHistoryResponse> getMine(UUID userId, UUID orderId);
     List<OrderStatusHistoryResponse> getForManagement(UUID orderId);
 }

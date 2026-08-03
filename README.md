@@ -12,9 +12,9 @@ Cart belongs to the authenticated user. When a product has variants, the custome
 
 ## Orders
 
-Checkout creates an immutable purchase snapshot from the authenticated user's cart: product, variant (ID/SKU/name/material/dimensions/price), frame and selected delivery address are retained. The matching product or variant stock row is pessimistically locked and decremented in the same transaction; cancelling an eligible order restores that same stock row. `totalAmount` starts as `subtotalAmount`, then includes the shipment fee once staff creates a shipment. The cart is cleared only after the order is persisted.
+Checkout creates an immutable purchase snapshot from the authenticated user's cart: product, variant (ID/SKU/name/material/dimensions/price), frame and selected delivery address are retained. The matching product or variant stock row is pessimistically locked and decremented in the same transaction; cancelling an eligible order restores that same stock row. The backend calculates `totalAmount = subtotalAmount - discountAmount + shippingFee`; it never accepts price or discount values from the client. The cart is cleared only after the order and optional coupon reservation are persisted.
 
-- `POST /api/v1/orders/checkout` — create a `PENDING` order. Body: `shippingAddressId`.
+- `POST /api/v1/orders/checkout` — create a `PENDING` order. Body: required `shippingAddressId` and optional `couponCode`.
 - `GET /api/v1/orders/my-orders`, `GET /api/v1/orders/my-orders/{id}` — authenticated customer's orders only.
 - `GET /api/v1/orders/my-orders/{id}/history` — status and payment/shipment events for the owning customer only.
 - `PUT /api/v1/orders/my-orders/{id}/cancel` — customer may cancel only `PENDING` or `CONFIRMED`; stock is restored.
@@ -26,6 +26,17 @@ Customers manage their own delivery-address book. A user may have one default ad
 
 - `POST /api/v1/shipping-addresses`, `GET /api/v1/shipping-addresses`
 - `PUT /api/v1/shipping-addresses/{id}`, `DELETE /api/v1/shipping-addresses/{id}`
+
+## Promotions and coupons
+
+A Promotion owns one coupon code, a percentage or fixed-amount rule, an active period, global/per-user quotas, and optional Category/Product/ProductVariant scopes. An empty scope list is stored explicitly as `appliesToAll`; deleting a scoped catalog target cannot accidentally turn a campaign into a store-wide coupon. Product and variant discounts apply to the base artwork price, while a selected frame adjustment remains outside the eligible subtotal.
+
+Checkout reserves quota atomically for 30 minutes by default. Confirming the Order consumes the reservation; cancelling it releases either reserved or consumed quota. A scheduled expiry cancels a still-`PENDING` Order, restores its exact product/variant stock, cancels a pending COD payment and marks the usage `EXPIRED`. The Order snapshots promotion ID, code and discount, while staff can inspect the full usage list.
+
+- `POST /api/v1/promotions/preview` — authenticated customer previews a coupon against the current server-side Cart. Body: `{ "couponCode": "..." }`.
+- `POST /api/v1/promotions`, `PUT`/`DELETE /api/v1/promotions/{id}` and `PATCH /api/v1/promotions/{id}/status` — require `PROMOTION_MANAGE`.
+- `GET /api/v1/promotions`, `GET /api/v1/promotions/{id}`, `GET /api/v1/promotions/{id}/usages` — require `PROMOTION_MANAGE`.
+- `PROMOTION_RESERVATION_TTL` and `PROMOTION_EXPIRY_SCAN_MS` configure reservation duration and expiry polling.
 
 ## Payments
 

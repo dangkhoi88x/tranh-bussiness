@@ -17,6 +17,7 @@ import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.ShippingAddressService;
 import com.example.businessstore.service.OrderStatusHistoryService;
+import com.example.businessstore.service.PromotionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -42,6 +43,7 @@ class OrderServiceImplTest {
     @Mock private PaymentRepository paymentRepository;
     @Mock private ShippingAddressService shippingAddressService;
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
+    @Mock private PromotionService promotionService;
     @InjectMocks private OrderServiceImpl orderService;
 
     @Test
@@ -49,6 +51,8 @@ class OrderServiceImplTest {
         UUID userId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.CONFIRMED);
+        order.setPromotionId(UUID.randomUUID());
+        order.setPromotionCode("SAVE10");
         Payment payment = new Payment();
         payment.setStatus(PaymentStatus.PENDING);
 
@@ -59,7 +63,43 @@ class OrderServiceImplTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
-        verify(orderStatusHistoryService).record(order, OrderStatus.CONFIRMED, OrderStatus.CANCELLED, userId, "Order cancelled by customer");
+        verify(promotionService).release(order);
+        verify(orderStatusHistoryService).record(order, OrderStatus.CONFIRMED, OrderStatus.CANCELLED, userId,
+                "Order cancelled by customer; Coupon SAVE10 released");
+    }
+
+    @Test
+    void confirm_consumesPromotionReservationBeforeChangingOrderStatus() {
+        UUID staffId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING);
+        order.setPromotionId(UUID.randomUUID());
+        order.setPromotionCode("SAVE10");
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+
+        orderService.updateStatus(staffId, orderId, OrderStatus.CONFIRMED, "Confirmed");
+
+        verify(promotionService).consume(order);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        verify(orderStatusHistoryService).record(order, OrderStatus.PENDING, OrderStatus.CONFIRMED, staffId,
+                "Confirmed; Coupon SAVE10 consumed");
+    }
+
+    @Test
+    void expirePromotionReservation_cancelsPendingOrderAndExpiresQuota() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.PENDING);
+        order.setPromotionId(UUID.randomUUID());
+        order.setPromotionCode("SAVE10");
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderIdAndStatus(orderId, PaymentStatus.PENDING)).thenReturn(Optional.empty());
+
+        orderService.expirePromotionReservation(orderId);
+
+        verify(promotionService).expire(order);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        verify(orderStatusHistoryService).recordSystem(order, OrderStatus.PENDING, OrderStatus.CANCELLED,
+                "Order cancelled because coupon SAVE10 reservation expired");
     }
 
     @Test
