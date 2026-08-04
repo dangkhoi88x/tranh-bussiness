@@ -16,5 +16,5 @@ public record DashboardResponse(
         int lowStockThreshold,
         List<DashboardDailyMetricResponse> dailyMetrics,
         List<DashboardOrderStatusResponse> orderStatuses,
-        List<DashboardLowStockProductResponse> lowStockProducts) {
+        List<DashboardLowStockItemResponse> lowStockItems) {
 }

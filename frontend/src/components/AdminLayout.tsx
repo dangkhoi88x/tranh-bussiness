@@ -8,12 +8,14 @@ const menuItems: MenuItem[] = [
   { to: '/admin/dashboard', label: 'Tổng quan', permission: 'DASHBOARD_VIEW', marker: '01' },
   { to: '/admin/categories', label: 'Danh mục', permission: 'CATEGORY_MANAGE', marker: '02' },
   { to: '/admin/products', label: 'Sản phẩm', permission: 'PRODUCT_MANAGE', marker: '03' },
-  { to: '/admin/frames', label: 'Khung tranh', permission: 'FRAME_MANAGE', marker: '04' },
-  { to: '/admin/orders', label: 'Đơn hàng', permission: 'ORDER_MANAGE', marker: '05' },
-  { to: '/admin/payments', label: 'Thanh toán', permission: 'PAYMENT_MANAGE', marker: '06' },
-  { to: '/admin/custom-orders', label: 'Đặt theo yêu cầu', permission: 'CUSTOM_ORDER_MANAGE', marker: '07' },
-  { to: '/admin/shipments', label: 'Vận chuyển', permission: 'SHIPMENT_MANAGE', marker: '08' },
-  { to: '/admin/promotions', label: 'Khuyến mãi', permission: 'PROMOTION_MANAGE', marker: '09' },
+  { to: '/admin/materials', label: 'Chất liệu', permission: 'PRODUCT_MANAGE', marker: '04' },
+  { to: '/admin/art-sizes', label: 'Khổ tranh', permission: 'PRODUCT_MANAGE', marker: '05' },
+  { to: '/admin/frames', label: 'Khung tranh', permission: 'FRAME_MANAGE', marker: '05' },
+  { to: '/admin/orders', label: 'Đơn hàng', permission: 'ORDER_MANAGE', marker: '06' },
+  { to: '/admin/payments', label: 'Thanh toán', permission: 'PAYMENT_MANAGE', marker: '07' },
+  { to: '/admin/custom-orders', label: 'Đặt theo yêu cầu', permission: 'CUSTOM_ORDER_MANAGE', marker: '08' },
+  { to: '/admin/shipments', label: 'Vận chuyển', permission: 'SHIPMENT_MANAGE', marker: '09' },
+  { to: '/admin/promotions', label: 'Khuyến mãi', permission: 'PROMOTION_MANAGE', marker: '10' },
 ]
 
 export function AdminLayout() {

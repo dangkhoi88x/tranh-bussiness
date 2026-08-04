@@ -9,11 +9,15 @@ import com.example.businessstore.dto.response.PageResponse;
 import com.example.businessstore.dto.response.ProductResponse;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Product;
+import com.example.businessstore.entity.ProductImage;
+import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
+import com.example.businessstore.repository.specification.ProductManagementSpecifications;
 import com.example.businessstore.repository.ProductImageRepository;
 import com.example.businessstore.repository.specification.ProductCatalogSpecifications;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
@@ -29,6 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +45,7 @@ public class ProductServiceImpl implements ProductService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
@@ -56,7 +65,7 @@ public class ProductServiceImpl implements ProductService {
         product.setHeightCm(request.heightCm());
         product.setStockQuantity(request.stockQuantity());
         product.setStatus(request.status() == null ? ProductStatus.DRAFT : request.status());
-        return productMapper.toResponse(productRepository.save(product));
+        return responseWithInventory(productRepository.save(product));
     }
 
     @Override
@@ -89,7 +98,7 @@ public class ProductServiceImpl implements ProductService {
         if (request.status() != null) {
             product.setStatus(request.status());
         }
-        return productMapper.toResponse(product);
+        return responseWithInventory(product);
     }
 
     @Override
@@ -118,7 +127,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
-        return productMapper.toResponse(product);
+        return responseWithInventory(product);
     }
 
     @Override
@@ -126,35 +135,75 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse findPublishedBySlug(String slug) {
         Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.PUBLISHED)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
-        return productMapper.toResponse(product);
+        return responseWithInventory(product);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ProductResponse> findAllForManagement(UUID categoryId, String name, ProductStatus status, ProductStockLevel stockLevel, int page, int size) {
-        Integer minStock = null;
-        Integer maxStock = null;
-        if (stockLevel == ProductStockLevel.OUT_OF_STOCK) { minStock = 0; maxStock = 0; }
-        else if (stockLevel == ProductStockLevel.LOW_STOCK) { minStock = 1; maxStock = 5; }
-        else if (stockLevel == ProductStockLevel.IN_STOCK) { minStock = 6; }
-        String normalizedName = name == null || name.isBlank() ? null : name.trim();
-        return toPageResponse(productRepository.searchForManagement(normalizedName, categoryId, status, minStock, maxStock, pageRequest(page, size)), page);
+    public PageResponse<ProductResponse> findAllForManagement(
+            UUID categoryId,
+            String name,
+            ProductStatus status,
+            String variantSku,
+            String material,
+            ProductStockLevel effectiveStockLevel,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            int page,
+            int size) {
+        validateManagementPriceRange(minPrice, maxPrice);
+        Page<Product> products = productRepository.findAll(ProductManagementSpecifications.matching(
+                categoryId, normalizeFilter(name), status, normalizeFilter(variantSku), normalizeFilter(material), effectiveStockLevel,
+                minPrice, maxPrice),
+                pageRequest(page, size));
+        return toPageResponse(products, page);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ProductResponse findForManagement(UUID id) {
-        return productMapper.toResponse(getProduct(id));
+        return responseWithInventory(getProduct(id));
     }
 
     private PageResponse<ProductResponse> toPageResponse(Page<Product> products, int requestedPage) {
         return new PageResponse<>(
-                products.getContent().stream().map(productMapper::toResponse).toList(),
+                toResponses(products.getContent()),
                 Math.max(requestedPage, 1),
                 products.getSize(),
                 products.getTotalElements(),
                 products.getTotalPages(),
                 products.hasNext());
+    }
+
+    private ProductResponse responseWithInventory(Product product) {
+        return toResponses(List.of(product)).getFirst();
+    }
+
+    private List<ProductResponse> toResponses(Collection<Product> products) {
+        if (products.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, List<ProductVariant>> variantsByProductId = productVariantRepository.findAllByProductIdIn(
+                        products.stream().map(Product::getId).toList())
+                .stream().collect(Collectors.groupingBy(variant -> variant.getProduct().getId()));
+        Map<UUID, String> primaryImageUrls = productImageRepository
+                .findAllByProductIdInOrderByProductIdAscPrimaryImageDescSortOrderAscCreatedAtAsc(
+                        products.stream().map(Product::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(
+                        image -> image.getProduct().getId(),
+                        ProductImage::getSecureUrl,
+                        (first, ignored) -> first));
+        return products.stream().map(product -> {
+            List<ProductVariant> variants = variantsByProductId.getOrDefault(product.getId(), List.of());
+            int effectiveStock = variants.isEmpty() ? product.getStockQuantity() : variants.stream()
+                    .filter(ProductVariant::isAvailable)
+                    .mapToInt(ProductVariant::getStockQuantity)
+                    .sum();
+            return productMapper.toResponse(product)
+                    .withInventory(effectiveStock, !variants.isEmpty())
+                    .addManagementPreview(primaryImageUrls.get(product.getId()));
+        }).toList();
     }
 
     private Pageable pageRequest(int page, int size) {
@@ -198,6 +247,14 @@ public class ProductServiceImpl implements ProductService {
         return value != null && value.signum() == 0;
     }
 
+    private void validateManagementPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
+        if (isNegative(minPrice) || isNegative(maxPrice)
+                || minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
+                    "Management price range is invalid");
+        }
+    }
+
     private Category getCategory(UUID id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Category not found"));
@@ -227,5 +284,9 @@ public class ProductServiceImpl implements ProductService {
 
     private String normalizeDescription(String description) {
         return description == null || description.isBlank() ? null : description.trim();
+    }
+
+    private String normalizeFilter(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

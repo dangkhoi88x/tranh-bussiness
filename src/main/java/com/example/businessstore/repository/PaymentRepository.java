@@ -20,6 +20,10 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     boolean existsByOrderIdAndStatus(UUID orderId, PaymentStatus status);
     Optional<Payment> findByOrderIdAndMethodAndStatus(UUID orderId, com.example.businessstore.constant.PaymentMethod method, PaymentStatus status);
     Optional<Payment> findByOrderIdAndStatus(UUID orderId, PaymentStatus status);
+    Optional<Payment> findFirstByOrderIdOrderByCreatedAtDesc(UUID orderId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Payment p where p.order.id = :orderId order by p.createdAt desc")
+    Optional<Payment> findFirstByOrderIdForUpdate(@Param("orderId") UUID orderId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Payment p where p.id = :id") Optional<Payment> findByIdForUpdate(UUID id);
     boolean existsByTransactionCode(String transactionCode);
@@ -28,10 +32,10 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @EntityGraph(attributePaths = "order")
     @Query("""
             select payment from Payment payment
-            where (:status is null or payment.status = :status)
-              and (:orderCode is null or lower(payment.order.orderCode) like lower(concat('%', :orderCode, '%')))
-              and (:createdFrom is null or payment.createdAt >= :createdFrom)
-              and (:createdToExclusive is null or payment.createdAt < :createdToExclusive)
+            where payment.status = coalesce(:status, payment.status)
+              and lower(payment.order.orderCode) like concat('%', lower(coalesce(cast(:orderCode as string), payment.order.orderCode)), '%')
+              and payment.createdAt >= :createdFrom
+              and payment.createdAt < :createdToExclusive
             """)
     Page<Payment> searchForManagement(
             @Param("status") PaymentStatus status,

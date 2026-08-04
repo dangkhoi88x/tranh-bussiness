@@ -5,6 +5,7 @@ import com.example.businessstore.constant.PaymentMethod;
 import com.example.businessstore.constant.PaymentStatus;
 import com.example.businessstore.constant.ProductCatalogSort;
 import com.example.businessstore.constant.ProductStatus;
+import com.example.businessstore.constant.ProductStockLevel;
 import com.example.businessstore.constant.NotificationType;
 import com.example.businessstore.constant.PromotionStatus;
 import com.example.businessstore.constant.PromotionType;
@@ -25,9 +26,11 @@ import com.example.businessstore.repository.NotificationRepository;
 import com.example.businessstore.repository.PromotionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
+import com.example.businessstore.repository.ShipmentRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.WishlistItemRepository;
 import com.example.businessstore.service.DashboardService;
+import com.example.businessstore.service.ProductService;
 import com.example.businessstore.repository.specification.ProductCatalogSpecifications;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +66,7 @@ class BusinessStoreApplicationTests {
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine");
 
     @Autowired PromotionRepository promotionRepository;
+    @Autowired ShipmentRepository shipmentRepository;
     @Autowired UserRepository userRepository;
     @Autowired CategoryRepository categoryRepository;
     @Autowired ProductRepository productRepository;
@@ -70,12 +74,26 @@ class BusinessStoreApplicationTests {
     @Autowired OrderRepository orderRepository;
     @Autowired PaymentRepository paymentRepository;
     @Autowired DashboardService dashboardService;
+    @Autowired ProductService productService;
     @Autowired NotificationRepository notificationRepository;
     @Autowired WishlistItemRepository wishlistItemRepository;
     @Autowired PlatformTransactionManager transactionManager;
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void managementSearchesAcceptEmptyOptionalTextFiltersOnPostgres() {
+        PageRequest page = PageRequest.of(0, 20);
+
+        assertThat(promotionRepository.searchForManagement(null, null, null, null, page).getContent()).isNotNull();
+        assertThat(promotionRepository.searchForManagement("no-match", null, null, null, page).getContent()).isEmpty();
+        assertThat(shipmentRepository.searchForManagement(null, null, null, page).getContent()).isNotNull();
+        assertThat(paymentRepository.searchForManagement(null, null, Instant.EPOCH,
+                Instant.parse("9999-12-31T23:59:59.999999Z"), page).getContent()).isNotNull();
+        assertThat(orderRepository.searchForManagement(null, null, null, Instant.EPOCH,
+                Instant.parse("9999-12-31T23:59:59.999999Z"), page).getContent()).isNotNull();
     }
 
     @Test
@@ -232,7 +250,44 @@ class BusinessStoreApplicationTests {
             assertThat(status.status()).isEqualTo(OrderStatus.DELIVERED);
             assertThat(status.count()).isGreaterThanOrEqualTo(1);
         });
-        assertThat(dashboard.lowStockProducts()).extracting(productResponse -> productResponse.id()).contains(product.getId());
+        assertThat(dashboard.lowStockItems()).extracting(item -> item.productId()).contains(product.getId());
+    }
+
+    @Test
+    void managementStockAndDashboardUseAvailableVariantsInsteadOfParentProductStock() {
+        String suffix = Long.toString(System.nanoTime());
+        Category category = new Category();
+        category.setName("Variant stock category " + suffix); category.setSlug("variant-stock-category-" + suffix);
+        Category savedCategory = categoryRepository.saveAndFlush(category);
+        Product product = savePublishedProduct(savedCategory, "Variant stock product " + suffix,
+                "variant-stock-product-" + suffix, new BigDecimal("900000"));
+        product.setStockQuantity(99);
+        productRepository.saveAndFlush(product);
+
+        ProductVariant soldOutVariant = new ProductVariant();
+        soldOutVariant.setProduct(product); soldOutVariant.setSku("SOLD-OUT-" + suffix);
+        soldOutVariant.setName("40 x 60 Canvas"); soldOutVariant.setMaterial("Canvas");
+        soldOutVariant.setWidthCm(new BigDecimal("40")); soldOutVariant.setHeightCm(new BigDecimal("60"));
+        soldOutVariant.setPrice(new BigDecimal("900000")); soldOutVariant.setStockQuantity(0); soldOutVariant.setAvailable(true);
+        productVariantRepository.saveAndFlush(soldOutVariant);
+
+        var management = productService.findAllForManagement(null, null, ProductStatus.PUBLISHED,
+                "sold-out-" + suffix, "canvas", ProductStockLevel.OUT_OF_STOCK, null, null, 1, 20);
+        assertThat(management.items()).anySatisfy(item -> {
+            assertThat(item.id()).isEqualTo(product.getId());
+            assertThat(item.effectiveStockQuantity()).isZero();
+            assertThat(item.hasVariants()).isTrue();
+        });
+
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        var dashboard = dashboardService.getOverview(today, today);
+        assertThat(dashboard.lowStockItems()).anySatisfy(item -> {
+            assertThat(item.productId()).isEqualTo(product.getId());
+            assertThat(item.variantSku()).isEqualTo(soldOutVariant.getSku());
+            assertThat(item.variantName()).isEqualTo("40 x 60 Canvas");
+            assertThat(item.material()).isEqualTo("Canvas");
+            assertThat(item.stockQuantity()).isZero();
+        });
     }
 
     private Product savePublishedProduct(Category category, String name, String slug, BigDecimal price) {

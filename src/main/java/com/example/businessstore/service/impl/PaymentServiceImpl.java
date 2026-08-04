@@ -29,6 +29,8 @@ import java.util.UUID;
 @Service @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Instant EARLIEST_MANAGEMENT_DATE = Instant.EPOCH;
+    private static final Instant LATEST_MANAGEMENT_DATE = Instant.parse("9999-12-31T23:59:59.999999Z");
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryService orderStatusHistoryService;
@@ -47,8 +49,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override @Transactional(readOnly = true) public PaymentResponse getMineById(UUID userId, UUID paymentId) { return toResponse(paymentRepository.findByIdAndOrderUserId(paymentId, userId).orElseThrow(() -> new AppException(ErrorCode.PAYMENT_NOT_FOUND, "Payment not found"))); }
     @Override @Transactional(readOnly = true) public PageResponse<PaymentResponse> getAll(PaymentStatus status, String orderCode, LocalDate createdFrom, LocalDate createdTo, int page, int size) {
         if (createdFrom != null && createdTo != null && createdFrom.isAfter(createdTo)) throw new AppException(ErrorCode.INVALID_REQUEST, "Created-from date must not be after created-to date");
-        Instant from = createdFrom == null ? null : createdFrom.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
-        Instant toExclusive = createdTo == null ? null : createdTo.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant from = createdFrom == null ? EARLIEST_MANAGEMENT_DATE : createdFrom.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant toExclusive = createdTo == null ? LATEST_MANAGEMENT_DATE : createdTo.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
         String code = orderCode == null || orderCode.isBlank() ? null : orderCode.trim();
         return toPage(paymentRepository.searchForManagement(status, code, from, toExclusive, pageRequest(page, size)), page);
     }

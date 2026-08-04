@@ -11,6 +11,7 @@ import com.example.businessstore.dto.response.ApiResponse;
 import com.example.businessstore.dto.response.PageResponse;
 import com.example.businessstore.dto.response.ProductResponse;
 import com.example.businessstore.service.ProductService;
+import com.example.businessstore.service.MaterialService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+    private final MaterialService materialService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> findPublished(
@@ -43,13 +45,14 @@ public class ProductController {
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) String material,
+            @RequestParam(required = false) UUID materialId,
             @RequestParam(required = false) BigDecimal widthCm,
             @RequestParam(required = false) BigDecimal heightCm,
             @RequestParam(defaultValue = "NEWEST") ProductCatalogSort sort,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "12") int size) {
         ProductCatalogFilter filter = new ProductCatalogFilter(
-                categoryId, keyword, minPrice, maxPrice, material, widthCm, heightCm, sort);
+                categoryId, keyword, minPrice, maxPrice, materialId == null ? material : materialService.requireActiveArtworkSurface(materialId).getName(), widthCm, heightCm, sort);
         return ResponseEntity.ok(ApiResponse.success(productService.findPublished(filter, page, size)));
     }
 
@@ -69,10 +72,18 @@ public class ProductController {
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) ProductStatus status,
+            @RequestParam(required = false) String variantSku,
+            @RequestParam(required = false) String material,
+            @RequestParam(required = false) UUID materialId,
+            @RequestParam(required = false) ProductStockLevel effectiveStockLevel,
             @RequestParam(required = false) ProductStockLevel stockLevel,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(productService.findAllForManagement(categoryId, name, status, stockLevel, page, size)));
+        ProductStockLevel requestedStockLevel = effectiveStockLevel == null ? stockLevel : effectiveStockLevel;
+        return ResponseEntity.ok(ApiResponse.success(productService.findAllForManagement(
+                categoryId, name, status, variantSku, materialId == null ? material : materialService.requireActiveArtworkSurface(materialId).getName(), requestedStockLevel, minPrice, maxPrice, page, size)));
     }
 
     @GetMapping("/management/{id}")

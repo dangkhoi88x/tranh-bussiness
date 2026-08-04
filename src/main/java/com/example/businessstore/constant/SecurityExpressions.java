@@ -11,6 +11,7 @@ public final class SecurityExpressions {
     public static final String CAN_MANAGE_PAYMENTS = "hasAuthority('PAYMENT_MANAGE')";
     public static final String CAN_MANAGE_CUSTOM_ORDERS = "hasAuthority('CUSTOM_ORDER_MANAGE')";
     public static final String CAN_MANAGE_SHIPMENTS = "hasAuthority('SHIPMENT_MANAGE')";
+    public static final String CAN_VIEW_ORDER_SHIPMENT = "hasAnyAuthority('SHIPMENT_MANAGE', 'ORDER_MANAGE')";
     public static final String CAN_MANAGE_PROMOTIONS = "hasAuthority('PROMOTION_MANAGE')";
 
     private SecurityExpressions() {

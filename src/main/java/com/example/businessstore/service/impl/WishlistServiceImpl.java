@@ -93,7 +93,7 @@ public class WishlistServiceImpl implements WishlistService {
         ProductVariant variant = item.getProductVariant();
         ProductVariantResponse variantResponse = variant == null ? null : new ProductVariantResponse(
                 variant.getId(), product.getId(), variant.getSku(), variant.getName(), variant.getWidthCm(),
-                variant.getHeightCm(), variant.getMaterial(), variant.getPrice(), variant.getStockQuantity(),
+                variant.getHeightCm(), variant.getArtSize() == null ? null : variant.getArtSize().getId(), variant.getArtSize() == null ? "CUSTOM" : variant.getArtSize().getCode(), variant.getMaterialDefinition() == null ? null : variant.getMaterialDefinition().getId(), variant.getMaterial(), variant.getPrice(), variant.getStockQuantity(),
                 variant.isAvailable());
         String primaryImageUrl = productImageRepository
                 .findFirstByProductIdAndPrimaryImageTrueOrderByCreatedAtAsc(product.getId())

@@ -27,14 +27,13 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @EntityGraph(attributePaths = {"items", "user"})
     @Query("""
             select o from Order o join o.user customer
-            where (:orderCode is null or lower(o.orderCode) like lower(concat('%', :orderCode, '%')))
-              and (:status is null or o.status = :status)
-              and (:customerQuery is null
-                   or lower(customer.email) like lower(concat('%', :customerQuery, '%'))
-                   or lower(customer.firstName) like lower(concat('%', :customerQuery, '%'))
-                   or lower(customer.lastName) like lower(concat('%', :customerQuery, '%')))
-              and (:createdFrom is null or o.createdAt >= :createdFrom)
-              and (:createdToExclusive is null or o.createdAt < :createdToExclusive)
+            where lower(o.orderCode) like concat('%', lower(coalesce(cast(:orderCode as string), o.orderCode)), '%')
+              and o.status = coalesce(:status, o.status)
+              and (lower(customer.email) like concat('%', lower(coalesce(cast(:customerQuery as string), customer.email)), '%')
+                   or lower(customer.firstName) like concat('%', lower(coalesce(cast(:customerQuery as string), customer.firstName)), '%')
+                   or lower(customer.lastName) like concat('%', lower(coalesce(cast(:customerQuery as string), customer.lastName)), '%'))
+              and o.createdAt >= :createdFrom
+              and o.createdAt < :createdToExclusive
             """)
     Page<Order> searchForManagement(
             @Param("orderCode") String orderCode,

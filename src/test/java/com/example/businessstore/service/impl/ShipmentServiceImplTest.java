@@ -75,7 +75,7 @@ class ShipmentServiceImplTest {
     }
 
     @Test
-    void deliveryFailure_synchronizesOrderStatus() {
+    void deliveryFailure_mustUseOrderFulfillmentCommand() {
         UUID orderId = UUID.randomUUID();
         UUID staffId = UUID.randomUUID();
         Order order = order(orderId, OrderStatus.SHIPPING);
@@ -87,11 +87,11 @@ class ShipmentServiceImplTest {
         when(shipmentRepository.findByIdForUpdate(shipment.getId())).thenReturn(Optional.of(shipment));
         when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
-        shipmentService.updateStatus(staffId, shipment.getId(), new UpdateShipmentStatusRequest(ShipmentStatus.DELIVERY_FAILED, "Khách hẹn giao lại"));
-
-        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELIVERY_FAILED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERY_FAILED);
-        org.mockito.Mockito.verify(orderStatusHistoryService).record(order, OrderStatus.SHIPPING, OrderStatus.DELIVERY_FAILED, staffId, "Shipment delivery failed: Khách hẹn giao lại");
+        assertThatThrownBy(() -> shipmentService.updateStatus(staffId, shipment.getId(),
+                new UpdateShipmentStatusRequest(ShipmentStatus.DELIVERY_FAILED, "Khách hẹn giao lại")))
+                .isInstanceOf(AppException.class)
+                .extracting(error -> ((AppException) error).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_SHIPMENT_STATUS);
     }
 
     private Order order(UUID id, OrderStatus status) {

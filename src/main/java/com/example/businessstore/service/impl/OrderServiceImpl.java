@@ -21,12 +21,16 @@ import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ShippingAddress;
 import com.example.businessstore.entity.OrderShippingAddress;
+import com.example.businessstore.entity.Payment;
+import com.example.businessstore.entity.Shipment;
 import com.example.businessstore.event.OrderConfirmedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
+import com.example.businessstore.repository.PaymentRefundRepository;
+import com.example.businessstore.repository.ShipmentRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.OrderService;
@@ -54,6 +58,8 @@ import java.util.UUID;
 
 @Service @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
+    private static final Instant EARLIEST_MANAGEMENT_DATE = Instant.EPOCH;
+    private static final Instant LATEST_MANAGEMENT_DATE = Instant.parse("9999-12-31T23:59:59.999999Z");
     private static final int MAX_PAGE_SIZE = 100;
     private static final Set<OrderStatus> CANCELLABLE = Set.of(OrderStatus.PENDING, OrderStatus.CONFIRMED);
     private final CartRepository cartRepository;
@@ -61,6 +67,8 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final PaymentRepository paymentRepository;
+    private final PaymentRefundRepository paymentRefundRepository;
+    private final ShipmentRepository shipmentRepository;
     private final OrderStatusHistoryService orderStatusHistoryService;
     private final ShippingAddressService shippingAddressService;
     private final PromotionService promotionService;
@@ -191,12 +199,36 @@ public class OrderServiceImpl implements OrderService {
     private Order getOrder(UUID id) { return orderRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
     private Order getOrderForUpdate(UUID id) { return orderRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
     private void validateDateRange(LocalDate from, LocalDate to) { if (from != null && to != null && from.isAfter(to)) throw new AppException(ErrorCode.INVALID_REQUEST, "Created-from date must not be after created-to date"); }
-    private Instant startOfDay(LocalDate date) { return date == null ? null : date.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
-    private Instant startOfNextDay(LocalDate date) { return date == null ? null : date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
+    private Instant startOfDay(LocalDate date) { return date == null ? EARLIEST_MANAGEMENT_DATE : date.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
+    private Instant startOfNextDay(LocalDate date) { return date == null ? LATEST_MANAGEMENT_DATE : date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
     private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private PageRequest pageRequest(int page, int size) { return PageRequest.of(Math.max(page, 1) - 1, Math.min(Math.max(size, 1), MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt")); }
     private PageResponse<OrderResponse> toPage(Page<Order> orders, int requestedPage) { return new PageResponse<>(orders.getContent().stream().map(this::toResponse).toList(), Math.max(requestedPage, 1), orders.getSize(), orders.getTotalElements(), orders.getTotalPages(), orders.hasNext()); }
-    private OrderResponse toResponse(Order order) { List<OrderItemResponse> items = order.getItems().stream().map(i -> new OrderItemResponse(i.getId(), i.getProductId(), i.getProductName(), i.getProductSlug(), i.getProductVariantId(), i.getVariantSku(), i.getVariantName(), i.getVariantMaterial(), i.getVariantWidthCm(), i.getVariantHeightCm(), i.getProductFrameOptionId(), i.getFrameName(), i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal())).toList(); OrderShippingAddress snapshot = order.getShippingAddressSnapshot(); OrderShippingAddressResponse address = snapshot == null ? null : new OrderShippingAddressResponse(snapshot.getRecipientName(), snapshot.getPhone(), snapshot.getProvince(), snapshot.getDistrict(), snapshot.getWard(), snapshot.getAddressLine()); OrderCustomDetails details = order.getCustomDetails(); OrderCustomDetailsResponse customDetails = details == null ? null : new OrderCustomDetailsResponse(details.getCustomOrderRequestId(), details.getRequestCode(), details.getRequestType(), details.getWidthCm(), details.getHeightCm(), details.getMaterial(), details.getFrameId(), details.getFrameName(), details.getQuotedPrice()); return new OrderResponse(order.getId(), order.getOrderCode(), order.getStatus(), order.getShippingAddress(), address, order.getSubtotalAmount(), order.getDiscountAmount(), order.getTotalAmount(), order.getPromotionId(), order.getPromotionCode(), customDetails, items, order.getCreatedAt()); }
+    private OrderResponse toResponse(Order order) {
+        List<OrderItemResponse> items = order.getItems().stream()
+                .map(i -> new OrderItemResponse(i.getId(), i.getProductId(), i.getProductName(), i.getProductSlug(),
+                        i.getProductVariantId(), i.getVariantSku(), i.getVariantName(), i.getVariantMaterial(),
+                        i.getVariantWidthCm(), i.getVariantHeightCm(), i.getProductFrameOptionId(), i.getFrameName(),
+                        i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal()))
+                .toList();
+        OrderShippingAddress snapshot = order.getShippingAddressSnapshot();
+        OrderShippingAddressResponse address = snapshot == null ? null : new OrderShippingAddressResponse(
+                snapshot.getRecipientName(), snapshot.getPhone(), snapshot.getProvince(), snapshot.getDistrict(),
+                snapshot.getWard(), snapshot.getAddressLine());
+        OrderCustomDetails details = order.getCustomDetails();
+        OrderCustomDetailsResponse customDetails = details == null ? null : new OrderCustomDetailsResponse(
+                details.getCustomOrderRequestId(), details.getRequestCode(), details.getRequestType(), details.getWidthCm(),
+                details.getHeightCm(), details.getMaterial(), details.getFrameId(), details.getFrameName(), details.getQuotedPrice());
+        Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(order.getId()).orElse(null);
+        Shipment shipment = shipmentRepository.findByOrderId(order.getId()).orElse(null);
+        var refund = paymentRefundRepository.findByOrderId(order.getId()).orElse(null);
+        return new OrderResponse(order.getId(), order.getOrderCode(), order.getStatus(), order.getShippingAddress(), address,
+                order.getSubtotalAmount(), order.getDiscountAmount(), shipment == null ? BigDecimal.ZERO : shipment.getShippingFee(),
+                order.getTotalAmount(), payment == null ? null : payment.getStatus(), payment == null ? null : payment.getMethod(),
+                shipment == null ? null : shipment.getStatus(), refund == null ? null : refund.getStatus(),
+                refund == null ? null : refund.getAmount(),
+                order.getPromotionId(), order.getPromotionCode(), customDetails, items, order.getCreatedAt());
+    }
     @Override @Transactional(readOnly = true) public List<OrderStatusHistoryResponse> getMineHistory(UUID userId, UUID orderId) { return orderStatusHistoryService.getMine(userId, orderId); }
     @Override @Transactional(readOnly = true) public List<OrderStatusHistoryResponse> getHistoryForManagement(UUID orderId) { return orderStatusHistoryService.getForManagement(orderId); }
     @Override @Transactional

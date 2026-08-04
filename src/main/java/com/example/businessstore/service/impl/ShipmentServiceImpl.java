@@ -49,11 +49,9 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (!allowed(shipment.getStatus(), input.status())) throw new AppException(ErrorCode.INVALID_SHIPMENT_STATUS, "Invalid shipment status transition");
         Instant now = Instant.now(); shipment.setStatus(input.status());
         if (input.status() == ShipmentStatus.IN_TRANSIT) { shipment.setShippedAt(now); changeOrderStatus(order, OrderStatus.SHIPPING, changedBy, "Shipment marked IN_TRANSIT"); }
-        if (input.status() == ShipmentStatus.DELIVERED) { shipment.setDeliveredAt(now); shipment.setFailureReason(null); changeOrderStatus(order, OrderStatus.DELIVERED, changedBy, "Shipment delivered"); }
-        if (input.status() == ShipmentStatus.DELIVERY_FAILED) { shipment.setFailedAt(now); shipment.setFailureReason(input.failureReason() == null ? null : input.failureReason().trim()); changeOrderStatus(order, OrderStatus.DELIVERY_FAILED, changedBy, shipment.getFailureReason() == null ? "Shipment delivery failed" : "Shipment delivery failed: " + shipment.getFailureReason()); }
         return toResponse(shipment);
     }
-    private boolean allowed(ShipmentStatus current, ShipmentStatus next) { return (current == ShipmentStatus.READY && (next == ShipmentStatus.IN_TRANSIT || next == ShipmentStatus.CANCELLED)) || (current == ShipmentStatus.IN_TRANSIT && (next == ShipmentStatus.DELIVERED || next == ShipmentStatus.DELIVERY_FAILED)) || (current == ShipmentStatus.DELIVERY_FAILED && next == ShipmentStatus.IN_TRANSIT); }
+    private boolean allowed(ShipmentStatus current, ShipmentStatus next) { return current == ShipmentStatus.READY && (next == ShipmentStatus.IN_TRANSIT || next == ShipmentStatus.CANCELLED); }
     private void changeOrderStatus(Order order, OrderStatus next, UUID changedBy, String note) { OrderStatus from = order.getStatus(); order.setStatus(next); orderStatusHistoryService.record(order, from, next, changedBy, note); }
     private String normalizeFilter(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private ShipmentResponse toResponse(Shipment s) { return new ShipmentResponse(s.getId(), s.getOrder().getId(), s.getOrder().getOrderCode(), s.getCarrier(), s.getTrackingCode(), s.getShippingFee(), s.getStatus(), s.getShippedAt(), s.getDeliveredAt(), s.getFailedAt(), s.getFailureReason(), s.getCreatedAt(), s.getUpdatedAt()); }

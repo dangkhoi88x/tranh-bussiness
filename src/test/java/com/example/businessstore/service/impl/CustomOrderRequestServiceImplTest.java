@@ -52,7 +52,7 @@ class CustomOrderRequestServiceImplTest {
         Order linkedOrder = new Order(); linkedOrder.setId(orderId); linkedOrder.setOrderCode("ART-CUSTOM-001");
         OrderResponse response = new OrderResponse(orderId, "ART-CUSTOM-001", OrderStatus.PENDING,
                 null, null, new BigDecimal("900000"), BigDecimal.ZERO, new BigDecimal("900000"),
-                null, null, null, List.of(), null);
+                new BigDecimal("900000"), null, null, null, null, null, null, null, null, List.of(), null);
 
         when(requestRepository.findByIdAndUserIdForUpdate(requestId, userId)).thenReturn(Optional.of(request));
         when(orderService.createFromCustomRequest(eq(userId), any(UUID.class), eq(request))).thenReturn(response);

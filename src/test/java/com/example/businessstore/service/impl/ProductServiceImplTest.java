@@ -12,6 +12,7 @@ import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductImageRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ import static org.mockito.Mockito.when;
 class ProductServiceImplTest {
 
     @Mock private ProductRepository productRepository;
+    @Mock private ProductVariantRepository productVariantRepository;
     @Mock private ProductImageRepository productImageRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private ProductMapper productMapper;
@@ -71,6 +73,7 @@ class ProductServiceImplTest {
     void findPublished_usesSpecificationAndLetsCatalogCriteriaOwnTheSort() {
         when(productRepository.findAll(ArgumentMatchers.<Specification<Product>>any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(product)));
+        when(productVariantRepository.findAllByProductIdIn(any())).thenReturn(List.of());
         when(productMapper.toResponse(product)).thenReturn(productResponse);
 
         var response = productService.findPublished(new ProductCatalogFilter(null, " sơn dầu ",

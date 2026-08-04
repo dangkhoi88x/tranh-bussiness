@@ -1,5 +1,9 @@
 package com.example.businessstore.dto.response;
 import com.example.businessstore.constant.OrderStatus;
+import com.example.businessstore.constant.PaymentMethod;
+import com.example.businessstore.constant.PaymentStatus;
+import com.example.businessstore.constant.RefundStatus;
+import com.example.businessstore.constant.ShipmentStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -12,7 +16,13 @@ public record OrderResponse(
         OrderShippingAddressResponse shippingAddressSnapshot,
         BigDecimal subtotalAmount,
         BigDecimal discountAmount,
+        BigDecimal shippingFee,
         BigDecimal totalAmount,
+        PaymentStatus paymentStatus,
+        PaymentMethod paymentMethod,
+        ShipmentStatus shipmentStatus,
+        RefundStatus refundStatus,
+        BigDecimal refundAmount,
         UUID promotionId,
         String promotionCode,
         OrderCustomDetailsResponse customDetails,
