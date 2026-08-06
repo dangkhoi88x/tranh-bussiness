@@ -18,5 +18,7 @@ public record CreateProductRequest(
         @DecimalMin(value = "0.01") BigDecimal widthCm,
         @DecimalMin(value = "0.01") BigDecimal heightCm,
         @NotNull @Min(0) Integer stockQuantity,
-        ProductStatus status) {
+        ProductStatus status,
+        @Min(1) Integer pageCount,
+        @Size(max = 120) String coverMaterial) {
 }

@@ -10,5 +10,7 @@ public interface ProductMapper {
 
     @Mapping(target = "categoryId", source = "category.id")
     @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "primaryImageUrl", ignore = true)
+    @Mapping(target = "images", ignore = true)
     ProductResponse toResponse(Product product);
 }

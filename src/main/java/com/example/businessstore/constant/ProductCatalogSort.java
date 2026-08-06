@@ -7,5 +7,6 @@ public enum ProductCatalogSort {
     NEWEST,
     PRICE_ASC,
     PRICE_DESC,
-    BEST_SELLING
+    BEST_SELLING,
+    TRENDING
 }

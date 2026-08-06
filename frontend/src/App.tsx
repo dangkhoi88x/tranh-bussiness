@@ -10,6 +10,7 @@ import { OrdersSearchPage, PaymentsSearchPage } from './pages/OperationsFilterPa
 import { PromotionsPage } from './pages/PromotionPages'
 import { ShipmentsPage } from './pages/ShipmentPages'
 import { StaffPage } from './pages/StaffPages'
+import { HomePage } from './pages/HomePage'
 import './App.css'
 
 function App() {
@@ -32,7 +33,7 @@ function App() {
       </Route>
       <Route path="/403" element={<ForbiddenPage />} />
     </Route>
-    <Route path="/" element={<Navigate to="/admin" replace />} />
+    <Route path="/" element={<HomePage />} />
     <Route path="*" element={<Navigate to="/admin" replace />} />
   </Routes>
 }

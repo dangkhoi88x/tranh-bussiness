@@ -1,0 +1,28 @@
+/* Chỉ chứa những gì inline style không làm được: keyframes và breakpoint.
+   Mọi giá trị màu/khoảng cách vẫn lấy từ ds.css. */
+
+@keyframes bm-nudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+/* !important cần thiết: các phần tử này set display bằng inline style trong
+   SiteHeader.tsx, inline style luôn thắng CSS ngoài nếu không có !important. */
+@media (max-width: 1180px) {
+  [data-nav-secondary] { display: none !important; }
+  [data-search] { display: none !important; }
+}
+
+@media (max-width: 880px) {
+  [data-nav] { display: none !important; }
+  [data-nav-menu] { display: grid !important; }
+}
+
+/* Mobile: mọi lưới nhiều cột rút về một cột, kẻ dọc chuyển thành kẻ ngang. */
+@media (max-width: 720px) {
+  [data-grid="cols"] { grid-template-columns: minmax(0, 1fr) !important; }
+  [data-grid="cols"] > * { border-right: 0 !important; }
+  [data-grid="cols"] > * + * { border-top: 2px solid var(--color-divider); }
+  [data-split] { grid-template-columns: minmax(0, 1fr) !important; }
+  [data-split] > * { border-right: 0 !important; }
+}

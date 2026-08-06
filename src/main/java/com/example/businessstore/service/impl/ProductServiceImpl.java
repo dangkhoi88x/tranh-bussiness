@@ -6,11 +6,13 @@ import com.example.businessstore.dto.request.CreateProductRequest;
 import com.example.businessstore.dto.request.ProductCatalogFilter;
 import com.example.businessstore.dto.request.UpdateProductRequest;
 import com.example.businessstore.dto.response.PageResponse;
+import com.example.businessstore.dto.response.ProductImageResponse;
 import com.example.businessstore.dto.response.ProductResponse;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
+import com.example.businessstore.mapper.ProductImageMapper;
 import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductRepository;
@@ -28,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -40,6 +43,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductImageRepository productImageRepository;
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
+    private final ProductImageMapper productImageMapper;
     private final MediaTransactionSynchronizer mediaTransactionSynchronizer;
 
     @Override
@@ -56,7 +60,9 @@ public class ProductServiceImpl implements ProductService {
         product.setHeightCm(request.heightCm());
         product.setStockQuantity(request.stockQuantity());
         product.setStatus(request.status() == null ? ProductStatus.DRAFT : request.status());
-        return productMapper.toResponse(productRepository.save(product));
+        product.setPageCount(request.pageCount());
+        product.setCoverMaterial(normalizeCoverMaterial(request.coverMaterial()));
+        return toResponse(productRepository.save(product));
     }
 
     @Override
@@ -89,7 +95,13 @@ public class ProductServiceImpl implements ProductService {
         if (request.status() != null) {
             product.setStatus(request.status());
         }
-        return productMapper.toResponse(product);
+        if (request.pageCount() != null) {
+            product.setPageCount(request.pageCount());
+        }
+        if (request.coverMaterial() != null) {
+            product.setCoverMaterial(normalizeCoverMaterial(request.coverMaterial()));
+        }
+        return toResponse(product);
     }
 
     @Override
@@ -118,7 +130,7 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
-        return productMapper.toResponse(product);
+        return toResponse(product);
     }
 
     @Override
@@ -126,7 +138,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse findPublishedBySlug(String slug) {
         Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.PUBLISHED)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
-        return productMapper.toResponse(product);
+        return toResponse(product);
     }
 
     @Override
@@ -144,17 +156,36 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public ProductResponse findForManagement(UUID id) {
-        return productMapper.toResponse(getProduct(id));
+        return toResponse(getProduct(id));
     }
 
     private PageResponse<ProductResponse> toPageResponse(Page<Product> products, int requestedPage) {
         return new PageResponse<>(
-                products.getContent().stream().map(productMapper::toResponse).toList(),
+                products.getContent().stream().map(this::toResponse).toList(),
                 Math.max(requestedPage, 1),
                 products.getSize(),
                 products.getTotalElements(),
                 products.getTotalPages(),
                 products.hasNext());
+    }
+
+    /** Attaches the ordered image list and primary image URL, shared by every read path. */
+    private ProductResponse toResponse(Product product) {
+        ProductResponse mapped = productMapper.toResponse(product);
+        List<ProductImageResponse> images = productImageRepository
+                .findAllByProductIdOrderBySortOrderAscCreatedAtAsc(product.getId()).stream()
+                .map(productImageMapper::toResponse)
+                .toList();
+        String primaryImageUrl = images.stream()
+                .filter(ProductImageResponse::primaryImage)
+                .findFirst()
+                .or(() -> images.stream().findFirst())
+                .map(ProductImageResponse::secureUrl)
+                .orElse(null);
+        return new ProductResponse(mapped.id(), mapped.categoryId(), mapped.categoryName(), mapped.name(),
+                mapped.slug(), mapped.description(), mapped.price(), mapped.widthCm(), mapped.heightCm(),
+                mapped.stockQuantity(), mapped.status(), mapped.pageCount(), mapped.coverMaterial(),
+                primaryImageUrl, images, mapped.createdAt(), mapped.updatedAt());
     }
 
     private Pageable pageRequest(int page, int size) {
@@ -227,5 +258,9 @@ public class ProductServiceImpl implements ProductService {
 
     private String normalizeDescription(String description) {
         return description == null || description.isBlank() ? null : description.trim();
+    }
+
+    private String normalizeCoverMaterial(String coverMaterial) {
+        return coverMaterial == null || coverMaterial.isBlank() ? null : coverMaterial.trim();
     }
 }

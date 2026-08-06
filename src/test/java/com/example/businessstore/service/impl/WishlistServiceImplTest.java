@@ -62,7 +62,7 @@ class WishlistServiceImplTest {
         Category category = product.getCategory();
         when(productMapper.toResponse(product)).thenReturn(new ProductResponse(product.getId(), category.getId(),
                 category.getName(), product.getName(), product.getSlug(), null, product.getPrice(), null, null,
-                product.getStockQuantity(), product.getStatus(), null, null));
+                product.getStockQuantity(), product.getStatus(), null, null, null, null, null, null));
         when(productImageRepository.findFirstByProductIdAndPrimaryImageTrueOrderByCreatedAtAsc(product.getId()))
                 .thenReturn(Optional.empty());
         when(productImageRepository.findFirstByProductIdOrderBySortOrderAscCreatedAtAsc(product.getId()))

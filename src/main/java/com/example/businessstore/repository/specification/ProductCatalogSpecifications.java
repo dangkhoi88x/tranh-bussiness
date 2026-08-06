@@ -20,6 +20,7 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -172,6 +173,9 @@ public final class ProductCatalogSpecifications {
             case BEST_SELLING -> query.orderBy(
                     criteriaBuilder.desc(soldQuantity(root, query, criteriaBuilder)),
                     criteriaBuilder.desc(createdAt));
+            case TRENDING -> query.orderBy(
+                    criteriaBuilder.desc(recentSoldQuantity(root, query, criteriaBuilder)),
+                    criteriaBuilder.desc(createdAt));
             case NEWEST -> query.orderBy(criteriaBuilder.desc(createdAt));
         }
     }
@@ -200,6 +204,26 @@ public final class ProductCatalogSpecifications {
         quantity.where(criteriaBuilder.and(
                 criteriaBuilder.equal(item.<UUID>get("productId"), root.<UUID>get("id")),
                 criteriaBuilder.equal(order.<OrderStatus>get("status"), OrderStatus.DELIVERED)));
+        return criteriaBuilder.coalesce(quantity, 0L);
+    }
+
+    private static final int TRENDING_WINDOW_DAYS = 30;
+
+    /** Sold quantity from DELIVERED orders placed in the last {@link #TRENDING_WINDOW_DAYS} days. */
+    private static Expression<Long> recentSoldQuantity(
+            Root<Product> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder criteriaBuilder) {
+        Subquery<Long> quantity = query.subquery(Long.class);
+        Root<OrderItem> item = quantity.from(OrderItem.class);
+        Join<OrderItem, Order> order = item.join("order");
+        quantity.select(criteriaBuilder.sumAsLong(item.<Integer>get("quantity")));
+        quantity.where(criteriaBuilder.and(
+                criteriaBuilder.equal(item.<UUID>get("productId"), root.<UUID>get("id")),
+                criteriaBuilder.equal(order.<OrderStatus>get("status"), OrderStatus.DELIVERED),
+                criteriaBuilder.greaterThanOrEqualTo(
+                        order.<Instant>get("createdAt"),
+                        Instant.now().minus(TRENDING_WINDOW_DAYS, ChronoUnit.DAYS))));
         return criteriaBuilder.coalesce(quantity, 0L);
     }
 

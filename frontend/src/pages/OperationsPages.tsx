@@ -10,7 +10,6 @@ type Order = { id: string; orderCode: string; status: OrderStatus; shippingAddre
 type OrderItem = { id: string; productName: string; variantName: string | null; variantSku: string | null; variantMaterial: string | null; frameName: string | null; unitPrice: number; quantity: number; lineTotal: number }
 type History = { id: string; fromStatus: OrderStatus; toStatus: OrderStatus; changedByName: string | null; note: string | null; createdAt: string }
 type Shipment = { id: string; carrier: string; trackingCode: string; shippingFee: number; status: ShipmentStatus; shippedAt: string | null; deliveredAt: string | null; failedAt: string | null; failureReason: string | null }
-type Payment = { id: string; orderId: string; orderCode: string; amount: number; method: 'COD'; status: 'PENDING' | 'SUCCESS' | 'CANCELLED'; transactionCode: string; paidAt: string | null; createdAt: string }
 type CustomOrder = { id: string; requestCode: string; type: string; widthCm: number; heightCm: number; material: string; frameId: string | null; frameName: string | null; quotedPrice: number | null; staffNote: string | null; customerNote: string | null; status: 'NEW' | 'QUOTED' | 'CONFIRMED' | 'IN_PRODUCTION' | 'COMPLETED' | 'CANCELLED'; orderCode: string | null; images: { id: string; secureUrl: string }[]; createdAt: string }
 type Frame = { id: string; name: string; status: 'ACTIVE' | 'INACTIVE' }
 
@@ -23,13 +22,6 @@ function Notice({ value }: { value: string | null }) { return value ? <p classNa
 function Panel({ children }: { children: React.ReactNode }) { return <section className="catalog-panel">{children}</section> }
 function stateClass(status: string) { return `status status--${status.toLowerCase()}` }
 function Pagination({ data, onPage }: { data: Page<unknown> | null; onPage: (page: number) => void }) { if (!data || data.totalPages <= 1) return null; return <div className="pagination"><button disabled={data.page <= 1} onClick={() => onPage(data.page - 1)}>← Trước</button><span>Trang {data.page}/{data.totalPages} · {data.totalElements} bản ghi</span><button disabled={!data.hasNext} onClick={() => onPage(data.page + 1)}>Sau →</button></div> }
-
-export function OrdersPage() {
-  const navigate = useNavigate(); const [data, setData] = useState<Page<Order> | null>(null); const [page, setPage] = useState(1); const [message, setMessage] = useState<string | null>(null); const [loading, setLoading] = useState(true)
-  async function load() { setLoading(true); try { setData(await apiRequest<Page<Order>>(`/orders?page=${page}&size=15`)) } catch (error) { setMessage(errorText(error)) } finally { setLoading(false) } }
-  useEffect(() => { void load() }, [page])
-  return <><OperationsHeader eyebrow="VẬN HÀNH" title="Đơn hàng" description="Theo dõi tất cả đơn, xác nhận đơn mới và mở chi tiết để xử lý giao vận." /><Notice value={message} /><Panel>{loading ? <p className="table-loading">Đang tải đơn hàng…</p> : <><table className="data-table"><thead><tr><th>Mã đơn</th><th>Thời gian</th><th>Thanh toán</th><th>Tổng tiền</th><th>Trạng thái</th><th /></tr></thead><tbody>{data?.items.map((order) => <tr key={order.id}><td><strong>{order.orderCode}</strong><small>{order.items.length} sản phẩm{order.customDetails ? ' · Đơn theo yêu cầu' : ''}</small></td><td>{dateTime.format(new Date(order.createdAt))}</td><td>{order.promotionCode ? `Mã ${order.promotionCode}` : '—'}</td><td>{money.format(order.totalAmount)}</td><td><span className={stateClass(order.status)}>{order.status}</span></td><td className="table-actions"><button onClick={() => navigate(`/admin/orders/${order.id}`)}>Chi tiết</button></td></tr>)}</tbody></table>{data?.items.length === 0 && <p className="empty-state">Chưa có đơn hàng để xử lý.</p>}<Pagination data={data} onPage={setPage} /></>}</Panel></>
-}
 
 export function OrderDetailPage() {
   const { orderId } = useParams(); const navigate = useNavigate(); const { hasPermission } = useAuth(); const [order, setOrder] = useState<Order | null>(null); const [history, setHistory] = useState<History[]>([]); const [shipment, setShipment] = useState<Shipment | null>(null); const [message, setMessage] = useState<string | null>(null)
@@ -64,19 +56,6 @@ function CreateShipmentCard({ order, onSaved, onError }: { order: Order; onSaved
   if (order.status !== 'CONFIRMED') return <Panel><div className="panel-heading"><div><h3>Vận chuyển</h3><p>Shipment chỉ được tạo sau khi đơn đã CONFIRMED.</p></div></div></Panel>
   async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); try { await apiRequest(`/orders/${order.id}/shipment`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ carrier, trackingCode, shippingFee: Number(shippingFee) }) }); onSaved() } catch (error) { onError(errorText(error)) } finally { setBusy(false) } }
   return <Panel><div className="panel-heading"><div><h3>Tạo vận đơn</h3><p>Đơn cần có COD đang chờ trước khi bàn giao cho vận chuyển.</p></div></div><form className="admin-form side-form" onSubmit={(event) => void submit(event)}><label>Đơn vị vận chuyển<input value={carrier} onChange={(event) => setCarrier(event.target.value)} required /></label><label>Mã vận đơn<input value={trackingCode} onChange={(event) => setTrackingCode(event.target.value)} required /></label><label>Phí vận chuyển<input type="number" min="0" step="1000" value={shippingFee} onChange={(event) => setShippingFee(event.target.value)} required /></label><button className="primary-button compact" disabled={busy}>{busy ? 'Đang tạo…' : 'Tạo shipment'}</button></form></Panel>
-}
-
-export function PaymentsPage() {
-  const [data, setData] = useState<Page<Payment> | null>(null); const [page, setPage] = useState(1); const [message, setMessage] = useState<string | null>(null); const [loading, setLoading] = useState(true)
-  async function load() { setLoading(true); try { setData(await apiRequest<Page<Payment>>(`/payments?page=${page}&size=20`)) } catch (error) { setMessage(errorText(error)) } finally { setLoading(false) } }
-  useEffect(() => { void load() }, [page])
-  async function confirm(item: Payment) { if (!window.confirm(`Xác nhận đã thu COD cho ${item.orderCode}?`)) return; try { await apiRequest(`/payments/${item.id}/cod/confirm`, { method: 'PUT' }); setMessage('Đã xác nhận thanh toán COD.'); void load() } catch (error) { setMessage(errorText(error)) } }
-  return <><OperationsHeader eyebrow="VẬN HÀNH" title="Thanh toán COD" description="Theo dõi các khoản thu và xác nhận COD sau khi đơn đã giao thành công." /><Notice value={message} /><Panel>{loading ? <p className="table-loading">Đang tải thanh toán…</p> : <><table className="data-table"><thead><tr><th>Mã giao dịch</th><th>Đơn hàng</th><th>Phương thức</th><th>Số tiền</th><th>Trạng thái</th><th /></tr></thead><tbody>{data?.items.map((item) => <tr key={item.id}><td><strong>{item.transactionCode}</strong><small>{dateTime.format(new Date(item.createdAt))}</small></td><td>{item.orderCode}</td><td>{item.method}</td><td>{money.format(item.amount)}</td><td><span className={stateClass(item.status)}>{item.status}</span></td><td className="table-actions">{item.status === 'PENDING' && <button onClick={() => void confirm(item)}>Xác nhận COD</button>}{item.paidAt && <small>Thu: {dateTime.format(new Date(item.paidAt))}</small>}</td></tr>)}</tbody></table>{data?.items.length === 0 && <p className="empty-state">Chưa có thanh toán COD.</p>}<Pagination data={data} onPage={setPage} /></>}</Panel></>
-}
-
-export function ShipmentsPage() {
-  const navigate = useNavigate()
-  return <><OperationsHeader eyebrow="VẬN HÀNH" title="Vận chuyển" description="Mỗi shipment gắn với một đơn hàng để bảo toàn lịch sử trạng thái và phí giao hàng." action={<button className="primary-button compact" onClick={() => navigate('/admin/orders')}>Mở đơn hàng</button>} /><Panel><div className="panel-heading"><div><h3>Xử lý theo từng đơn</h3><p>Backend hiện quản lý shipment theo mã đơn, không có danh sách shipment toàn cục.</p></div></div><div className="detail-copy">Vào chi tiết một đơn đã <strong>CONFIRMED</strong> để tạo shipment. Sau đó cập nhật lần lượt <strong>READY → IN_TRANSIT → DELIVERED</strong> hoặc ghi nhận <strong>DELIVERY_FAILED</strong>.</div></Panel></>
 }
 
 export function CustomOrdersPage() {

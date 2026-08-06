@@ -51,4 +51,10 @@ public class Product extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductStatus status;
+
+    @Column(name = "page_count")
+    private Integer pageCount;
+
+    @Column(name = "cover_material", length = 120)
+    private String coverMaterial;
 }

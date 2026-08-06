@@ -8,6 +8,7 @@ import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
+import com.example.businessstore.mapper.ProductImageMapper;
 import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductImageRepository;
@@ -43,10 +44,12 @@ class ProductServiceImplTest {
     @Mock private ProductImageRepository productImageRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private ProductMapper productMapper;
+    @Mock private ProductImageMapper productImageMapper;
     @Mock private MediaTransactionSynchronizer mediaTransactionSynchronizer;
     @InjectMocks private ProductServiceImpl productService;
 
     private Product product;
+    private ProductResponse mappedResponse;
     private ProductResponse productResponse;
 
     @BeforeEach
@@ -62,16 +65,24 @@ class ProductServiceImplTest {
         product.setPrice(new BigDecimal("750000"));
         product.setStockQuantity(2);
         product.setStatus(ProductStatus.PUBLISHED);
+        // What productMapper.toResponse(product) is stubbed to return; its own primaryImageUrl/images
+        // are discarded by ProductServiceImpl.toResponse, which resolves those from the image repository instead.
+        mappedResponse = new ProductResponse(product.getId(), category.getId(), category.getName(),
+                product.getName(), product.getSlug(), null, product.getPrice(), null, null,
+                product.getStockQuantity(), product.getStatus(), null, null, null, null, null, null);
+        // What productService.findPublished should actually return once the (stubbed empty) image list is attached.
         productResponse = new ProductResponse(product.getId(), category.getId(), category.getName(),
                 product.getName(), product.getSlug(), null, product.getPrice(), null, null,
-                product.getStockQuantity(), product.getStatus(), null, null);
+                product.getStockQuantity(), product.getStatus(), null, null, null, List.of(), null, null);
     }
 
     @Test
     void findPublished_usesSpecificationAndLetsCatalogCriteriaOwnTheSort() {
         when(productRepository.findAll(ArgumentMatchers.<Specification<Product>>any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(product)));
-        when(productMapper.toResponse(product)).thenReturn(productResponse);
+        when(productMapper.toResponse(product)).thenReturn(mappedResponse);
+        when(productImageRepository.findAllByProductIdOrderBySortOrderAscCreatedAtAsc(product.getId()))
+                .thenReturn(List.of());
 
         var response = productService.findPublished(new ProductCatalogFilter(null, " sơn dầu ",
                 new BigDecimal("500000"), new BigDecimal("1000000"), "Canvas",

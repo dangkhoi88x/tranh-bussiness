@@ -4,6 +4,7 @@ import com.example.businessstore.constant.ProductStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record ProductResponse(
@@ -18,6 +19,10 @@ public record ProductResponse(
         BigDecimal heightCm,
         int stockQuantity,
         ProductStatus status,
+        Integer pageCount,
+        String coverMaterial,
+        String primaryImageUrl,
+        List<ProductImageResponse> images,
         Instant createdAt,
         Instant updatedAt) {
 }
