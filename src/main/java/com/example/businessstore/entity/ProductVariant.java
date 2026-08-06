@@ -12,6 +12,9 @@ public class ProductVariant extends BaseEntity {
     @Column(nullable = false, length = 180) private String name;
     @Column(name = "width_cm", nullable = false, precision = 10, scale = 2) private BigDecimal widthCm;
     @Column(name = "height_cm", nullable = false, precision = 10, scale = 2) private BigDecimal heightCm;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "art_size_id") private ArtSize artSize;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "material_id") private Material materialDefinition;
+    // Display snapshot: orders and existing integrations keep this immutable name.
     @Column(nullable = false, length = 100) private String material;
     @Column(nullable = false, precision = 19, scale = 2) private BigDecimal price;
     @Column(name = "stock_quantity", nullable = false) private int stockQuantity;

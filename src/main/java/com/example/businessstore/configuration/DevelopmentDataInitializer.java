@@ -13,6 +13,7 @@ import com.example.businessstore.entity.Role;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.FrameRepository;
+import com.example.businessstore.repository.MaterialRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductImageRepository;
 import com.example.businessstore.repository.ProductRepository;
@@ -47,6 +48,7 @@ public class DevelopmentDataInitializer implements ApplicationRunner {
 
     private final CategoryRepository categoryRepository;
     private final FrameRepository frameRepository;
+    private final MaterialRepository materialRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
@@ -188,6 +190,11 @@ public class DevelopmentDataInitializer implements ApplicationRunner {
             variant.setWidthCm(money(variantSeed.widthCm()));
             variant.setHeightCm(money(variantSeed.heightCm()));
             variant.setMaterial(variantSeed.material());
+            materialRepository.findAllByScopeAndStatusOrderByNameAsc(
+                            com.example.businessstore.constant.MaterialScope.ARTWORK_SURFACE,
+                            com.example.businessstore.constant.MaterialStatus.ACTIVE)
+                    .stream().filter(material -> material.getName().equalsIgnoreCase(variantSeed.material()))
+                    .findFirst().ifPresent(variant::setMaterialDefinition);
             variant.setPrice(money(variantSeed.price()));
             variant.setStockQuantity(variantSeed.stockQuantity());
             variant.setAvailable(true);

@@ -29,10 +29,10 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID> {
     @EntityGraph(attributePaths = {"scopes", "scopes.category", "scopes.product", "scopes.productVariant"})
     @Query("""
             select promotion from Promotion promotion
-            where (:code is null or lower(promotion.code) like lower(concat('%', :code, '%')))
-              and (:status is null or promotion.status = :status)
-              and (:effectiveFrom is null or promotion.endAt >= :effectiveFrom)
-              and (:effectiveToExclusive is null or promotion.startAt < :effectiveToExclusive)
+            where lower(promotion.code) like concat('%', lower(coalesce(cast(:code as string), promotion.code)), '%')
+              and promotion.status = coalesce(:status, promotion.status)
+              and promotion.endAt >= coalesce(:effectiveFrom, promotion.endAt)
+              and promotion.startAt < coalesce(:effectiveToExclusive, promotion.endAt)
             """)
     Page<Promotion> searchForManagement(
             @Param("code") String code,

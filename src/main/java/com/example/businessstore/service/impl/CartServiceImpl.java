@@ -208,6 +208,6 @@ public class CartServiceImpl implements CartService {
 
     private ProductVariantResponse toVariantResponse(ProductVariant variant) {
         if (variant == null) return null;
-        return new ProductVariantResponse(variant.getId(), variant.getProduct().getId(), variant.getSku(), variant.getName(), variant.getWidthCm(), variant.getHeightCm(), variant.getMaterial(), variant.getPrice(), variant.getStockQuantity(), variant.isAvailable());
+        return new ProductVariantResponse(variant.getId(), variant.getProduct().getId(), variant.getSku(), variant.getName(), variant.getWidthCm(), variant.getHeightCm(), variant.getArtSize() == null ? null : variant.getArtSize().getId(), variant.getArtSize() == null ? "CUSTOM" : variant.getArtSize().getCode(), variant.getMaterialDefinition() == null ? null : variant.getMaterialDefinition().getId(), variant.getMaterial(), variant.getPrice(), variant.getStockQuantity(), variant.isAvailable());
     }
 }

@@ -24,5 +24,25 @@ public record ProductResponse(
         String primaryImageUrl,
         List<ProductImageResponse> images,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        int effectiveStockQuantity,
+        boolean hasVariants,
+        String primaryImageUrl) {
+
+    public ProductResponse(UUID id, UUID categoryId, String categoryName, String name, String slug, String description,
+                           BigDecimal price, BigDecimal widthCm, BigDecimal heightCm, int stockQuantity,
+                           ProductStatus status, Instant createdAt, Instant updatedAt) {
+        this(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm, stockQuantity,
+                status, createdAt, updatedAt, stockQuantity, false, null);
+    }
+
+    public ProductResponse withInventory(int effectiveStockQuantity, boolean hasVariants) {
+        return new ProductResponse(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm,
+                stockQuantity, status, createdAt, updatedAt, effectiveStockQuantity, hasVariants, primaryImageUrl);
+    }
+
+    public ProductResponse addManagementPreview(String primaryImageUrl) {
+        return new ProductResponse(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm,
+                stockQuantity, status, createdAt, updatedAt, effectiveStockQuantity, hasVariants, primaryImageUrl);
+    }
 }

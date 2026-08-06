@@ -1,6 +1,9 @@
 spring:
   application:
     name: business-store
+  config:
+    # Spring Boot does not load .env automatically. Treat the local file as properties when present.
+    import: optional:file:.env[.properties]
   profiles:
     default: dev
   servlet:

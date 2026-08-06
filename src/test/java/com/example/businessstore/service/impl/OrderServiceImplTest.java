@@ -1,6 +1,7 @@
 package com.example.businessstore.service.impl;
 
 import com.example.businessstore.constant.OrderStatus;
+import com.example.businessstore.constant.PaymentMethod;
 import com.example.businessstore.constant.PaymentStatus;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.CustomOrderRequest;
@@ -8,14 +9,17 @@ import com.example.businessstore.entity.ShippingAddress;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.constant.CustomOrderRequestType;
 import com.example.businessstore.entity.Payment;
+import com.example.businessstore.entity.Shipment;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.event.OrderConfirmedEvent;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
+import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
+import com.example.businessstore.repository.ShipmentRepository;
 import com.example.businessstore.service.ShippingAddressService;
 import com.example.businessstore.service.OrderStatusHistoryService;
 import com.example.businessstore.service.PromotionService;
@@ -43,6 +47,8 @@ class OrderServiceImplTest {
     @Mock private ProductRepository productRepository;
     @Mock private ProductVariantRepository productVariantRepository;
     @Mock private PaymentRepository paymentRepository;
+    @Mock private PaymentRefundRepository paymentRefundRepository;
+    @Mock private ShipmentRepository shipmentRepository;
     @Mock private ShippingAddressService shippingAddressService;
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
     @Mock private PromotionService promotionService;
@@ -140,6 +146,27 @@ class OrderServiceImplTest {
         assertThat(order.getValue().getSubtotalAmount()).isEqualByComparingTo("900000");
         assertThat(order.getValue().getCustomDetails().getRequestCode()).isEqualTo("REQ-001");
         assertThat(order.getValue().getCustomDetails().getMaterial()).isEqualTo("Canvas");
+    }
+
+    @Test
+    void getMineById_includesLatestPaymentAndShippingFee() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.CONFIRMED);
+        Payment payment = new Payment();
+        payment.setMethod(PaymentMethod.COD);
+        payment.setStatus(PaymentStatus.PENDING);
+        Shipment shipment = new Shipment();
+        shipment.setShippingFee(new BigDecimal("30000"));
+        when(orderRepository.findByIdAndUserId(orderId, userId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId)).thenReturn(Optional.of(payment));
+        when(shipmentRepository.findByOrderId(orderId)).thenReturn(Optional.of(shipment));
+
+        var response = orderService.getMineById(userId, orderId);
+
+        assertThat(response.paymentMethod()).isEqualTo(PaymentMethod.COD);
+        assertThat(response.paymentStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(response.shippingFee()).isEqualByComparingTo("30000");
     }
 
     private Order order(UUID id, OrderStatus status) {

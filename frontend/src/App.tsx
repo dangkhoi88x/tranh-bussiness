@@ -4,6 +4,8 @@ import { RequireAuth, RequirePermission } from './components/RouteGuards'
 import { AdminDashboard, AdminIndex, AccountPage, ForbiddenPage } from './pages/AdminPages'
 import { AuthPage } from './pages/AuthPage'
 import { CategoriesPage, FramesPage, ProductDetailPage } from './pages/CatalogPages'
+import { MaterialsPage } from './pages/MaterialPages'
+import { ArtSizesPage } from './pages/ArtSizePages'
 import { CustomOrdersPage, OrderDetailPage } from './pages/OperationsPages'
 import { ProductsSearchPage } from './pages/CatalogFilterPage'
 import { OrdersSearchPage, PaymentsSearchPage } from './pages/OperationsFilterPages'
@@ -23,6 +25,8 @@ function App() {
         <Route element={<RequirePermission permission="DASHBOARD_VIEW" />}><Route path="dashboard" element={<AdminDashboard />} /></Route>
         <Route element={<RequirePermission permission="CATEGORY_MANAGE" />}><Route path="categories" element={<CategoriesPage />} /></Route>
         <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="products" element={<ProductsSearchPage />} /><Route path="products/:productId" element={<ProductDetailPage />} /></Route>
+        <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="materials" element={<MaterialsPage />} /></Route>
+        <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="art-sizes" element={<ArtSizesPage />} /></Route>
         <Route element={<RequirePermission permission="FRAME_MANAGE" />}><Route path="frames" element={<FramesPage />} /></Route>
         <Route element={<RequirePermission permission="ORDER_MANAGE" />}><Route path="orders" element={<OrdersSearchPage />} /><Route path="orders/:orderId" element={<OrderDetailPage />} /></Route>
         <Route element={<RequirePermission permission="PAYMENT_MANAGE" />}><Route path="payments" element={<PaymentsSearchPage />} /></Route>

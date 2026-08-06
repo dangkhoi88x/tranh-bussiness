@@ -4,7 +4,7 @@ import com.example.businessstore.constant.OrderStatus;
 import com.example.businessstore.constant.PaymentStatus;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.dto.response.DashboardDailyMetricResponse;
-import com.example.businessstore.dto.response.DashboardLowStockProductResponse;
+import com.example.businessstore.dto.response.DashboardLowStockItemResponse;
 import com.example.businessstore.dto.response.DashboardOrderStatusResponse;
 import com.example.businessstore.dto.response.DashboardResponse;
 import com.example.businessstore.exception.AppException;
@@ -12,6 +12,7 @@ import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 @Service
 @RequiredArgsConstructor
@@ -37,6 +39,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -58,11 +61,7 @@ public class DashboardServiceImpl implements DashboardService {
         List<DashboardOrderStatusResponse> orderStatuses = List.of(OrderStatus.values()).stream()
                 .map(status -> new DashboardOrderStatusResponse(status, statuses.getOrDefault(status, 0L)))
                 .toList();
-        List<DashboardLowStockProductResponse> lowStockProducts = productRepository
-                .findTop6ByStatusAndStockQuantityLessThanEqualOrderByStockQuantityAscNameAsc(ProductStatus.PUBLISHED, LOW_STOCK_THRESHOLD)
-                .stream()
-                .map(product -> new DashboardLowStockProductResponse(product.getId(), product.getName(), product.getCategory().getName(), product.getStockQuantity()))
-                .toList();
+        List<DashboardLowStockItemResponse> lowStockItems = lowStockItems();
 
         return new DashboardResponse(
                 rangeFrom,
@@ -74,11 +73,39 @@ public class DashboardServiceImpl implements DashboardService {
                         + statuses.getOrDefault(OrderStatus.PROCESSING, 0L),
                 zeroIfNull(paymentRepository.sumAmountByStatus(PaymentStatus.PENDING)),
                 paymentRepository.countByStatus(PaymentStatus.PENDING),
-                productRepository.countByStatusAndStockQuantityLessThanEqual(ProductStatus.PUBLISHED, LOW_STOCK_THRESHOLD),
+                productRepository.countBaseProductsByStatusAndStockQuantityLessThanEqual(ProductStatus.PUBLISHED, LOW_STOCK_THRESHOLD)
+                        + productVariantRepository.countByProductStatusAndAvailableTrueAndStockQuantityLessThanEqual(
+                        ProductStatus.PUBLISHED, LOW_STOCK_THRESHOLD),
                 LOW_STOCK_THRESHOLD,
                 dailyMetrics,
                 orderStatuses,
-                lowStockProducts);
+                lowStockItems);
+    }
+
+    private List<DashboardLowStockItemResponse> lowStockItems() {
+        List<DashboardLowStockItemResponse> variantItems = productVariantRepository
+                .findTop6ByProductStatusAndAvailableTrueAndStockQuantityLessThanEqualOrderByStockQuantityAscProductNameAsc(
+                        ProductStatus.PUBLISHED, LOW_STOCK_THRESHOLD)
+                .stream()
+                .map(variant -> new DashboardLowStockItemResponse(
+                        variant.getProduct().getId(), variant.getProduct().getName(), variant.getProduct().getCategory().getName(),
+                        variant.getId(), variant.getSku(), variant.getName(), variant.getMaterial(), variant.getWidthCm(),
+                        variant.getHeightCm(), variant.getStockQuantity()))
+                .toList();
+        List<DashboardLowStockItemResponse> baseItems = productRepository
+                .findBaseProductsByStatusAndStockQuantityLessThanEqual(ProductStatus.PUBLISHED, LOW_STOCK_THRESHOLD,
+                        org.springframework.data.domain.PageRequest.of(0, 6))
+                .stream()
+                .map(product -> new DashboardLowStockItemResponse(
+                        product.getId(), product.getName(), product.getCategory().getName(), null, null, null, null,
+                        product.getWidthCm(), product.getHeightCm(), product.getStockQuantity()))
+                .toList();
+        return java.util.stream.Stream.concat(variantItems.stream(), baseItems.stream())
+                .sorted(Comparator.comparingInt(DashboardLowStockItemResponse::stockQuantity)
+                        .thenComparing(DashboardLowStockItemResponse::productName)
+                        .thenComparing(item -> item.variantSku() == null ? "" : item.variantSku()))
+                .limit(6)
+                .toList();
     }
 
     private void validateRange(LocalDate from, LocalDate to) {

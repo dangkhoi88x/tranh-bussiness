@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.domain.Specification;
 
 import jakarta.persistence.LockModeType;
 
@@ -35,24 +36,30 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
 
     Page<Product> findAllByCategoryIdAndStatusOrderByCreatedAtDesc(UUID categoryId, ProductStatus status, Pageable pageable);
 
+    @Override
     @EntityGraph(attributePaths = "category")
+    Page<Product> findAll(Specification<Product> specification, Pageable pageable);
+
     @Query("""
             select product from Product product
-            where (:name is null or lower(product.name) like lower(concat('%', :name, '%')))
-              and (:categoryId is null or product.category.id = :categoryId)
-              and (:status is null or product.status = :status)
-              and (:minStock is null or product.stockQuantity >= :minStock)
-              and (:maxStock is null or product.stockQuantity <= :maxStock)
+            join fetch product.category
+            where product.status = :status
+              and product.stockQuantity <= :stockQuantity
+              and not exists (select variant.id from ProductVariant variant where variant.product = product)
+            order by product.stockQuantity asc, product.name asc
             """)
-    Page<Product> searchForManagement(
-            @Param("name") String name,
-            @Param("categoryId") UUID categoryId,
+    List<Product> findBaseProductsByStatusAndStockQuantityLessThanEqual(
             @Param("status") ProductStatus status,
-            @Param("minStock") Integer minStock,
-            @Param("maxStock") Integer maxStock,
+            @Param("stockQuantity") int stockQuantity,
             Pageable pageable);
 
-    long countByStatusAndStockQuantityLessThanEqual(ProductStatus status, int stockQuantity);
-
-    List<Product> findTop6ByStatusAndStockQuantityLessThanEqualOrderByStockQuantityAscNameAsc(ProductStatus status, int stockQuantity);
+    @Query("""
+            select count(product) from Product product
+            where product.status = :status
+              and product.stockQuantity <= :stockQuantity
+              and not exists (select variant.id from ProductVariant variant where variant.product = product)
+            """)
+    long countBaseProductsByStatusAndStockQuantityLessThanEqual(
+            @Param("status") ProductStatus status,
+            @Param("stockQuantity") int stockQuantity);
 }

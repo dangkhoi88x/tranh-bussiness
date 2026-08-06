@@ -2,6 +2,8 @@ package com.example.businessstore.controller;
 
 import com.example.businessstore.constant.SecurityExpressions;
 import com.example.businessstore.dto.request.CheckoutOrderRequest;
+import com.example.businessstore.dto.request.CompleteDeliveryRequest;
+import com.example.businessstore.dto.request.DeliveryFailureRequest;
 import com.example.businessstore.dto.request.UpdateOrderStatusRequest;
 import com.example.businessstore.dto.response.ApiResponse;
 import com.example.businessstore.dto.response.OrderResponse;
@@ -9,6 +11,7 @@ import com.example.businessstore.dto.response.PageResponse;
 import com.example.businessstore.dto.response.OrderStatusHistoryResponse;
 import java.util.List;
 import com.example.businessstore.service.OrderService;
+import com.example.businessstore.service.OrderFulfillmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,6 +28,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 @RestController @RequestMapping("/api/v1/orders") @RequiredArgsConstructor
 public class OrderController {
     private final OrderService orderService;
+    private final OrderFulfillmentService orderFulfillmentService;
     @PostMapping("/checkout") public ResponseEntity<ApiResponse<OrderResponse>> checkout(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CheckoutOrderRequest request) { return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(orderService.checkout(userId(jwt), request), "Order created")); }
     @GetMapping("/my-orders") public ResponseEntity<ApiResponse<PageResponse<OrderResponse>>> mine(@AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size) { return ResponseEntity.ok(ApiResponse.success(orderService.getMine(userId(jwt), page, size))); }
     @GetMapping("/my-orders/{id}") public ResponseEntity<ApiResponse<OrderResponse>> mineById(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getMineById(userId(jwt), id))); }
@@ -34,5 +38,7 @@ public class OrderController {
     @GetMapping("/{id}") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<OrderResponse>> managementDetail(@PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getForManagement(id))); }
     @GetMapping("/{id}/history") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<List<OrderStatusHistoryResponse>>> history(@PathVariable UUID id) { return ResponseEntity.ok(ApiResponse.success(orderService.getHistoryForManagement(id))); }
     @PutMapping("/{id}/status") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<OrderResponse>> status(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody UpdateOrderStatusRequest request) { return ResponseEntity.ok(ApiResponse.success(orderService.updateStatus(userId(jwt), id, request.status(), request.note()), "Order status updated")); }
+    @PostMapping("/{id}/fulfillment/complete") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<OrderResponse>> completeDelivery(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody CompleteDeliveryRequest request) { orderFulfillmentService.completeDelivery(userId(jwt), id, request); return ResponseEntity.ok(ApiResponse.success(orderService.getForManagement(id), "Order delivered and COD payment collected")); }
+    @PostMapping("/{id}/fulfillment/delivery-failed") @PreAuthorize(SecurityExpressions.CAN_MANAGE_ORDERS) public ResponseEntity<ApiResponse<OrderResponse>> failDelivery(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @Valid @RequestBody DeliveryFailureRequest request) { orderFulfillmentService.failDelivery(userId(jwt), id, request); return ResponseEntity.ok(ApiResponse.success(orderService.getForManagement(id), "Delivery failure recorded and order closed")); }
     private UUID userId(Jwt jwt) { return UUID.fromString(jwt.getSubject()); }
 }

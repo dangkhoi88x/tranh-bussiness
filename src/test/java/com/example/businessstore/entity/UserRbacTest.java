@@ -1,5 +1,6 @@
 package com.example.businessstore.entity;
 
+import com.example.businessstore.dto.response.UserResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.GrantedAuthority;
 
@@ -40,6 +41,17 @@ class UserRbacTest {
 
         assertThat(user.getUserRoles()).hasSize(1);
         assertThat(user.getRoleNames()).containsExactly("CUSTOMER");
+    }
+
+    @Test
+    void currentUserResponseExposesAuthoritiesFromTheCurrentRoles() {
+        User user = new User();
+        user.addRole(role("STAFF", "ORDER_MANAGE"));
+
+        UserResponse response = UserResponse.from(user);
+
+        assertThat(response.roles()).containsExactly("STAFF");
+        assertThat(response.authorities()).containsExactly("ORDER_MANAGE", "ROLE_STAFF");
     }
 
     private Role role(String name, String... permissionNames) {

@@ -8,6 +8,7 @@ import com.example.businessstore.dto.response.ProductResponse;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.constant.ProductStockLevel;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface ProductService {
@@ -28,7 +29,17 @@ public interface ProductService {
 
     ProductResponse findPublishedBySlug(String slug);
 
-    PageResponse<ProductResponse> findAllForManagement(UUID categoryId, String name, ProductStatus status, ProductStockLevel stockLevel, int page, int size);
+    PageResponse<ProductResponse> findAllForManagement(
+            UUID categoryId,
+            String name,
+            ProductStatus status,
+            String variantSku,
+            String material,
+            ProductStockLevel effectiveStockLevel,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            int page,
+            int size);
 
     ProductResponse findForManagement(UUID id);
 }
