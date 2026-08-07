@@ -35,12 +35,15 @@ function App() {
         <Route element={<RequirePermission permission="SHIPMENT_MANAGE" />}><Route path="shipments" element={<ShipmentsPage />} /></Route>
         <Route element={<RequirePermission permission="PROMOTION_MANAGE" />}><Route path="promotions" element={<PromotionsPage />} /></Route>
         <Route element={<RequirePermission permission="USER_MANAGE" />}><Route path="users" element={<StaffPage />} /></Route>
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Route>
       <Route path="/403" element={<ForbiddenPage />} />
     </Route>
     <Route path="/" element={<HomePage />} />
     <Route path="/tranh/:slug" element={<ProductPage />} />
-    <Route path="*" element={<Navigate to="/admin" replace />} />
+    {/* Trang công khai nào chưa làm thì về trang chủ. Trước đây rơi vào /admin, tức là
+        khách bấm một link chưa có (vd /danh-muc/...) bị đẩy thẳng vào form đăng nhập admin. */}
+    <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 }
 

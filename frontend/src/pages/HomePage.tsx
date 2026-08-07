@@ -44,6 +44,18 @@ export function HomePage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /**
+   * Trang chủ render phía client, nên lúc trình duyệt xử lý hash trong URL thì phần tử
+   * đích chưa tồn tại và nó bỏ qua luôn — link kiểu /#tranh-canvas từ trang chi tiết sẽ
+   * đáp xuống đầu trang. Cuộn lại sau mỗi lần dữ liệu về, vì hero và carousel đổi chiều
+   * cao khi có dữ liệu và làm mốc neo trôi đi.
+   */
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  }, [photobooks.length, canvasId]);
+
   const next = () => {
     const i = photobooks.findIndex((b) => b.slug === openSlug);
     if (photobooks.length) setOpenSlug(photobooks[(i + 1) % photobooks.length].slug);

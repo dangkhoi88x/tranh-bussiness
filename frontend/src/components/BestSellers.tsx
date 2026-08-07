@@ -31,7 +31,9 @@ export function BestSellers({ categoryId, intervalMs = 3000 }: { categoryId?: st
   const p = items[i];
 
   return (
-    <section style={{ position: 'relative', borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)', overflow: 'hidden' }}>
+    // id là đích của link "Về danh sách" / "Xem tất cả" từ trang chi tiết, khi nào có
+    // trang /danh-muc riêng thì trỏ lại sang đó.
+    <section id="tranh-canvas" style={{ position: 'relative', borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)', overflow: 'hidden' }}>
       <div data-split="" style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 'var(--space-6)', padding: 'var(--space-6) var(--space-8) 0' }}>
         <span style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>02/ tranh in canvas</span>
 

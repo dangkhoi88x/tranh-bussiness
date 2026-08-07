@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiRequestError } from '../api/http';
 import {
   fetchProductBySlug,
@@ -24,6 +24,13 @@ import '../styles/public.css';
 
 /** Stepper của thiết kế dừng ở 9; tồn kho thật vẫn là trần cứng phía trên. */
 const MAX_QTY = 9;
+
+/**
+ * Chưa có trang /danh-muc, nên "về danh sách" đáp xuống khối tranh canvas ở trang chủ.
+ * Phải là <a> chứ không phải <Link>: react-router không tự cuộn tới hash, còn điều hướng
+ * cả trang thì trình duyệt cuộn giúp. Đổi sang <Link> khi nào dựng trang danh mục thật.
+ */
+const CATALOG_HREF = '/#tranh-canvas';
 
 /**
  * Chính sách giao/đổi trả không có nguồn trong backend — đây là copy của cửa hàng,
@@ -116,11 +123,18 @@ export function ProductPage() {
   const [cartError, setCartError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Khối "Cùng bộ" điều hướng bằng <Link> nên trang không unmount khi đổi sản phẩm:
+  // phải tự xoá khổ/khung của sản phẩm cũ, nếu không giá hiển thị sẽ là giá variant cũ
+  // trong quãng chờ danh sách variant mới về.
   useEffect(() => {
     let alive = true;
     setProduct(null);
     setLoadError(null);
     setShot(0);
+    setVariants([]);
+    setVariantId(null);
+    setFrameOptions([]);
+    setFrameOptionId(null);
     fetchProductBySlug(slug)
       .then((item) => { if (alive) setProduct(item); })
       .catch((error: Error) => { if (alive) setLoadError(error.message); });
@@ -253,7 +267,7 @@ export function ProductPage() {
           <p style={{ margin: 0, fontSize: 13, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
             {loadError ?? 'Đang tải sản phẩm…'}
           </p>
-          {loadError && <a className="btn btn-secondary" href="/danh-muc/tranh-canvas">← Về danh sách</a>}
+          {loadError && <a className="btn btn-secondary" href={CATALOG_HREF}>← Về danh sách</a>}
         </div>
       </Shell>
     );
@@ -268,12 +282,12 @@ export function ProductPage() {
         borderBottom: '2px solid var(--color-divider)', fontSize: 11, letterSpacing: '.16em',
         textTransform: 'uppercase', color: 'var(--color-neutral-700)',
       }}>
-        <a href="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Trang chủ</a>
+        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Trang chủ</Link>
         <span aria-hidden="true">/</span>
-        <a href="/danh-muc/tranh-canvas" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>{product.categoryName}</a>
+        <a href={CATALOG_HREF} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>{product.categoryName}</a>
         <span aria-hidden="true">/</span>
         <span style={{ color: 'var(--color-text)' }}>{product.name}</span>
-        <a href="/danh-muc/tranh-canvas" data-breadcrumb-back="" style={{ marginLeft: 'auto', color: 'var(--color-neutral-700)', textDecoration: 'none' }}>← Về danh sách</a>
+        <a href={CATALOG_HREF} data-breadcrumb-back="" style={{ marginLeft: 'auto', color: 'var(--color-neutral-700)', textDecoration: 'none' }}>← Về danh sách</a>
       </nav>
 
       <section data-split="" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', alignItems: 'start' }}>
@@ -283,7 +297,8 @@ export function ProductPage() {
             background: 'var(--color-neutral-200)', borderBottom: '2px solid var(--color-text)', overflow: 'hidden',
           }}>
             <div style={{ position: 'absolute', inset: 0 }}>
-              <Frame src={currentImage?.secureUrl} alt={currentImage?.altText ?? undefined} label={`tranh canvas — ${product.name}`} />
+              <Frame src={currentImage?.secureUrl} alt={currentImage?.altText ?? undefined}
+                label={`tranh canvas — ${product.name}`} tone="color" fit="contain" />
             </div>
             <span style={{
               position: 'absolute', top: 0, left: 0, padding: '6px 10px', background: 'var(--color-accent)',
@@ -311,7 +326,7 @@ export function ProductPage() {
                     outline: on ? '3px solid var(--color-accent)' : 'none', outlineOffset: -3,
                   }}>
                     <div style={{ position: 'absolute', inset: 0 }}>
-                      <Frame src={image.secureUrl} alt={image.altText ?? undefined} label={`ảnh ${k + 1}`} />
+                      <Frame src={image.secureUrl} alt={image.altText ?? undefined} label={`ảnh ${k + 1}`} tone="color" />
                     </div>
                     <span style={{
                       position: 'absolute', left: 0, bottom: 0, padding: '4px 8px',
@@ -481,19 +496,19 @@ export function ProductPage() {
             <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20, letterSpacing: '.04em', textTransform: 'uppercase' }}>
               Cùng bộ {product.categoryName.toLowerCase()}
             </h2>
-            <a href="/danh-muc/tranh-canvas" className="btn btn-secondary">Xem tất cả</a>
+            <a href={CATALOG_HREF} className="btn btn-secondary">Xem tất cả</a>
           </div>
           <div data-grid="cols" style={{
             display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', borderTop: '2px solid var(--color-divider)',
           }}>
             {relatedItems.map((item, k) => (
-              <a key={item.id} href={`/tranh/${item.slug}`} style={{
+              <Link key={item.id} to={`/tranh/${item.slug}`} style={{
                 display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', minWidth: 0,
                 padding: 'var(--space-6)', color: 'var(--color-text)', textDecoration: 'none',
                 borderRight: k < relatedItems.length - 1 ? '2px solid var(--color-divider)' : undefined,
               }}>
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '4/5', border: '2px solid var(--color-text)', overflow: 'hidden' }}>
-                  <Frame src={item.primaryImageUrl ?? undefined} label={`tranh canvas — ${item.name}`} />
+                  <Frame src={item.primaryImageUrl ?? undefined} label={`tranh canvas — ${item.name}`} tone="color" />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', gap: 'var(--space-4)' }}>
                   <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 17, lineHeight: 1.15, letterSpacing: '-.015em' }}>
@@ -504,7 +519,7 @@ export function ProductPage() {
                 <span style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
                   {formatSize(item.widthCm, item.heightCm) ?? item.categoryName}
                 </span>
-              </a>
+              </Link>
             ))}
           </div>
         </section>
