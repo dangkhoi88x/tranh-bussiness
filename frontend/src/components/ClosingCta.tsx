@@ -1,4 +1,12 @@
-export function ClosingCta() {
+/**
+ * Dải CTA đỏ dùng chung. Trang chủ giữ chữ mặc định cỡ lớn; trang chi tiết sản phẩm
+ * truyền copy riêng và cỡ chữ nhỏ hơn vì nó nằm ngay trên footer.
+ */
+export function ClosingCta({
+  title = 'Gửi ảnh hôm nay, nhận báo giá trong 24 giờ',
+  note = 'Không cần chỉnh sửa gì trước. Cứ gửi file gốc, xưởng lo phần còn lại.',
+  titleSize = 'clamp(32px, 5.4vw, 76px)',
+}: { title?: string; note?: string; titleSize?: string } = {}) {
   return (
     <section style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-accent)', color: 'var(--color-bg)' }}>
       <div data-split="" style={{
@@ -6,12 +14,12 @@ export function ClosingCta() {
         alignItems: 'end', gap: 'var(--space-8)', padding: 'var(--space-8)',
       }}>
         <h2 style={{
-          margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 'clamp(32px, 5.4vw, 76px)',
+          margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: titleSize,
           lineHeight: .96, letterSpacing: '-.035em', textTransform: 'uppercase', textWrap: 'balance',
-        }}>Gửi ảnh hôm nay, nhận báo giá trong 24 giờ</h2>
+        }}>{title}</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, letterSpacing: '.1em', textTransform: 'uppercase' }}>
-            Không cần chỉnh sửa gì trước. Cứ gửi file gốc, xưởng lo phần còn lại.
+            {note}
           </p>
           <a href="/dat-in" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-6)',

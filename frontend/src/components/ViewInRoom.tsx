@@ -8,7 +8,7 @@ const FEATURES = [
 
 export function ViewInRoom({ image }: { image?: string }) {
   return (
-    <section style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
+    <section id="uom-tranh" style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
       <div data-split="" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', alignItems: 'stretch' }}>
         <div style={{ position: 'relative', minHeight: 460, borderRight: '2px solid var(--color-text)' }}>
           <div style={{ position: 'absolute', inset: 0 }}>

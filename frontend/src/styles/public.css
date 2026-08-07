@@ -25,4 +25,16 @@
   [data-grid="cols"] > * + * { border-top: 2px solid var(--color-divider); }
   [data-split] { grid-template-columns: minmax(0, 1fr) !important; }
   [data-split] > * { border-right: 0 !important; }
+
+  /* Breadcrumb 46px cố định sẽ tràn chữ khi tên sản phẩm xuống dòng. */
+  [data-breadcrumb] {
+    height: auto !important;
+    flex-wrap: wrap;
+    padding-top: var(--space-2) !important;
+    padding-bottom: var(--space-2) !important;
+  }
+  [data-breadcrumb] [data-breadcrumb-back] { display: none; }
+
+  /* Nhãn KHỔ/KHUNG/SỐ LƯỢNG lên trên chip thay vì chen cột 84px. */
+  [data-option-row] { grid-template-columns: minmax(0, 1fr) !important; align-items: start !important; }
 }

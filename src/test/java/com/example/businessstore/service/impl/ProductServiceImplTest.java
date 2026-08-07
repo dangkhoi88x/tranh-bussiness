@@ -13,6 +13,7 @@ import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductImageRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ import static org.mockito.Mockito.when;
 class ProductServiceImplTest {
 
     @Mock private ProductRepository productRepository;
+    @Mock private ProductVariantRepository productVariantRepository;
     @Mock private ProductImageRepository productImageRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private ProductMapper productMapper;
@@ -81,8 +83,9 @@ class ProductServiceImplTest {
         when(productRepository.findAll(ArgumentMatchers.<Specification<Product>>any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(product)));
         when(productMapper.toResponse(product)).thenReturn(mappedResponse);
-        when(productImageRepository.findAllByProductIdOrderBySortOrderAscCreatedAtAsc(product.getId()))
-                .thenReturn(List.of());
+        when(productVariantRepository.findAllByProductIdIn(List.of(product.getId()))).thenReturn(List.of());
+        when(productImageRepository.findAllByProductIdInOrderByProductIdAscPrimaryImageDescSortOrderAscCreatedAtAsc(
+                List.of(product.getId()))).thenReturn(List.of());
 
         var response = productService.findPublished(new ProductCatalogFilter(null, " sơn dầu ",
                 new BigDecimal("500000"), new BigDecimal("1000000"), "Canvas",

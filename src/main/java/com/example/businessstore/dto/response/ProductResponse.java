@@ -26,23 +26,28 @@ public record ProductResponse(
         Instant createdAt,
         Instant updatedAt,
         int effectiveStockQuantity,
-        boolean hasVariants,
-        String primaryImageUrl) {
+        boolean hasVariants) {
 
+    /** Shape produced by ProductMapper, before the service attaches inventory and media. */
     public ProductResponse(UUID id, UUID categoryId, String categoryName, String name, String slug, String description,
                            BigDecimal price, BigDecimal widthCm, BigDecimal heightCm, int stockQuantity,
-                           ProductStatus status, Instant createdAt, Instant updatedAt) {
+                           ProductStatus status, Integer pageCount, String coverMaterial, String primaryImageUrl,
+                           List<ProductImageResponse> images, Instant createdAt, Instant updatedAt) {
         this(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm, stockQuantity,
-                status, createdAt, updatedAt, stockQuantity, false, null);
+                status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt, stockQuantity, false);
     }
 
+    /** Variant-aware stock: the sum over sellable variants, or the product's own stock when it has none. */
     public ProductResponse withInventory(int effectiveStockQuantity, boolean hasVariants) {
         return new ProductResponse(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm,
-                stockQuantity, status, createdAt, updatedAt, effectiveStockQuantity, hasVariants, primaryImageUrl);
+                stockQuantity, status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt,
+                effectiveStockQuantity, hasVariants);
     }
 
-    public ProductResponse addManagementPreview(String primaryImageUrl) {
+    /** The ordered gallery plus the URL callers show when they only render one image. */
+    public ProductResponse withImages(String primaryImageUrl, List<ProductImageResponse> images) {
         return new ProductResponse(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm,
-                stockQuantity, status, createdAt, updatedAt, effectiveStockQuantity, hasVariants, primaryImageUrl);
+                stockQuantity, status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt,
+                effectiveStockQuantity, hasVariants);
     }
 }
