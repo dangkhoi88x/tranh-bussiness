@@ -14,6 +14,7 @@ import { ShipmentsPage } from './pages/ShipmentPages'
 import { StaffPage } from './pages/StaffPages'
 import { HomePage } from './pages/HomePage'
 import { ProductPage } from './pages/ProductPage'
+import { CartPage } from './pages/CartPage'
 import './App.css'
 
 function App() {
@@ -41,6 +42,9 @@ function App() {
     </Route>
     <Route path="/" element={<HomePage />} />
     <Route path="/tranh/:slug" element={<ProductPage />} />
+    {/* Không bọc RequireAuth: khách chưa đăng nhập vẫn mở được giỏ và thấy lời mời đăng
+        nhập, thay vì bị đá sang /auth mà không hiểu vì sao. */}
+    <Route path="/gio-hang" element={<CartPage />} />
     {/*
       Trang công khai nào chưa làm thì về trang chủ. Trước đây rơi vào /admin, tức là
       khách bấm một link chưa có (vd /danh-muc/...) bị đẩy thẳng vào form đăng nhập admin.
@@ -48,7 +52,8 @@ function App() {
       Những đường dẫn header/footer đang trỏ tới mà chưa có route — dựng xong cái nào thì
       thêm <Route> ở đây và bỏ ghi chú ở component tương ứng:
 
-        /gio-hang        giỏ hàng — API /cart và hook useCart đã sẵn, chỉ thiếu trang
+        /thanh-toan      thanh toán — POST /orders/checkout cần shippingAddressId, nên trang
+                         này phải cho chọn/thêm địa chỉ (/shipping-addresses đã có đủ CRUD)
         /dat-in          form đặt in theo yêu cầu (backend đã có custom order)
         /danh-muc/:slug  trang danh mục; đang thay bằng mốc neo /#tranh-canvas
         /kho-va-gia      bảng khổ và giá

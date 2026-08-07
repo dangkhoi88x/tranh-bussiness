@@ -49,3 +49,25 @@ export function addCartItem(input: AddCartItemInput): Promise<Cart> {
     }),
   });
 }
+
+/** PUT /api/v1/cart/items/{itemId} — đặt số lượng tuyệt đối, không phải cộng thêm. */
+export function updateCartItem(itemId: string, quantity: number): Promise<Cart> {
+  return apiRequest<Cart>(`/cart/items/${itemId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity }),
+  });
+}
+
+/**
+ * DELETE /api/v1/cart/items/{itemId}. Hai hàm xoá dưới đây trả 204 không kèm giỏ mới
+ * (khác add/update), nên nơi gọi phải tự nạp lại giỏ.
+ */
+export function removeCartItem(itemId: string): Promise<void> {
+  return apiRequest<void>(`/cart/items/${itemId}`, { method: 'DELETE' });
+}
+
+/** DELETE /api/v1/cart */
+export function clearCart(): Promise<void> {
+  return apiRequest<void>('/cart', { method: 'DELETE' });
+}
