@@ -14,7 +14,10 @@ const TABS: { label: string; sort: CatalogSort }[] = [
 export function BestSellers({ categoryId, intervalMs = 3000 }: { categoryId?: string; intervalMs?: number }) {
   const [tab, setTab] = useState(0);
   const [i, setI] = useState(0);
-  const { data, loading, error } = useProducts({ categoryId, sort: TABS[tab].sort, page: 1, size: 6 });
+  // categoryId về sau categories load xong; hỏi trước là nạp nhầm toàn bộ catalogue.
+  const { data, loading, error } = useProducts(
+    categoryId ? { categoryId, sort: TABS[tab].sort, page: 1, size: 6 } : null,
+  );
   const items = data ?? [];
   const n = items.length;
 

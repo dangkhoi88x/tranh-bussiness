@@ -3,12 +3,19 @@ import { fetchCategories, fetchProducts, type CatalogQuery, type Category, type 
 
 type State<T> = { data: T | null; loading: boolean; error: string | null };
 
-/** Một trang sản phẩm theo query. Query đổi thì gọi lại; huỷ kết quả cũ khi unmount. */
-export function useProducts(query: CatalogQuery): State<Product[]> {
+/**
+ * Một trang sản phẩm theo query. Query đổi thì gọi lại; huỷ kết quả cũ khi unmount.
+ *
+ * Truyền null khi chưa đủ điều kiện để hỏi (thường là còn chờ categoryId): hook sẽ không
+ * gọi API và ở nguyên trạng thái loading. Không có lối này thì mỗi trang phải nuốt một
+ * request thừa nạp nhầm toàn bộ catalogue rồi vứt đi ngay khi có categoryId thật.
+ */
+export function useProducts(query: CatalogQuery | null): State<Product[]> {
   const [state, setState] = useState<State<Product[]>>({ data: null, loading: true, error: null });
-  const key = JSON.stringify(query);
+  const key = query === null ? null : JSON.stringify(query);
 
   useEffect(() => {
+    if (key === null) return;
     let alive = true;
     setState((s) => ({ ...s, loading: true, error: null }));
     fetchProducts(JSON.parse(key) as CatalogQuery)

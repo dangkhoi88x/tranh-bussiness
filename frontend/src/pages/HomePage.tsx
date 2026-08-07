@@ -31,7 +31,10 @@ export function HomePage() {
 
   // Chờ có categoryId rồi mới gọi, tránh nạp nhầm toàn bộ catalogue.
   const { data: books } = useProducts(
-    useMemo(() => ({ categoryId: photobookId, sort: 'BEST_SELLING' as const, page: 1, size: 4 }), [photobookId]),
+    useMemo(
+      () => (photobookId ? { categoryId: photobookId, sort: 'BEST_SELLING' as const, page: 1, size: 4 } : null),
+      [photobookId],
+    ),
   );
   const photobooks = photobookId ? (books ?? []) : [];
 

@@ -65,9 +65,20 @@ function swatchColor(name: string): string {
   return SWATCHES.find(([pattern]) => pattern.test(name))?.[1] ?? 'var(--color-neutral-400)';
 }
 
-/** Nhãn khổ giống thiết kế ("60 × 80 cm"); rơi về tên variant nếu thiếu kích thước. */
-function variantLabel(variant: ProductVariant): string {
-  return formatSize(variant.widthCm, variant.heightCm) ?? variant.name;
+/**
+ * Nhãn khổ giống thiết kế ("60 × 80 cm"); rơi về tên variant nếu thiếu kích thước.
+ *
+ * Hai variant cùng kích thước khác chất liệu là hợp lệ (DB không có ràng buộc chặn), khi đó
+ * nguyên khổ thì hai chip giống hệt nhau và người mua không phân biệt được — thêm chất liệu
+ * vào, nhưng chỉ ở những khổ thật sự bị trùng để nhãn không dài vô cớ.
+ */
+function variantLabel(variant: ProductVariant, siblings: ProductVariant[] = []): string {
+  const size = formatSize(variant.widthCm, variant.heightCm);
+  if (size === null) return variant.name;
+  const duplicated = siblings.some(
+    (other) => other.id !== variant.id && formatSize(other.widthCm, other.heightCm) === size,
+  );
+  return duplicated ? `${size} · ${variant.material}` : size;
 }
 
 const chipStyle = (on: boolean, disabled: boolean): React.CSSProperties => ({
@@ -112,6 +123,7 @@ export function ProductPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [variantsFailed, setVariantsFailed] = useState(false);
   const [frameOptions, setFrameOptions] = useState<ProductFrameOption[]>([]);
 
   const [shot, setShot] = useState(0);
@@ -132,6 +144,7 @@ export function ProductPage() {
     setLoadError(null);
     setShot(0);
     setVariants([]);
+    setVariantsFailed(false);
     setVariantId(null);
     setFrameOptions([]);
     setFrameOptionId(null);
@@ -152,13 +165,18 @@ export function ProductPage() {
         const sellable = items.find((v) => v.available && v.stockQuantity > 0);
         setVariantId((sellable ?? items[0])?.id ?? null);
       })
-      .catch(() => { if (alive) setVariants([]); });
+      // Nuốt lỗi ở đây thì trang trông y hệt sản phẩm bán một khổ duy nhất, giá hiển thị là
+      // giá gốc, và người mua chỉ biết có chuyện khi backend từ chối lúc bấm thêm vào giỏ.
+      .catch(() => { if (alive) { setVariants([]); setVariantsFailed(true); } });
     return () => { alive = false; };
   }, [product?.id]);
 
   // Khung: danh sách phụ thuộc khổ đang chọn, backend đã lọc khung không vừa kích thước.
   useEffect(() => {
     if (!product) return;
+    // Sản phẩm có khổ thì chờ chọn xong khổ mới hỏi khung: hỏi trước trả về danh sách
+    // rộng hơn (chưa lọc theo kích thước) rồi bị thay ngay bằng danh sách đúng.
+    if (product.hasVariants && !variantId) return;
     let alive = true;
     fetchProductFrameOptions(product.id, variantId ?? undefined)
       .then((items) => {
@@ -176,6 +194,7 @@ export function ProductPage() {
 
   const images = product?.images ?? [];
   const currentImage = images[shot] ?? images[0] ?? null;
+  const thumbCols = Math.min(Math.max(images.length, 1), 4);
 
   const stock = variant ? variant.stockQuantity : (product?.effectiveStockQuantity ?? 0);
   const maxQty = Math.max(1, Math.min(MAX_QTY, stock));
@@ -186,17 +205,21 @@ export function ProductPage() {
 
   const related = useProducts(
     useMemo(
-      () => ({ categoryId: product?.categoryId, sort: 'BEST_SELLING' as const, page: 1, size: 5 }),
+      () => (product ? { categoryId: product.categoryId, sort: 'BEST_SELLING' as const, page: 1, size: 5 } : null),
       [product?.categoryId],
     ),
   );
-  const relatedItems = (product ? related.data ?? [] : []).filter((r) => r.slug !== slug).slice(0, 4);
+  const relatedSameCategory = product ? related.data ?? [] : [];
+  const relatedItems = relatedSameCategory.filter((r) => r.slug !== slug).slice(0, 4);
+  // Nhãn "Bán chạy" trước đây gắn cứng cho mọi sản phẩm. Danh sách trên đã là top bán chạy
+  // của danh mục rồi, nên chỉ cần xem sản phẩm này có nằm trong đó không — không tốn request.
+  const bestSelling = relatedSameCategory.some((r) => r.slug === slug);
 
   const tabs = useMemo<Tab[]>(() => {
     if (!product) return [];
     const sizeRows: Row[] = variants.length
       ? variants.map((v) => ({
-        k: variantLabel(v),
+        k: variantLabel(v, variants),
         v: `${formatPrice(v.price)} · ${v.stockQuantity > 0 ? `còn ${v.stockQuantity}` : 'hết hàng'}`,
       }))
       : [{ k: formatSize(product.widthCm, product.heightCm) ?? 'Khổ tiêu chuẩn', v: formatPrice(product.price) }];
@@ -235,6 +258,13 @@ export function ProductPage() {
     const timer = window.setTimeout(() => setAdded(false), 1800);
     return () => window.clearTimeout(timer);
   }, [added]);
+
+  // Trả tiêu đề tab về như cũ khi rời trang, nếu không thì điều hướng sang /auth hay /
+  // vẫn còn đề tên bức tranh vừa xem.
+  useEffect(() => {
+    const original = document.title;
+    return () => { document.title = original; };
+  }, []);
 
   useEffect(() => {
     if (product) document.title = `${product.name} | Bubble Memories`;
@@ -300,29 +330,34 @@ export function ProductPage() {
               <Frame src={currentImage?.secureUrl} alt={currentImage?.altText ?? undefined}
                 label={`tranh canvas — ${product.name}`} tone="color" fit="contain" />
             </div>
-            <span style={{
-              position: 'absolute', top: 0, left: 0, padding: '6px 10px', background: 'var(--color-accent)',
-              color: 'var(--color-bg)', fontSize: 10, fontWeight: 800, letterSpacing: '.18em', textTransform: 'uppercase',
-            }}>{soldOut ? 'Tạm hết' : 'Bán chạy'}</span>
+            {(soldOut || bestSelling) && (
+              <span style={{
+                position: 'absolute', top: 0, left: 0, padding: '6px 10px', background: 'var(--color-accent)',
+                color: 'var(--color-bg)', fontSize: 10, fontWeight: 800, letterSpacing: '.18em', textTransform: 'uppercase',
+              }}>{soldOut ? 'Tạm hết' : 'Bán chạy'}</span>
+            )}
             <span style={{
               position: 'absolute', right: 'var(--space-4)', bottom: 'var(--space-4)', padding: '7px 11px',
               background: 'var(--color-text)', color: 'var(--color-bg)', fontSize: 11,
               letterSpacing: '.16em', textTransform: 'uppercase',
             }}>
-              {[variant ? variantLabel(variant) : formatSize(product.widthCm, product.heightCm), frameOption?.frameName ?? 'Căng viền']
+              {[variant ? variantLabel(variant, variants) : formatSize(product.widthCm, product.heightCm), frameOption?.frameName ?? 'Căng viền']
                 .filter(Boolean).join(' · ')}
             </span>
           </div>
 
           {images.length > 1 && (
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(images.length, 4)}, minmax(0, 1fr))` }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${thumbCols}, minmax(0, 1fr))` }}>
               {images.map((image, k) => {
                 const on = k === shot;
                 return (
                   <button key={image.id} type="button" onClick={() => setShot(k)} aria-pressed={on} style={{
                     appearance: 'none', position: 'relative', padding: 0, width: '100%', aspectRatio: '1/1',
                     background: 'var(--color-neutral-200)', cursor: 'pointer', overflow: 'hidden', border: 0,
-                    borderRight: k % 4 === 3 ? 0 : '2px solid var(--color-text)',
+                    // Viền theo số cột thật, không phải hằng số 4: dưới 4 ảnh thì ô cuối hàng
+                    // vẽ viền phải đè lên viền cột, trên 4 ảnh thì hàng thứ hai thiếu viền trên.
+                    borderRight: k % thumbCols === thumbCols - 1 ? 0 : '2px solid var(--color-text)',
+                    borderTop: k >= thumbCols ? '2px solid var(--color-text)' : 0,
                     outline: on ? '3px solid var(--color-accent)' : 'none', outlineOffset: -3,
                   }}>
                     <div style={{ position: 'absolute', inset: 0 }}>
@@ -350,11 +385,8 @@ export function ProductPage() {
             <h1 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 30, lineHeight: 1.05, letterSpacing: '-.03em' }}>
               {product.name}
             </h1>
-            {product.description && (
-              <p style={{ margin: 0, maxWidth: '48ch', fontSize: 15, lineHeight: 1.6, color: 'var(--color-neutral-800)' }}>
-                {product.description}
-              </p>
-            )}
+            {/* Mô tả nằm ở tab "Mô tả" ngay bên dưới (tab mặc định) — in lại ở đây vừa trùng
+                nội dung vừa đẩy nút "Thêm vào giỏ" xuống dưới màn hình với mô tả dài. */}
           </div>
 
           <div style={{
@@ -376,11 +408,13 @@ export function ProductPage() {
                 <div style={chipGrid}>
                   {variants.map((v) => {
                     const disabled = !v.available || v.stockQuantity <= 0;
+                    const label = variantLabel(v, variants);
+                    const note = `${formatPrice(unitPrice(product, v, frameOption))}${disabled ? ' · hết hàng' : ''}`;
                     return (
                       <button key={v.id} type="button" disabled={disabled} aria-pressed={v.id === variantId}
-                        title={`${formatPrice(unitPrice(product, v, frameOption))}${disabled ? ' · hết hàng' : ''}`}
+                        title={note} aria-label={`${label} — ${note}`}
                         onClick={() => setVariantId(v.id)} style={chipStyle(v.id === variantId, disabled)}>
-                        {variantLabel(v)}
+                        {label}
                       </button>
                     );
                   })}
@@ -393,6 +427,7 @@ export function ProductPage() {
                 <span style={optionLabel}>Khung</span>
                 <div style={chipGrid}>
                   <button type="button" aria-pressed={frameOptionId === null} title="không phụ thu"
+                    aria-label="Căng viền — không phụ thu"
                     onClick={() => setFrameOptionId(null)} style={chipStyle(frameOptionId === null, false)}>
                     <span style={{
                       flex: 'none', width: 10, height: 10, background: '#eae7e7',
@@ -402,9 +437,10 @@ export function ProductPage() {
                   </button>
                   {frameOptions.map((o) => {
                     const on = o.id === frameOptionId;
+                    const note = o.priceAdjustment > 0 ? `+ ${formatPrice(o.priceAdjustment)}` : 'không phụ thu';
                     return (
                       <button key={o.id} type="button" aria-pressed={on}
-                        title={o.priceAdjustment > 0 ? `+ ${formatPrice(o.priceAdjustment)}` : 'không phụ thu'}
+                        title={note} aria-label={`${o.frameName} — ${note}`}
                         onClick={() => setFrameOptionId(o.id)} style={chipStyle(on, false)}>
                         <span style={{
                           flex: 'none', width: 10, height: 10, background: swatchColor(`${o.frameColor} ${o.frameMaterial}`),
@@ -437,10 +473,18 @@ export function ProductPage() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             <button type="button" className="btn btn-primary btn-block" style={{ cursor: 'pointer' }}
-              disabled={soldOut || busy} onClick={() => void addToCart()}>
-              {soldOut ? 'Tạm hết hàng' : added ? 'Đã thêm vào giỏ ✓' : busy ? 'Đang thêm…' : 'Thêm vào giỏ'}
+              disabled={soldOut || busy || variantsFailed} onClick={() => void addToCart()}>
+              {variantsFailed ? 'Chưa chọn được khổ'
+                : soldOut ? 'Tạm hết hàng'
+                  : added ? 'Đã thêm vào giỏ ✓'
+                    : busy ? 'Đang thêm…' : 'Thêm vào giỏ'}
             </button>
             <a href="/#uom-tranh" className="btn btn-secondary btn-block">Ướm tranh lên tường nhà bạn</a>
+            {variantsFailed && (
+              <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>
+                Không tải được danh sách khổ tranh. Tải lại trang giúp mình nhé.
+              </p>
+            )}
             {cartError && (
               <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{cartError}</p>
             )}
@@ -474,8 +518,9 @@ export function ProductPage() {
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', borderTop: '2px solid var(--color-text)' }}>
-            {activeTab?.rows.map((row) => (
-              <div key={row.k} style={{
+            {/* key kèm chỉ số: nhãn khổ và tên khung có thể trùng nhau giữa các hàng. */}
+            {activeTab?.rows.map((row, k) => (
+              <div key={`${row.k}-${k}`} style={{
                 display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)', gap: 'var(--space-6)',
                 padding: 'var(--space-4) 0', borderBottom: '1px solid var(--color-neutral-300)',
               }}>
