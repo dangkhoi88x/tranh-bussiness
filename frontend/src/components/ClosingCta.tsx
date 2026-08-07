@@ -21,6 +21,7 @@ export function ClosingCta({
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, letterSpacing: '.1em', textTransform: 'uppercase' }}>
             {note}
           </p>
+          {/* /dat-in chưa có trang (xem App.tsx), dù backend đã có luồng đơn theo yêu cầu. */}
           <a href="/dat-in" style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-6)',
             height: 56, padding: '0 var(--space-6)', background: 'var(--color-bg)', color: 'var(--color-text)',

@@ -41,8 +41,25 @@ function App() {
     </Route>
     <Route path="/" element={<HomePage />} />
     <Route path="/tranh/:slug" element={<ProductPage />} />
-    {/* Trang công khai nào chưa làm thì về trang chủ. Trước đây rơi vào /admin, tức là
-        khách bấm một link chưa có (vd /danh-muc/...) bị đẩy thẳng vào form đăng nhập admin. */}
+    {/*
+      Trang công khai nào chưa làm thì về trang chủ. Trước đây rơi vào /admin, tức là
+      khách bấm một link chưa có (vd /danh-muc/...) bị đẩy thẳng vào form đăng nhập admin.
+
+      Những đường dẫn header/footer đang trỏ tới mà chưa có route — dựng xong cái nào thì
+      thêm <Route> ở đây và bỏ ghi chú ở component tương ứng:
+
+        /gio-hang        giỏ hàng — API /cart và hook useCart đã sẵn, chỉ thiếu trang
+        /dat-in          form đặt in theo yêu cầu (backend đã có custom order)
+        /danh-muc/:slug  trang danh mục; đang thay bằng mốc neo /#tranh-canvas
+        /kho-va-gia      bảng khổ và giá
+        /gioi-thieu      giới thiệu xưởng
+        /lien-he         liên hệ
+        /thu-tren-tuong  công cụ ướm tranh lên tường
+        /chinh-sach-*    đổi trả và vận chuyển; nội dung hiện nằm trong tab
+                         "Giao & đổi trả" của trang sản phẩm
+
+      Riêng 4 link mạng xã hội ở footer cần URL thật của cửa hàng, không phải route.
+    */}
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 }

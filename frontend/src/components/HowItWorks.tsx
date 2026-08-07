@@ -7,7 +7,8 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
+    // id là đích của link "Hướng dẫn đặt in" ở header và footer.
+    <section id="cach-dat-in" style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
       <div data-split="" style={{
         display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 'var(--space-6)',
         alignItems: 'end', padding: 'var(--space-8) var(--space-8) var(--space-6)',

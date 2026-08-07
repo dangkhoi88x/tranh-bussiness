@@ -44,6 +44,7 @@ export function ViewInRoom({ image }: { image?: string }) {
             ))}
           </div>
 
+          {/* /thu-tren-tuong chưa có trang (xem App.tsx) — công cụ ướm tranh mới là mô tả, chưa dựng. */}
           <a href="/thu-tren-tuong" className="btn btn-primary btn-block" style={{ marginTop: 'auto' }}>Thử ngay</a>
         </div>
       </div>

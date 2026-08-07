@@ -13,7 +13,8 @@ export function FaqSection() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <section style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
+    // id là đích của link "Câu hỏi thường gặp" ở footer.
+    <section id="hoi-dap" style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
       <div data-split="" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', padding: 'var(--space-8)', borderRight: '2px solid var(--color-text)' }}>
           <span style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>05/ hỏi đáp</span>
@@ -21,6 +22,7 @@ export function FaqSection() {
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--color-neutral-800)' }}>
             Không tìm thấy câu trả lời? Nhắn cho xưởng, thường trả lời trong vài giờ làm việc.
           </p>
+          {/* /lien-he chưa có trang (xem App.tsx). Số điện thoại và email thật đang ở footer. */}
           <a href="/lien-he" className="btn btn-secondary" style={{ alignSelf: 'start', marginTop: 'var(--space-2)' }}>Hỏi trực tiếp</a>
         </div>
 

@@ -1,7 +1,37 @@
-const COLS = [
-  { title: 'Sản phẩm', items: ['Tranh canvas', 'Photobook', 'Khổ & giá', 'Đặt riêng'] },
-  { title: 'Hỗ trợ', items: ['Hướng dẫn đặt in', 'Chính sách đổi trả', 'Vận chuyển', 'Câu hỏi thường gặp'] },
-  { title: 'Theo dõi', items: ['Facebook', 'Instagram', 'Zalo', 'TikTok'] },
+/**
+ * href '#' nghĩa là chưa có trang (hoặc chưa có URL mạng xã hội thật) để trỏ tới — giữ
+ * nguyên thay vì bịa đường dẫn; danh sách những trang còn thiếu nằm trong App.tsx.
+ * Mục nào có đích thật thì trỏ vào khối tương ứng trên trang chủ (HomePage có effect
+ * cuộn bù cho hash, xem HomePage.tsx).
+ */
+const COLS: { title: string; items: { label: string; href: string }[] }[] = [
+  {
+    title: 'Sản phẩm',
+    items: [
+      { label: 'Tranh canvas', href: '/#tranh-canvas' },
+      { label: 'Photobook', href: '/#photobook' },
+      { label: 'Khổ & giá', href: '#' },
+      { label: 'Đặt riêng', href: '#' },
+    ],
+  },
+  {
+    title: 'Hỗ trợ',
+    items: [
+      { label: 'Hướng dẫn đặt in', href: '/#cach-dat-in' },
+      { label: 'Chính sách đổi trả', href: '#' },
+      { label: 'Vận chuyển', href: '#' },
+      { label: 'Câu hỏi thường gặp', href: '/#hoi-dap' },
+    ],
+  },
+  {
+    title: 'Theo dõi',
+    items: [
+      { label: 'Facebook', href: '#' },
+      { label: 'Instagram', href: '#' },
+      { label: 'Zalo', href: '#' },
+      { label: 'TikTok', href: '#' },
+    ],
+  },
 ];
 
 export function SiteFooter() {
@@ -24,7 +54,7 @@ export function SiteFooter() {
           <div key={col.title} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', minWidth: 0 }}>
             <span style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', opacity: .55 }}>{col.title}</span>
             {col.items.map((it) => (
-              <a key={it} href="#" style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--color-bg)', textDecoration: 'none' }}>{it}</a>
+              <a key={it.label} href={it.href} style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--color-bg)', textDecoration: 'none' }}>{it.label}</a>
             ))}
           </div>
         ))}

@@ -71,7 +71,7 @@ export function HomePage() {
       <CategoryBanner />
       <BestSellers categoryId={canvasId} />
 
-      <section style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
+      <section id="photobook" style={{ borderTop: '2px solid var(--color-text)', background: 'var(--color-bg)' }}>
         <PhotobookGallery books={photobooks} onOpen={setOpenSlug} />
       </section>
 
