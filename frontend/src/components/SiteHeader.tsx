@@ -1,14 +1,10 @@
 /**
- * Ba mục đầu trỏ tới khối tương ứng trên trang chủ vì trang danh mục riêng chưa được dựng.
- * Dùng hash chứ không phải <Link>: react-router không tự cuộn tới hash, HomePage có effect
- * cuộn bù sau khi dữ liệu về (xem HomePage.tsx). Khi có trang thật thì đổi href ở đây.
- *
  * "Khổ & giá" và "Về chúng tôi" chưa có trang, cũng như /dat-in ở bên phải header. Chúng
  * rơi vào catch-all và đáp trang chủ — xem danh sách đầy đủ trong App.tsx.
  */
 const NAV = [
-  { label: 'Tranh canvas', href: '/#tranh-canvas', caret: true, secondary: false },
-  { label: 'Photobook', href: '/#photobook', caret: true, secondary: false },
+  { label: 'Tranh canvas', href: '/danh-muc/tranh-canvas', caret: true, secondary: false },
+  { label: 'Photobook', href: '/photobook', caret: true, secondary: false },
   { label: 'Khổ & giá', href: '/kho-va-gia', caret: false, secondary: false },
   { label: 'Về chúng tôi', href: '/gioi-thieu', caret: false, secondary: true },
   { label: 'Hướng dẫn đặt in', href: '/#cach-dat-in', caret: false, secondary: true },

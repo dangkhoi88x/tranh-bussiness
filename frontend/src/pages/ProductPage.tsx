@@ -30,7 +30,7 @@ const MAX_QTY = 9;
  * Phải là <a> chứ không phải <Link>: react-router không tự cuộn tới hash, còn điều hướng
  * cả trang thì trình duyệt cuộn giúp. Đổi sang <Link> khi nào dựng trang danh mục thật.
  */
-const CATALOG_HREF = '/#tranh-canvas';
+const CATALOG_HREF = '/danh-muc/tranh-canvas';
 
 /**
  * Chính sách giao/đổi trả không có nguồn trong backend — đây là copy của cửa hàng,

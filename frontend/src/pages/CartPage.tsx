@@ -112,7 +112,7 @@ export function CartPage() {
         <Notice
           title="Giỏ hàng đang trống"
           body="Chọn một bức ưng ý, khổ và khung sẽ tính giá ngay tại trang sản phẩm."
-          action={<a className="btn btn-primary" href="/#tranh-canvas">Xem tranh canvas</a>}
+          action={<a className="btn btn-primary" href="/danh-muc/tranh-canvas">Xem tranh canvas</a>}
         />
       ) : (
         <section data-split="" style={{
@@ -167,7 +167,7 @@ export function CartPage() {
             })}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', padding: 'var(--space-6) var(--space-8)' }}>
-              <a href="/#tranh-canvas" className="btn btn-secondary">← Xem thêm tranh</a>
+              <a href="/danh-muc/tranh-canvas" className="btn btn-secondary">← Xem thêm tranh</a>
               <button type="button" className="btn btn-ghost" disabled={clearing}
                 onClick={() => void clearAll()} style={{ cursor: clearing ? 'not-allowed' : 'pointer' }}>
                 {clearing ? 'Đang xoá…' : 'Xoá cả giỏ'}
@@ -197,13 +197,7 @@ export function CartPage() {
               </span>
             </div>
 
-            {/* Nút thật sẽ dẫn sang /thanh-toan — trang đó chưa dựng (xem App.tsx), nên khoá
-                lại kèm lý do thay vì gắn một link không đi tới đâu. */}
-            <button type="button" className="btn btn-primary btn-block" disabled
-              title="Trang thanh toán chưa dựng">Tiến hành đặt hàng</button>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: 'var(--color-neutral-700)' }}>
-              Trang thanh toán đang được dựng. Trong lúc chờ, gọi 0909 000 000 để xưởng chốt đơn giúp bạn.
-            </p>
+            <Link to="/thanh-toan" className="btn btn-primary btn-block">Tiến hành đặt hàng</Link>
 
             {error && (
               <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{error}</p>

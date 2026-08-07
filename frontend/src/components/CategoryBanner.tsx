@@ -36,7 +36,6 @@ export function CategoryBanner() {
               <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 18, lineHeight: 1, letterSpacing: '-.02em' }}>{c.name}</h3>
               <p style={{ margin: 0, fontSize: 11, lineHeight: 1.4, color: 'var(--color-neutral-700)' }}>{c.description}</p>
             </div>
-            {/* /danh-muc/:slug chưa có trang (xem App.tsx); nút này đáp trang chủ cho tới khi dựng. */}
             <a href={`/danh-muc/${c.slug}`} aria-label={`Xem ${c.name}`} style={{
               position: 'absolute', right: 'var(--space-3)', bottom: 'var(--space-3)', display: 'grid', placeItems: 'center',
               width: 38, height: 38, background: 'var(--color-text)', color: 'var(--color-bg)', fontSize: 15, textDecoration: 'none',
@@ -46,7 +45,7 @@ export function CategoryBanner() {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-6)' }}>
-        <a href="/#tranh-canvas" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-6)' }}>
+        <a href="/danh-muc/tranh-canvas" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-6)' }}>
           Xem toàn bộ danh mục <span aria-hidden="true">↗</span>
         </a>
       </div>

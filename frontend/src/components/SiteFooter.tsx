@@ -8,8 +8,8 @@ const COLS: { title: string; items: { label: string; href: string }[] }[] = [
   {
     title: 'Sản phẩm',
     items: [
-      { label: 'Tranh canvas', href: '/#tranh-canvas' },
-      { label: 'Photobook', href: '/#photobook' },
+      { label: 'Tranh canvas', href: '/danh-muc/tranh-canvas' },
+      { label: 'Photobook', href: '/photobook' },
       { label: 'Khổ & giá', href: '#' },
       { label: 'Đặt riêng', href: '#' },
     ],
