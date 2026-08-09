@@ -82,7 +82,7 @@ class CartServiceImplTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(cartRepository.save(any(Cart.class))).thenReturn(cart);
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, null))
+        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNull(cart.getId(), productId, null))
                 .thenReturn(Optional.empty());
         when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> {
             CartItem item = invocation.getArgument(0);
@@ -90,7 +90,7 @@ class CartServiceImplTest {
             return item;
         });
 
-        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, null, null, 2));
+        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, null, null, null, 2));
 
         assertThat(response.totalQuantity()).isEqualTo(2);
         assertThat(response.subtotal()).isEqualByComparingTo("500000.00");
@@ -112,10 +112,10 @@ class CartServiceImplTest {
 
         when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, null))
+        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNull(cart.getId(), productId, null))
                 .thenReturn(Optional.of(existingItem));
 
-        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, null, 2)))
+        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, null, null, 2)))
                 .isInstanceOf(AppException.class)
                 .extracting(exception -> ((AppException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INSUFFICIENT_PRODUCT_STOCK);
@@ -129,7 +129,7 @@ class CartServiceImplTest {
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(productVariantRepository.existsByProductId(productId)).thenReturn(true);
 
-        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, null, 1)))
+        assertThatThrownBy(() -> cartService.addItem(userId, new AddCartItemRequest(productId, null, null, null, 1)))
                 .isInstanceOf(AppException.class)
                 .extracting(exception -> ((AppException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.PRODUCT_VARIANT_REQUIRED);
@@ -156,14 +156,14 @@ class CartServiceImplTest {
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(productVariantRepository.existsByProductId(productId)).thenReturn(true);
         when(productVariantRepository.findByIdAndProductId(variantId, productId)).thenReturn(Optional.of(variant));
-        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, variantId)).thenReturn(Optional.empty());
+        when(cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNull(cart.getId(), productId, variantId)).thenReturn(Optional.empty());
         when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> {
             CartItem item = invocation.getArgument(0);
             item.setId(UUID.randomUUID());
             return item;
         });
 
-        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, variantId, null, 2));
+        CartResponse response = cartService.addItem(userId, new AddCartItemRequest(productId, variantId, null, null, 2));
 
         assertThat(response.subtotal()).isEqualByComparingTo("700000.00");
         assertThat(response.items().getFirst().selectedVariant().sku()).isEqualTo("CANVAS-40X60");

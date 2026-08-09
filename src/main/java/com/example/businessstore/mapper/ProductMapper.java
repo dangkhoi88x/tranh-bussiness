@@ -10,8 +10,10 @@ public interface ProductMapper {
 
     @Mapping(target = "categoryId", source = "category.id")
     @Mapping(target = "categoryName", source = "category.name")
+    @Mapping(target = "categorySlug", source = "category.slug")
     @Mapping(target = "effectiveStockQuantity", source = "stockQuantity")
     @Mapping(target = "hasVariants", constant = "false")
+    @Mapping(target = "pagePriced", source = "pagePriced")
     @Mapping(target = "primaryImageUrl", ignore = true)
     @Mapping(target = "images", ignore = true)
     ProductResponse toResponse(Product product);

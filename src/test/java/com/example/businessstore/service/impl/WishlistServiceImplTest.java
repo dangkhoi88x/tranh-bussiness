@@ -52,7 +52,7 @@ class WishlistServiceImplTest {
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
-        Category category = new Category(); category.setId(UUID.randomUUID()); category.setName("Phong cảnh");
+        Category category = new Category(); category.setId(UUID.randomUUID()); category.setName("Phong cảnh"); category.setSlug("phong-canh");
         product = new Product(); product.setId(UUID.randomUUID()); product.setCategory(category);
         product.setName("Tranh núi"); product.setSlug("tranh-nui"); product.setPrice(new BigDecimal("450000"));
         product.setStockQuantity(3); product.setStatus(ProductStatus.PUBLISHED);
@@ -61,7 +61,7 @@ class WishlistServiceImplTest {
     private void stubCardResponse() {
         Category category = product.getCategory();
         when(productMapper.toResponse(product)).thenReturn(new ProductResponse(product.getId(), category.getId(),
-                category.getName(), product.getName(), product.getSlug(), null, product.getPrice(), null, null,
+                category.getName(), category.getSlug(), product.getName(), product.getSlug(), null, product.getPrice(), null, null,
                 product.getStockQuantity(), product.getStatus(), null, null, null, null, null, null));
         when(productImageRepository.findFirstByProductIdAndPrimaryImageTrueOrderByCreatedAtAsc(product.getId()))
                 .thenReturn(Optional.empty());

@@ -7,6 +7,7 @@ import com.example.businessstore.dto.response.*;
 import com.example.businessstore.entity.*;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
+import com.example.businessstore.event.CustomOrderQuotedEvent;
 import com.example.businessstore.repository.*;
 import com.example.businessstore.service.CustomOrderRequestService;
 import com.example.businessstore.service.OrderService;
@@ -15,6 +16,7 @@ import com.example.businessstore.service.MediaTransactionSynchronizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
@@ -32,6 +34,7 @@ public class CustomOrderRequestServiceImpl implements CustomOrderRequestService 
     private final OrderService orderService;
     private final MediaStorageService mediaStorageService;
     private final MediaTransactionSynchronizer mediaTransactionSynchronizer;
+    private final ApplicationEventPublisher eventPublisher;
     @Override @Transactional public CustomOrderRequestResponse create(UUID userId, CreateCustomOrderRequest input) {
         CustomOrderRequest request = new CustomOrderRequest(); request.setRequestCode(nextCode()); request.setUser(userRepository.findById(userId).orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "User not found"))); request.setType(input.type()); request.setWidthCm(input.widthCm()); request.setHeightCm(input.heightCm()); request.setMaterial(input.material().trim()); request.setCustomerNote(normalize(input.customerNote())); request.setStatus(CustomOrderRequestStatus.NEW); if (input.frameId() != null) request.setSelectedFrame(frame(input.frameId())); return toResponse(requestRepository.save(request)); }
     @Override @Transactional(readOnly = true) public PageResponse<CustomOrderRequestResponse> getMine(UUID userId, int page, int size) { return toPage(requestRepository.findByUserId(userId, pageable(page, size)), page); }
@@ -46,7 +49,7 @@ public class CustomOrderRequestServiceImpl implements CustomOrderRequestService 
         CustomOrderRequest request = requestRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.CUSTOM_ORDER_REQUEST_NOT_FOUND, "Custom request not found"));
         if (request.getStatus() == CustomOrderRequestStatus.COMPLETED || request.getStatus() == CustomOrderRequestStatus.CANCELLED) throw new AppException(ErrorCode.INVALID_CUSTOM_ORDER_STATUS, "Completed or cancelled requests cannot be changed");
         if (!allowed(request.getStatus(), input.status())) throw new AppException(ErrorCode.INVALID_CUSTOM_ORDER_STATUS, "Invalid custom order status transition");
-        request.setQuotedPrice(input.quotedPrice()); request.setStaffNote(normalize(input.staffNote())); if (input.frameId() != null) request.setSelectedFrame(frame(input.frameId())); request.setStatus(input.status()); return toResponse(request);
+        request.setQuotedPrice(input.quotedPrice()); request.setStaffNote(normalize(input.staffNote())); if (input.frameId() != null) request.setSelectedFrame(frame(input.frameId())); request.setStatus(input.status()); publishQuote(request); return toResponse(request);
     }
     @Override @Transactional public CustomOrderRequestResponse decideQuote(UUID userId, UUID id, DecideCustomOrderQuoteRequest input) {
         CustomOrderRequest request = requestRepository.findByIdAndUserIdForUpdate(id, userId).orElseThrow(() -> new AppException(ErrorCode.CUSTOM_ORDER_REQUEST_NOT_FOUND, "Custom request not found"));
@@ -61,6 +64,7 @@ public class CustomOrderRequestServiceImpl implements CustomOrderRequestService 
     private boolean allowed(CustomOrderRequestStatus current, CustomOrderRequestStatus next) { return (current == CustomOrderRequestStatus.NEW && next == CustomOrderRequestStatus.QUOTED) || (current == CustomOrderRequestStatus.CONFIRMED && next == CustomOrderRequestStatus.IN_PRODUCTION) || (current == CustomOrderRequestStatus.IN_PRODUCTION && next == CustomOrderRequestStatus.COMPLETED); }
     private CustomOrderRequest owned(UUID id, UUID userId) { return requestRepository.findByIdAndUserId(id, userId).orElseThrow(() -> new AppException(ErrorCode.CUSTOM_ORDER_REQUEST_NOT_FOUND, "Custom request not found")); }
     private Frame frame(UUID id) { return frameRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Frame not found")); }
+    private void publishQuote(CustomOrderRequest request) { User user = request.getUser(); eventPublisher.publishEvent(new CustomOrderQuotedEvent(user.getId(), user.getEmail(), user.getFirstName(), request.getId(), request.getRequestCode(), request.getQuotedPrice(), request.getStaffNote())); }
     private Pageable pageable(int page, int size) { return PageRequest.of(Math.max(page, 1) - 1, Math.min(Math.max(size, 1), MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt")); }
     private PageResponse<CustomOrderRequestResponse> toPage(Page<CustomOrderRequest> source, int page) { return new PageResponse<>(source.getContent().stream().map(this::toResponse).toList(), Math.max(page, 1), source.getSize(), source.getTotalElements(), source.getTotalPages(), source.hasNext()); }
     private CustomOrderRequestResponse toResponse(CustomOrderRequest item) { List<CustomOrderImageResponse> images = item.getImages().stream().map(image -> new CustomOrderImageResponse(image.getId(), image.isAuthenticated() ? mediaStorageService.signedCustomOrderImageUrl(image.getPublicId()) : image.getSecureUrl())).toList(); Frame frame = item.getSelectedFrame(); Order order = item.getOrder(); return new CustomOrderRequestResponse(item.getId(), item.getRequestCode(), item.getType(), item.getWidthCm(), item.getHeightCm(), item.getMaterial(), frame == null ? null : frame.getId(), frame == null ? null : frame.getName(), item.getQuotedPrice(), item.getStaffNote(), item.getCustomerNote(), item.getStatus(), order == null ? null : order.getId(), order == null ? null : order.getOrderCode(), images, item.getCreatedAt()); }

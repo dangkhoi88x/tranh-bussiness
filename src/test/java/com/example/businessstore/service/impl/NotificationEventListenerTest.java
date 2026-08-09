@@ -1,7 +1,10 @@
 package com.example.businessstore.service.impl;
 
 import com.example.businessstore.constant.NotificationType;
+import com.example.businessstore.event.CustomOrderQuotedEvent;
 import com.example.businessstore.event.OrderConfirmedEvent;
+import com.example.businessstore.event.OrderPlacedEvent;
+import com.example.businessstore.event.OrderShippedEvent;
 import com.example.businessstore.event.UserRegisteredEvent;
 import com.example.businessstore.service.MailService;
 import com.example.businessstore.service.NotificationService;
@@ -43,11 +46,47 @@ class NotificationEventListenerTest {
         UUID userId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
         when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_CONFIRMED), anyString(), anyString(),
-                eq("/orders/" + orderId), eq("ORDER_CONFIRMED:" + orderId))).thenReturn(false);
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_CONFIRMED:" + orderId))).thenReturn(false);
 
         listener.onOrderConfirmed(new OrderConfirmedEvent(
                 userId, "an@example.com", "An", orderId, "ART-001", BigDecimal.TEN));
 
         verify(mailService, never()).sendOrderConfirmedEmail(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void orderPlaced_sendsReceiptEmailAfterCreatingNotification() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_PLACED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_PLACED:" + orderId))).thenReturn(true);
+
+        listener.onOrderPlaced(new OrderPlacedEvent(userId, "an@example.com", "An", orderId, "ART-001", BigDecimal.TEN));
+
+        verify(mailService).sendOrderPlacedEmail("an@example.com", "An", "ART-001", BigDecimal.TEN);
+    }
+
+    @Test
+    void orderShipped_sendsTrackingEmailAfterCreatingNotification() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_SHIPPED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_SHIPPED:" + orderId))).thenReturn(true);
+
+        listener.onOrderShipped(new OrderShippedEvent(userId, "an@example.com", "An", orderId, "ART-001", "GHN", "GHN-001"));
+
+        verify(mailService).sendOrderShippedEmail("an@example.com", "An", "ART-001", "GHN", "GHN-001");
+    }
+
+    @Test
+    void customOrderQuoted_sendsQuoteEmailAfterCreatingNotification() {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.CUSTOM_ORDER_QUOTED), anyString(), anyString(),
+                eq("/dat-in"), eq("CUSTOM_ORDER_QUOTED:" + requestId))).thenReturn(true);
+
+        listener.onCustomOrderQuoted(new CustomOrderQuotedEvent(userId, "an@example.com", "An", requestId, "REQ-001", BigDecimal.TEN, "Khung gỗ"));
+
+        verify(mailService).sendCustomOrderQuoteEmail("an@example.com", "An", "REQ-001", BigDecimal.TEN, "Khung gỗ");
     }
 }

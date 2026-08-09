@@ -28,6 +28,8 @@ public class OrderItem extends BaseEntity {
     @Column(name = "variant_height_cm", precision = 10, scale = 2) private BigDecimal variantHeightCm;
     @Column(name = "product_frame_option_id") private java.util.UUID productFrameOptionId;
     @Column(name = "frame_name", length = 120) private String frameName;
+    /** Số trang đã chốt của photobook — quyết định productPrice, nên phải chụp lại cùng đơn. */
+    @Column(name = "page_count") private Integer pageCount;
     @Column(name = "product_price", nullable = false, precision = 19, scale = 2) private BigDecimal productPrice;
     @Column(name = "frame_price_adjustment", nullable = false, precision = 19, scale = 2) private BigDecimal framePriceAdjustment;
     @Column(name = "unit_price", nullable = false, precision = 19, scale = 2) private BigDecimal unitPrice;

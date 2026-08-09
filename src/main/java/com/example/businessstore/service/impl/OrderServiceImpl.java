@@ -24,6 +24,7 @@ import com.example.businessstore.entity.OrderShippingAddress;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Shipment;
 import com.example.businessstore.event.OrderConfirmedEvent;
+import com.example.businessstore.event.OrderPlacedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.CartRepository;
@@ -31,8 +32,11 @@ import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.ShipmentRepository;
+import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
+import com.example.businessstore.service.PhotobookPricing;
+import com.example.businessstore.service.PhotobookProjectService;
 import com.example.businessstore.service.OrderService;
 import com.example.businessstore.service.OrderStatusHistoryService;
 import com.example.businessstore.service.PromotionLine;
@@ -66,6 +70,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final PhotobookPageTierRepository photobookPageTierRepository;
+    private final PhotobookProjectService photobookProjectService;
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
     private final ShipmentRepository shipmentRepository;
@@ -103,10 +109,18 @@ public class OrderServiceImpl implements OrderService {
             ProductFrameOption option = cartItem.getProductFrameOption();
             validateFrameCompatibility(option, variant);
             BigDecimal adjustment = option == null ? BigDecimal.ZERO : option.getPriceAdjustment();
-            BigDecimal basePrice = variant == null ? lockedProduct.getPrice() : variant.getPrice();
+            // Giá tính lại từ đầu ở đây (không tin giỏ hàng), nên photobook phải dùng đúng
+            // PhotobookPricing như CartServiceImpl — lệch một trong hai là khách trả sai tiền.
+            BigDecimal basePrice = variant == null ? lockedProduct.getPrice()
+                    : lockedProduct.isPagePriced() && cartItem.getPageCount() != null
+                    ? PhotobookPricing.priceAt(lockedProduct,
+                    photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId()),
+                    cartItem.getPageCount())
+                    : variant.getPrice();
             BigDecimal unitPrice = basePrice.add(adjustment);
             OrderItem item = new OrderItem();
             item.setProductId(lockedProduct.getId()); item.setProductName(lockedProduct.getName()); item.setProductSlug(lockedProduct.getSlug());
+            item.setPageCount(cartItem.getPageCount());
             item.setProductPrice(basePrice); item.setFramePriceAdjustment(adjustment); item.setUnitPrice(unitPrice);
             item.setQuantity(cartItem.getQuantity()); item.setLineTotal(unitPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity())));
             if (variant != null) { item.setProductVariantId(variant.getId()); item.setVariantSku(variant.getSku()); item.setVariantName(variant.getName()); item.setVariantMaterial(variant.getMaterial()); item.setVariantWidthCm(variant.getWidthCm()); item.setVariantHeightCm(variant.getHeightCm()); }
@@ -130,6 +144,10 @@ public class OrderServiceImpl implements OrderService {
                     "Coupon " + calculation.couponCode() + " reserved; discount " + calculation.discountAmount());
         }
         cart.getItems().clear();
+        // Mỗi cuốn photobook cần một chỗ để khách gửi ảnh ngay sau khi đặt; không mở ở đây thì
+        // khách trả tiền xong không có đường nào gửi ảnh cho xưởng.
+        photobookProjectService.openProjectsFor(saved);
+        publishOrderPlaced(saved);
         return toResponse(saved);
     }
 
@@ -153,7 +171,9 @@ public class OrderServiceImpl implements OrderService {
         details.setOrder(order); details.setCustomOrderRequestId(request.getId()); details.setRequestCode(request.getRequestCode()); details.setRequestType(request.getType()); details.setWidthCm(request.getWidthCm()); details.setHeightCm(request.getHeightCm()); details.setMaterial(request.getMaterial()); details.setQuotedPrice(request.getQuotedPrice());
         if (request.getSelectedFrame() != null) { details.setFrameId(request.getSelectedFrame().getId()); details.setFrameName(request.getSelectedFrame().getName()); }
         order.setCustomDetails(details);
-        return toResponse(orderRepository.save(order));
+        Order saved = orderRepository.save(order);
+        publishOrderPlaced(saved);
+        return toResponse(saved);
     }
 
     @Override @Transactional(readOnly = true) public PageResponse<OrderResponse> getMine(UUID userId, int page, int size) { return toPage(orderRepository.findByUserId(userId, pageRequest(page, size)), page); }
@@ -209,7 +229,8 @@ public class OrderServiceImpl implements OrderService {
                 .map(i -> new OrderItemResponse(i.getId(), i.getProductId(), i.getProductName(), i.getProductSlug(),
                         i.getProductVariantId(), i.getVariantSku(), i.getVariantName(), i.getVariantMaterial(),
                         i.getVariantWidthCm(), i.getVariantHeightCm(), i.getProductFrameOptionId(), i.getFrameName(),
-                        i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(), i.getQuantity(), i.getLineTotal()))
+                        i.getPageCount(), i.getProductPrice(), i.getFramePriceAdjustment(), i.getUnitPrice(),
+                        i.getQuantity(), i.getLineTotal()))
                 .toList();
         OrderShippingAddress snapshot = order.getShippingAddressSnapshot();
         OrderShippingAddressResponse address = snapshot == null ? null : new OrderShippingAddressResponse(
@@ -258,6 +279,11 @@ public class OrderServiceImpl implements OrderService {
     private void publishOrderConfirmed(Order order) {
         var user = order.getUser();
         eventPublisher.publishEvent(new OrderConfirmedEvent(user.getId(), user.getEmail(), user.getFirstName(),
+                order.getId(), order.getOrderCode(), order.getTotalAmount()));
+    }
+    private void publishOrderPlaced(Order order) {
+        var user = order.getUser();
+        eventPublisher.publishEvent(new OrderPlacedEvent(user.getId(), user.getEmail(), user.getFirstName(),
                 order.getId(), order.getOrderCode(), order.getTotalAmount()));
     }
     private String appendNote(String note, String addition) {

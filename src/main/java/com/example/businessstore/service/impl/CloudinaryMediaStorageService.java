@@ -1,6 +1,7 @@
 package com.example.businessstore.service.impl;
 
 import com.cloudinary.Cloudinary;
+import com.cloudinary.Transformation;
 import com.cloudinary.utils.ObjectUtils;
 import com.example.businessstore.configuration.CloudinaryProperties;
 import com.example.businessstore.configuration.MediaProperties;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class CloudinaryMediaStorageService implements MediaStorageService {
 
     private static final Set<String> SUPPORTED_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+    private static final String PDF_CONTENT_TYPE = "application/pdf";
 
     private final Cloudinary cloudinary;
     private final CloudinaryProperties cloudinaryProperties;
@@ -43,6 +45,60 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
     @Override
     public UploadedMedia uploadCustomOrderImage(UUID requestId, MultipartFile file) {
         return uploadImage("business-store/custom-order-requests/" + requestId, file, "authenticated");
+    }
+
+    @Override
+    public UploadedMedia uploadPhotobookPhoto(UUID projectId, MultipartFile file) {
+        return uploadImage("business-store/photobook-projects/" + projectId, file, "authenticated");
+    }
+
+    /**
+     * Bản mềm nạp bằng resource_type "image" kể cả khi là PDF — đó là điều kiện để Cloudinary
+     * render được từng trang thành ảnh (transformation pg_N) cho khách lật xem inline.
+     */
+    @Override
+    public UploadedMedia uploadPhotobookProof(UUID projectId, MultipartFile file) {
+        validateProof(file);
+        requireConfigured();
+        try {
+            Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
+                    "folder", "business-store/photobook-proofs/" + projectId,
+                    "public_id", UUID.randomUUID().toString(),
+                    "resource_type", "image",
+                    "type", "authenticated",
+                    "overwrite", false));
+            String publicId = stringResult(result, "public_id");
+            String secureUrl = stringResult(result, "secure_url");
+            if (publicId == null || secureUrl == null) {
+                throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Cloudinary did not return proof details");
+            }
+            return new UploadedMedia(publicId, secureUrl, pageCount(result));
+        } catch (IOException exception) {
+            log.warn("Cloudinary proof upload failed", exception);
+            throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Could not upload proof");
+        }
+    }
+
+    /** Cloudinary trả "pages" cho PDF; ảnh đơn không có trường này. */
+    private int pageCount(Map<?, ?> result) {
+        Object pages = result.get("pages");
+        if (pages instanceof Number number && number.intValue() > 0) {
+            return number.intValue();
+        }
+        return 1;
+    }
+
+    @Override
+    public String signedPrivatePageUrl(String publicId, int page) {
+        requireConfigured();
+        return cloudinary.url()
+                .resourceType("image")
+                .type("authenticated")
+                .secure(true)
+                .signed(true)
+                .transformation(new Transformation<>().page(Math.max(page, 1)).quality("auto"))
+                .format("jpg")
+                .generate(publicId);
     }
 
     private UploadedMedia uploadImage(String folder, MultipartFile file) {
@@ -77,12 +133,12 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
     }
 
     @Override
-    public void deleteCustomOrderImage(String publicId) {
+    public void deletePrivateImage(String publicId) {
         destroyImage(publicId, "authenticated");
     }
 
     @Override
-    public String signedCustomOrderImageUrl(String publicId) {
+    public String signedPrivateImageUrl(String publicId) {
         requireConfigured();
         return cloudinary.url()
                 .resourceType("image")
@@ -106,6 +162,38 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
         } catch (IOException exception) {
             log.warn("Cloudinary image deletion failed for publicId={}", publicId, exception);
             throw new AppException(ErrorCode.MEDIA_DELETE_FAILED, "Could not delete image");
+        }
+    }
+
+    /**
+     * Bản mềm cho phép thêm PDF, và có trần dung lượng riêng vì một cuốn 15 spread nặng hơn
+     * nhiều so với một tấm ảnh sản phẩm.
+     */
+    private void validateProof(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Proof file is required");
+        }
+        if (file.getSize() > mediaProperties.maxProofSizeBytes()) {
+            throw new AppException(ErrorCode.IMAGE_FILE_TOO_LARGE, "Proof exceeds the allowed size");
+        }
+        String contentType = file.getContentType();
+        boolean pdf = PDF_CONTENT_TYPE.equalsIgnoreCase(contentType) && hasPdfSignature(file);
+        boolean image = contentType != null
+                && SUPPORTED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))
+                && hasImageSignature(file);
+        if (!pdf && !image) {
+            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Only PDF, JPEG, PNG, and WebP proofs are allowed");
+        }
+    }
+
+    private boolean hasPdfSignature(MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream()) {
+            byte[] header = inputStream.readNBytes(5);
+            return header.length == 5
+                    && header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44
+                    && header[3] == 0x46 && header[4] == 0x2D; // %PDF-
+        } catch (IOException exception) {
+            return false;
         }
     }
 

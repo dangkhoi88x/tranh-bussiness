@@ -59,6 +59,7 @@ class ProductServiceImplTest {
         Category category = new Category();
         category.setId(UUID.randomUUID());
         category.setName("Phong cảnh");
+        category.setSlug("phong-canh");
         product = new Product();
         product.setId(UUID.randomUUID());
         product.setCategory(category);
@@ -69,11 +70,11 @@ class ProductServiceImplTest {
         product.setStatus(ProductStatus.PUBLISHED);
         // What productMapper.toResponse(product) is stubbed to return; its own primaryImageUrl/images
         // are discarded by ProductServiceImpl.toResponse, which resolves those from the image repository instead.
-        mappedResponse = new ProductResponse(product.getId(), category.getId(), category.getName(),
+        mappedResponse = new ProductResponse(product.getId(), category.getId(), category.getName(), category.getSlug(),
                 product.getName(), product.getSlug(), null, product.getPrice(), null, null,
                 product.getStockQuantity(), product.getStatus(), null, null, null, null, null, null);
         // What productService.findPublished should actually return once the (stubbed empty) image list is attached.
-        productResponse = new ProductResponse(product.getId(), category.getId(), category.getName(),
+        productResponse = new ProductResponse(product.getId(), category.getId(), category.getName(), category.getSlug(),
                 product.getName(), product.getSlug(), null, product.getPrice(), null, null,
                 product.getStockQuantity(), product.getStatus(), null, null, null, List.of(), null, null);
     }

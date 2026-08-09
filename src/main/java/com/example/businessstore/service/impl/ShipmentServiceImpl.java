@@ -8,18 +8,20 @@ import com.example.businessstore.exception.*;
 import com.example.businessstore.repository.*;
 import com.example.businessstore.service.ShipmentService;
 import com.example.businessstore.service.OrderStatusHistoryService;
+import com.example.businessstore.event.OrderShippedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.context.ApplicationEventPublisher;
 import java.time.Instant;
 import java.util.UUID;
 @Service @RequiredArgsConstructor
 public class ShipmentServiceImpl implements ShipmentService {
     private static final int MAX_PAGE_SIZE = 100;
-    private final ShipmentRepository shipmentRepository; private final OrderRepository orderRepository; private final PaymentRepository paymentRepository; private final OrderStatusHistoryService orderStatusHistoryService;
+    private final ShipmentRepository shipmentRepository; private final OrderRepository orderRepository; private final PaymentRepository paymentRepository; private final OrderStatusHistoryService orderStatusHistoryService; private final ApplicationEventPublisher eventPublisher;
     @Override @Transactional public ShipmentResponse create(UUID changedBy, UUID orderId, CreateShipmentRequest input) {
         Order order = orderRepository.findByIdForUpdate(orderId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"));
         if (order.getStatus() != OrderStatus.CONFIRMED) throw new AppException(ErrorCode.SHIPMENT_NOT_READY, "Only confirmed orders can be handed to a carrier");
@@ -48,11 +50,12 @@ public class ShipmentServiceImpl implements ShipmentService {
         if (shipment.getStatus() == ShipmentStatus.DELIVERED || shipment.getStatus() == ShipmentStatus.CANCELLED) throw new AppException(ErrorCode.SHIPMENT_CANNOT_BE_CHANGED, "Completed or cancelled shipments cannot be changed");
         if (!allowed(shipment.getStatus(), input.status())) throw new AppException(ErrorCode.INVALID_SHIPMENT_STATUS, "Invalid shipment status transition");
         Instant now = Instant.now(); shipment.setStatus(input.status());
-        if (input.status() == ShipmentStatus.IN_TRANSIT) { shipment.setShippedAt(now); changeOrderStatus(order, OrderStatus.SHIPPING, changedBy, "Shipment marked IN_TRANSIT"); }
+        if (input.status() == ShipmentStatus.IN_TRANSIT) { shipment.setShippedAt(now); changeOrderStatus(order, OrderStatus.SHIPPING, changedBy, "Shipment marked IN_TRANSIT"); publishOrderShipped(order, shipment); }
         return toResponse(shipment);
     }
     private boolean allowed(ShipmentStatus current, ShipmentStatus next) { return current == ShipmentStatus.READY && (next == ShipmentStatus.IN_TRANSIT || next == ShipmentStatus.CANCELLED); }
     private void changeOrderStatus(Order order, OrderStatus next, UUID changedBy, String note) { OrderStatus from = order.getStatus(); order.setStatus(next); orderStatusHistoryService.record(order, from, next, changedBy, note); }
+    private void publishOrderShipped(Order order, Shipment shipment) { User user = order.getUser(); eventPublisher.publishEvent(new OrderShippedEvent(user.getId(), user.getEmail(), user.getFirstName(), order.getId(), order.getOrderCode(), shipment.getCarrier(), shipment.getTrackingCode())); }
     private String normalizeFilter(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private ShipmentResponse toResponse(Shipment s) { return new ShipmentResponse(s.getId(), s.getOrder().getId(), s.getOrder().getOrderCode(), s.getCarrier(), s.getTrackingCode(), s.getShippingFee(), s.getStatus(), s.getShippedAt(), s.getDeliveredAt(), s.getFailedAt(), s.getFailureReason(), s.getCreatedAt(), s.getUpdatedAt()); }
 }

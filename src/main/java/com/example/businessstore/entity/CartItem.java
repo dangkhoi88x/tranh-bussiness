@@ -34,6 +34,10 @@ public class CartItem extends BaseEntity {
     @JoinColumn(name = "product_frame_option_id")
     private ProductFrameOption productFrameOption;
 
+    /** Số trang khách chọn với photobook; null với sản phẩm không bán theo trang. */
+    @Column(name = "page_count")
+    private Integer pageCount;
+
     @Column(nullable = false)
     private int quantity;
 }

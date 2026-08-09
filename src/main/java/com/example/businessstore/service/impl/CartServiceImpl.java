@@ -10,6 +10,7 @@ import com.example.businessstore.dto.response.ProductFrameOptionResponse;
 import com.example.businessstore.dto.response.ProductVariantResponse;
 import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
+import com.example.businessstore.entity.PhotobookPageTier;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ProductVariant;
@@ -19,11 +20,13 @@ import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.mapper.ProductFrameOptionMapper;
 import com.example.businessstore.repository.CartItemRepository;
 import com.example.businessstore.repository.CartRepository;
+import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.CartService;
+import com.example.businessstore.service.PhotobookPricing;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +46,7 @@ public class CartServiceImpl implements CartService {
     private final ProductFrameOptionRepository productFrameOptionRepository;
     private final ProductFrameOptionMapper productFrameOptionMapper;
     private final ProductVariantRepository productVariantRepository;
+    private final PhotobookPageTierRepository photobookPageTierRepository;
 
     @Override
     @Transactional
@@ -60,9 +64,10 @@ public class CartServiceImpl implements CartService {
                 ? null
                 : getAvailableFrameOption(product.getId(), request.productFrameOptionId());
         validateFrameCompatibility(frameOption, variant);
+        Integer pageCount = validatePageCount(product, variant, request.pageCount());
 
-        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId())
-                .orElseGet(() -> createItem(cart, product, variant, frameOption));
+        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount)
+                .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount));
         int requestedQuantity = item.getQuantity() + request.quantity();
         validateStock(product, variant, requestedQuantity);
         item.setQuantity(requestedQuantity);
@@ -124,22 +129,66 @@ public class CartServiceImpl implements CartService {
         return option;
     }
 
-    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId) {
+    /** Cùng sản phẩm nhưng khác khổ, khung hay số trang là những dòng giỏ hàng riêng biệt. */
+    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId, Integer pageCount) {
         if (frameOptionId == null) {
-            return cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, variantId);
+            return pageCount == null
+                    ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNull(cart.getId(), productId, variantId)
+                    : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCount(cart.getId(), productId, variantId, pageCount);
         }
-        return cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionId(cart.getId(), productId, variantId, frameOptionId);
+        return pageCount == null
+                ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountIsNull(cart.getId(), productId, variantId, frameOptionId)
+                : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCount(cart.getId(), productId, variantId, frameOptionId, pageCount);
     }
 
-    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption) {
+    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption, Integer pageCount) {
         CartItem item = new CartItem();
         item.setCart(cart);
         item.setProduct(product);
         item.setProductVariant(variant);
         item.setProductFrameOption(frameOption);
+        item.setPageCount(pageCount);
         item.setQuantity(0);
         cart.getItems().add(item);
         return item;
+    }
+
+    /**
+     * Photobook bắt buộc phải có số trang và số đó phải nằm trong bảng giá; sản phẩm thường
+     * thì không được mang số trang, tránh việc client gửi kèm rồi tưởng giá đã đổi theo.
+     */
+    private Integer validatePageCount(Product product, ProductVariant variant, Integer requested) {
+        if (!product.isPagePriced()) {
+            if (requested != null) {
+                throw new AppException(ErrorCode.INVALID_PHOTOBOOK_PAGE_COUNT, "This product is not sold by page count");
+            }
+            return null;
+        }
+        if (variant == null) {
+            throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Select a photobook size before adding it to cart");
+        }
+        if (requested == null) {
+            throw new AppException(ErrorCode.PHOTOBOOK_PAGE_COUNT_REQUIRED, "Select a page count for this photobook");
+        }
+        // Ném nếu số trang không bán được; giá trả về ở đây bỏ đi, toResponse tính lại khi đọc giỏ.
+        PhotobookPricing.priceAt(product, pageTiersOf(variant), requested);
+        return requested;
+    }
+
+    private List<PhotobookPageTier> pageTiersOf(ProductVariant variant) {
+        return photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId());
+    }
+
+    /** Giá một cuốn/bức trước phụ thu khung: theo số trang với photobook, theo variant với hàng thường. */
+    private BigDecimal basePriceOf(CartItem item) {
+        ProductVariant variant = item.getProductVariant();
+        if (variant == null) {
+            return item.getProduct().getPrice();
+        }
+        if (item.getProduct().isPagePriced() && item.getPageCount() != null) {
+            return PhotobookPricing.priceAt(item.getProduct(), pageTiersOf(variant), item.getPageCount());
+        }
+        return variant.getPrice();
     }
 
     private CartItem getOwnedItem(UUID userId, UUID itemId) {
@@ -168,7 +217,7 @@ public class CartServiceImpl implements CartService {
                 ? null
                 : productFrameOptionMapper.toResponse(item.getProductFrameOption());
         ProductVariant variant = item.getProductVariant();
-        BigDecimal basePrice = variant == null ? item.getProduct().getPrice() : variant.getPrice();
+        BigDecimal basePrice = basePriceOf(item);
         BigDecimal unitPrice = basePrice;
         if (item.getProductFrameOption() != null) {
             unitPrice = unitPrice.add(item.getProductFrameOption().getPriceAdjustment());
@@ -181,6 +230,7 @@ public class CartServiceImpl implements CartService {
                 toVariantResponse(variant),
                 basePrice,
                 frameOption,
+                item.getPageCount(),
                 unitPrice,
                 item.getQuantity(),
                 unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));

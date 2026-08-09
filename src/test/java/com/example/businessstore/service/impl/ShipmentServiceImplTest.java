@@ -9,6 +9,8 @@ import com.example.businessstore.dto.request.UpdateShipmentStatusRequest;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.entity.User;
+import com.example.businessstore.event.OrderShippedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.OrderRepository;
@@ -21,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -37,6 +40,7 @@ class ShipmentServiceImplTest {
     @Mock private OrderRepository orderRepository;
     @Mock private PaymentRepository paymentRepository;
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @InjectMocks private ShipmentServiceImpl shipmentService;
 
     @Test
@@ -92,6 +96,24 @@ class ShipmentServiceImplTest {
                 .isInstanceOf(AppException.class)
                 .extracting(error -> ((AppException) error).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_SHIPMENT_STATUS);
+    }
+
+    @Test
+    void inTransit_publishesShippingEmailEvent() {
+        UUID orderId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.CONFIRMED);
+        User customer = new User(); customer.setId(UUID.randomUUID()); customer.setEmail("customer@example.com"); customer.setFirstName("Customer"); order.setUser(customer);
+        Shipment shipment = new Shipment(); shipment.setId(UUID.randomUUID()); shipment.setOrder(order); shipment.setCarrier("GHN"); shipment.setTrackingCode("GHN-001"); shipment.setStatus(ShipmentStatus.READY);
+        when(shipmentRepository.findByIdForUpdate(shipment.getId())).thenReturn(Optional.of(shipment));
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+
+        shipmentService.updateStatus(staffId, shipment.getId(), new UpdateShipmentStatusRequest(ShipmentStatus.IN_TRANSIT, null));
+
+        ArgumentCaptor<OrderShippedEvent> event = ArgumentCaptor.forClass(OrderShippedEvent.class);
+        org.mockito.Mockito.verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().orderId()).isEqualTo(orderId);
+        assertThat(event.getValue().trackingCode()).isEqualTo("GHN-001");
     }
 
     private Order order(UUID id, OrderStatus status) {

@@ -11,6 +11,8 @@ public record CartItemResponse(
         ProductVariantResponse selectedVariant,
         BigDecimal basePrice,
         ProductFrameOptionResponse selectedFrameOption,
+        /** Số trang photobook đã chọn; null với sản phẩm không bán theo trang. */
+        Integer pageCount,
         BigDecimal unitPrice,
         int quantity,
         BigDecimal lineTotal) {

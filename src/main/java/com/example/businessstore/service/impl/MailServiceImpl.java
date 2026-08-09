@@ -39,12 +39,44 @@ public class MailServiceImpl implements MailService {
     }
 
     @Override
+    public void sendOrderPlacedEmail(String recipient, String firstName, String orderCode, BigDecimal totalAmount) {
+        String amount = currency(totalAmount);
+        send(recipient, "Đã nhận đơn hàng " + orderCode,
+                "Chào " + firstName + ",\n\nChúng tôi đã nhận đơn hàng " + orderCode + ". "
+                        + "Tổng thanh toán tạm tính: " + amount + ". "
+                        + "Bạn có thể theo dõi tiến độ đơn hàng trong tài khoản của mình.",
+                "order-placed");
+    }
+
+    @Override
     public void sendOrderConfirmedEmail(String recipient, String firstName, String orderCode, BigDecimal totalAmount) {
-        String amount = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("vi-VN")).format(totalAmount);
+        String amount = currency(totalAmount);
         send(recipient, "Đơn hàng " + orderCode + " đã được xác nhận",
                 "Chào " + firstName + ",\n\nĐơn hàng " + orderCode + " đã được xác nhận. "
                         + "Tổng thanh toán: " + amount + ". Chúng tôi sẽ sớm chuẩn bị đơn để giao cho bạn.",
                 "order-confirmed");
+    }
+
+    @Override
+    public void sendOrderShippedEmail(String recipient, String firstName, String orderCode, String carrier, String trackingCode) {
+        send(recipient, "Đơn hàng " + orderCode + " đang được giao",
+                "Chào " + firstName + ",\n\nĐơn hàng " + orderCode + " đã được bàn giao cho " + carrier + ".\n"
+                        + "Mã vận đơn: " + trackingCode + ".\n\nBạn có thể theo dõi tiến độ đơn hàng trong tài khoản của mình.",
+                "order-shipped");
+    }
+
+    @Override
+    public void sendCustomOrderQuoteEmail(String recipient, String firstName, String requestCode, BigDecimal quotedPrice, String staffNote) {
+        String note = staffNote == null || staffNote.isBlank() ? "" : "\n\nGhi chú từ xưởng: " + staffNote.trim();
+        send(recipient, "Báo giá yêu cầu in " + requestCode,
+                "Chào " + firstName + ",\n\nXưởng đã gửi báo giá cho yêu cầu " + requestCode + ".\n"
+                        + "Giá báo: " + currency(quotedPrice) + "."
+                        + note + "\n\nVui lòng vào tài khoản để đồng ý hoặc từ chối báo giá.",
+                "custom-order-quote");
+    }
+
+    private String currency(BigDecimal amount) {
+        return NumberFormat.getCurrencyInstance(Locale.forLanguageTag("vi-VN")).format(amount);
     }
 
     private void send(String recipient, String subject, String text, String kind) {
