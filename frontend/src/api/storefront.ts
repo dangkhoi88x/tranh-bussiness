@@ -17,6 +17,7 @@ export type Product = {
   id: string;
   categoryId: string;
   categoryName: string;
+  categorySlug: string;
   name: string;
   slug: string;
   description: string | null;
@@ -34,6 +35,11 @@ export type Product = {
   /** Tổng tồn của các variant bán được; bằng stockQuantity nếu sản phẩm không có variant. */
   effectiveStockQuantity: number;
   hasVariants: boolean;
+  /**
+   * Photobook: giá phụ thuộc số trang nên KHÔNG lấy từ `price` hay `variant.price` —
+   * phải hỏi GET /products/{id}/photobook-pricing và gửi kèm `pageCount` khi thêm vào giỏ.
+   */
+  pagePriced: boolean;
 };
 
 /** Mirrors ProductVariantResponse — mỗi variant là một khổ tranh bán được. */

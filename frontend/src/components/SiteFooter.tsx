@@ -1,25 +1,27 @@
-/**
- * href '#' nghĩa là chưa có trang (hoặc chưa có URL mạng xã hội thật) để trỏ tới — giữ
- * nguyên thay vì bịa đường dẫn; danh sách những trang còn thiếu nằm trong App.tsx.
- * Mục nào có đích thật thì trỏ vào khối tương ứng trên trang chủ (HomePage có effect
- * cuộn bù cho hash, xem HomePage.tsx).
- */
+/** Các link mạng xã hội vẫn cần URL thật của cửa hàng trước khi thay '#'. */
 const COLS: { title: string; items: { label: string; href: string }[] }[] = [
   {
     title: 'Sản phẩm',
     items: [
       { label: 'Tranh canvas', href: '/danh-muc/tranh-canvas' },
       { label: 'Photobook', href: '/photobook' },
-      { label: 'Khổ & giá', href: '#' },
-      { label: 'Đặt riêng', href: '#' },
+      { label: 'Khổ & giá', href: '/kho-va-gia' },
+      { label: 'Đặt riêng', href: '/dat-in' },
     ],
   },
   {
     title: 'Hỗ trợ',
     items: [
       { label: 'Hướng dẫn đặt in', href: '/#cach-dat-in' },
-      { label: 'Chính sách đổi trả', href: '#' },
-      { label: 'Vận chuyển', href: '#' },
+      { label: 'Đơn hàng của tôi', href: '/don-hang-cua-toi' },
+      { label: 'Sản phẩm yêu thích', href: '/yeu-thich' },
+      { label: 'Thông báo', href: '/thong-bao' },
+      { label: 'Tài khoản', href: '/account' },
+      { label: 'Liên hệ', href: '/lien-he' },
+      { label: 'Chính sách đổi trả', href: '/chinh-sach-doi-tra' },
+      { label: 'Vận chuyển', href: '/chinh-sach-van-chuyen' },
+      { label: 'Thanh toán', href: '/chinh-sach-thanh-toan' },
+      { label: 'Bảo mật', href: '/chinh-sach-bao-mat' },
       { label: 'Câu hỏi thường gặp', href: '/#hoi-dap' },
     ],
   },

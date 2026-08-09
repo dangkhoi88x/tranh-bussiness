@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /account
+Disallow: /gio-hang
+Disallow: /thanh-toan
+Disallow: /don-hang-cua-toi
+Disallow: /yeu-thich
+Disallow: /thong-bao
+Disallow: /tim-kiem
+Disallow: /auth
+
+Sitemap: /sitemap.xml

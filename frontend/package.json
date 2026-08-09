@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "seo:prerender": "npm run build && node scripts/prerender-seo.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

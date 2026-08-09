@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { formatPrice, formatSize, type CatalogSort } from '../api/storefront';
 import { useCategories, useProductPage } from '../hooks/useCatalog';
 import { useCart } from '../hooks/useCart';
-import { SiteHeader } from '../components/SiteHeader';
-import { SiteFooter } from '../components/SiteFooter';
+import { StoreShell } from '../components/StoreShell';
 import { Frame } from '../components/Frame';
+import { absoluteSiteUrl, metaDescription, useDocumentMeta } from '../hooks/useDocumentMeta';
 import '../styles/ds.css';
 import '../styles/public.css';
 
@@ -51,18 +51,24 @@ export function CategoryPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  useEffect(() => {
-    const original = document.title;
-    document.title = category
-      ? `${category.name} | Bubble Memories`
-      : 'Danh mục | Bubble Memories';
-    return () => { document.title = original; };
-  }, [category]);
-
   const notFound = categories && !category;
+  const categoryPath = `/danh-muc/${encodeURIComponent(slug ?? '')}`;
+  const categoryImage = items[0]?.primaryImageUrl ?? null;
+  useDocumentMeta(category ? {
+    title: `${category.name} | Bubble Memories`,
+    description: metaDescription(category.description, `Khám phá ${category.name} tại Bubble Memories.`),
+    canonicalUrl: absoluteSiteUrl(categoryPath),
+    imageUrl: categoryImage ? absoluteSiteUrl(categoryImage) : null,
+    imageAlt: category.name,
+  } : notFound ? {
+    title: 'Không tìm thấy danh mục | Bubble Memories',
+    description: 'Danh mục bạn yêu cầu không tồn tại.',
+    canonicalUrl: absoluteSiteUrl(categoryPath),
+    robots: 'noindex, nofollow',
+  } : null);
 
   return (
-    <Shell cartCount={count}>
+    <StoreShell cartCount={count}>
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" data-breadcrumb="" style={{
         display: 'flex', alignItems: 'center', gap: 'var(--space-3)', height: 46,
@@ -222,22 +228,6 @@ export function CategoryPage() {
         </>
       )}
 
-      <SiteFooter />
-    </Shell>
-  );
-}
-
-function Shell({ cartCount, children }: { cartCount: number; children: React.ReactNode }) {
-  return (
-    <div style={{ background: 'var(--color-neutral-200)' }}>
-      <div style={{
-        fontFamily: 'var(--font-body)', color: 'var(--color-text)', background: 'var(--color-bg)',
-        minHeight: '100vh', width: '100%', maxWidth: 1180, margin: '0 auto',
-        borderLeft: '2px solid var(--color-divider)', borderRight: '2px solid var(--color-divider)',
-      }}>
-        <SiteHeader cartCount={cartCount} />
-        {children}
-      </div>
-    </div>
+    </StoreShell>
   );
 }

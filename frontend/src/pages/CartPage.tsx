@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ApiRequestError } from '../api/http';
-import { formatPrice, formatSize } from '../api/storefront';
-import type { CartItem } from '../api/cart';
+import { formatPrice } from '../api/storefront';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../contexts/AuthContext';
-import { SiteHeader } from '../components/SiteHeader';
-import { SiteFooter } from '../components/SiteFooter';
+import {
+  cartItemOptions,
+  STORE_LABEL_STYLE,
+  StoreNotice,
+  StoreShell,
+  StoreSummaryRow,
+} from '../components/StoreShell';
 import '../styles/ds.css';
 import '../styles/public.css';
 
 /** UpdateCartItemRequest chặn ở 999; tồn kho thật vẫn là trần cứng phía trên. */
 const MAX_QTY = 999;
-
-const label: React.CSSProperties = {
-  fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--color-neutral-700)',
-};
 
 const stepStyle = (disabled: boolean): React.CSSProperties => ({
   appearance: 'none', width: 32, height: 32, border: 0, background: 'transparent',
@@ -23,20 +23,9 @@ const stepStyle = (disabled: boolean): React.CSSProperties => ({
   cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
 });
 
-/** Mô tả lựa chọn của một dòng: "60 × 80 cm · Canvas · Khung đen tối giản". */
-function itemOptions(item: CartItem): string {
-  const variant = item.selectedVariant;
-  return [
-    variant ? formatSize(variant.widthCm, variant.heightCm) ?? variant.name : null,
-    variant?.material,
-    item.selectedFrameOption?.frameName ?? 'Căng viền',
-  ].filter(Boolean).join(' · ');
-}
-
 export function CartPage() {
-  const location = useLocation();
   const { session } = useAuth();
-  const { cart, loading, count, update, remove, clear } = useCart();
+  const { cart, loading, count, pendingGuestCount, update, remove, clear, mergePending } = useCart();
 
   // Khoá riêng từng dòng: bấm + ở dòng này không nên làm đơ stepper của dòng khác.
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
@@ -51,6 +40,7 @@ export function CartPage() {
   }, []);
 
   const items = cart?.items ?? [];
+  const pendingMergeBusy = busyItemId === 'guest-cart-merge';
 
   async function run(itemId: string, action: () => Promise<unknown>) {
     setBusyItemId(itemId);
@@ -77,7 +67,7 @@ export function CartPage() {
   }
 
   return (
-    <Shell cartCount={count}>
+    <StoreShell cartCount={count}>
       <nav aria-label="Breadcrumb" data-breadcrumb="" style={{
         display: 'flex', alignItems: 'center', gap: 'var(--space-3)', height: 46, padding: '0 var(--space-8)',
         borderBottom: '2px solid var(--color-divider)', fontSize: 11, letterSpacing: '.16em',
@@ -96,25 +86,32 @@ export function CartPage() {
           Giỏ hàng
         </h1>
         {items.length > 0 && (
-          <span style={label}>{count} sản phẩm · {items.length} dòng</span>
+          <span style={STORE_LABEL_STYLE}>{count} sản phẩm · {items.length} dòng</span>
         )}
       </section>
 
-      {!session ? (
-        <Notice
-          title="Đăng nhập để xem giỏ hàng"
-          body="Giỏ hàng gắn với tài khoản nên xưởng giữ lại được lựa chọn của bạn giữa các lần ghé."
-          action={<Link className="btn btn-primary" to="/auth" state={{ from: location }}>Đăng nhập</Link>}
-        />
-      ) : loading ? (
-        <Notice title="Đang tải giỏ hàng…" body="" />
+      {!session && items.length > 0 && (
+        <p role="status" style={{ margin: '0 var(--space-8) var(--space-5)', padding: 'var(--space-3) 0', borderTop: '1px solid var(--color-neutral-300)', borderBottom: '1px solid var(--color-neutral-300)', fontSize: 13, color: 'var(--color-neutral-800)' }}>
+          Giỏ này đang được lưu trên thiết bị này. Đăng nhập khi đặt hàng để gộp vào tài khoản của bạn.
+        </p>
+      )}
+
+      {loading ? (
+        <StoreNotice title="Đang tải giỏ hàng…" body="" />
       ) : items.length === 0 ? (
-        <Notice
+        <StoreNotice
           title="Giỏ hàng đang trống"
           body="Chọn một bức ưng ý, khổ và khung sẽ tính giá ngay tại trang sản phẩm."
-          action={<a className="btn btn-primary" href="/danh-muc/tranh-canvas">Xem tranh canvas</a>}
+          action={<Link className="btn btn-primary" to="/danh-muc/tranh-canvas">Xem tranh canvas</Link>}
         />
       ) : (
+        <>
+        {session && pendingGuestCount > 0 && (
+          <p role="status" style={{ margin: '0 var(--space-8) var(--space-5)', padding: 'var(--space-3) 0', borderTop: '1px solid var(--color-neutral-300)', borderBottom: '1px solid var(--color-neutral-300)', fontSize: 13, color: 'var(--color-accent-700)' }}>
+            {pendingGuestCount} lựa chọn chưa được chuyển vì thông tin sản phẩm vừa thay đổi.{' '}
+            <button type="button" className="btn btn-ghost" disabled={pendingMergeBusy} onClick={() => void run('guest-cart-merge', mergePending)}>{pendingMergeBusy ? 'Đang thử lại…' : 'Thử lại'}</button>
+          </p>
+        )}
         <section data-split="" style={{
           display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, .58fr)',
           alignItems: 'start', borderTop: '2px solid var(--color-text)',
@@ -133,7 +130,7 @@ export function CartPage() {
                       fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 19, lineHeight: 1.15,
                       letterSpacing: '-.015em', color: 'var(--color-text)', textDecoration: 'none',
                     }}>{item.productName}</Link>
-                    <span style={label}>{itemOptions(item)}</span>
+                    <span style={STORE_LABEL_STYLE}>{cartItemOptions(item)}</span>
                     <span style={{ fontSize: 13, color: 'var(--color-neutral-700)' }}>
                       {formatPrice(item.unitPrice)} / bức
                     </span>
@@ -167,7 +164,7 @@ export function CartPage() {
             })}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', padding: 'var(--space-6) var(--space-8)' }}>
-              <a href="/danh-muc/tranh-canvas" className="btn btn-secondary">← Xem thêm tranh</a>
+              <Link to="/danh-muc/tranh-canvas" className="btn btn-secondary">← Xem thêm tranh</Link>
               <button type="button" className="btn btn-ghost" disabled={clearing}
                 onClick={() => void clearAll()} style={{ cursor: clearing ? 'not-allowed' : 'pointer' }}>
                 {clearing ? 'Đang xoá…' : 'Xoá cả giỏ'}
@@ -181,9 +178,9 @@ export function CartPage() {
             </h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', borderTop: '2px solid var(--color-text)' }}>
-              <SummaryRow k="Số lượng" v={`${count} bức`} />
-              <SummaryRow k="Tạm tính" v={formatPrice(cart?.subtotal ?? 0)} />
-              <SummaryRow k="Vận chuyển" v="Tính khi đặt hàng" />
+              <StoreSummaryRow label="Số lượng" value={`${count} bức`} />
+              <StoreSummaryRow label="Tạm tính" value={formatPrice(cart?.subtotal ?? 0)} />
+              <StoreSummaryRow label="Vận chuyển" value="Tính khi đặt hàng" />
             </div>
 
             <div style={{
@@ -191,70 +188,26 @@ export function CartPage() {
               gap: 'var(--space-4)', padding: 'var(--space-4) 0',
               borderTop: '2px solid var(--color-text)', borderBottom: '2px solid var(--color-text)',
             }}>
-              <span style={label}>Tổng</span>
+              <span style={STORE_LABEL_STYLE}>Tổng</span>
               <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 26, letterSpacing: '-.03em' }}>
                 {formatPrice(cart?.subtotal ?? 0)}
               </span>
             </div>
 
-            <Link to="/thanh-toan" className="btn btn-primary btn-block">Tiến hành đặt hàng</Link>
+            {session ? (
+              <Link to="/thanh-toan" className="btn btn-primary btn-block">Tiến hành đặt hàng</Link>
+            ) : (
+              <Link to="/auth" state={{ from: { pathname: '/thanh-toan' } }} className="btn btn-primary btn-block">Đăng nhập để đặt hàng</Link>
+            )}
 
             {error && (
               <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{error}</p>
             )}
           </aside>
         </section>
+        </>
       )}
 
-      <SiteFooter />
-    </Shell>
-  );
-}
-
-function SummaryRow({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-4)',
-      padding: 'var(--space-3) 0', borderBottom: '1px solid var(--color-neutral-300)',
-    }}>
-      <span style={label}>{k}</span>
-      <span style={{ fontSize: 14 }}>{v}</span>
-    </div>
-  );
-}
-
-/** Ba trạng thái rỗng (chưa đăng nhập, đang tải, giỏ trống) dùng chung một khung. */
-function Notice({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
-  return (
-    <section style={{
-      display: 'grid', placeItems: 'center', gap: 'var(--space-4)', minHeight: '36vh',
-      padding: 'var(--space-8)', textAlign: 'center', borderTop: '2px solid var(--color-text)',
-    }}>
-      <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 26, letterSpacing: '-.025em' }}>
-        {title}
-      </h2>
-      {body && (
-        <p style={{ margin: 0, maxWidth: '46ch', fontSize: 15, lineHeight: 1.6, color: 'var(--color-neutral-800)' }}>
-          {body}
-        </p>
-      )}
-      {action}
-    </section>
-  );
-}
-
-/** Khung trang giống ProductPage: nền desk, container 1180px kẻ dọc hai bên, header sticky. */
-function Shell({ cartCount, children }: { cartCount: number; children: React.ReactNode }) {
-  return (
-    <div style={{ background: 'var(--color-neutral-200)' }}>
-      <div style={{
-        fontFamily: 'var(--font-body)', color: 'var(--color-text)', background: 'var(--color-bg)',
-        minHeight: '100vh', width: '100%', maxWidth: 1180, margin: '0 auto',
-        borderLeft: '2px solid var(--color-divider)', borderRight: '2px solid var(--color-divider)',
-      }}>
-        <SiteHeader cartCount={cartCount} />
-        {children}
-      </div>
-    </div>
+    </StoreShell>
   );
 }

@@ -10,6 +10,7 @@ import { FaqSection } from '../components/FaqSection';
 import { ClosingCta } from '../components/ClosingCta';
 import { SiteFooter } from '../components/SiteFooter';
 import { useCategories, useProducts } from '../hooks/useCatalog';
+import { absoluteSiteUrl, useDocumentMeta } from '../hooks/useDocumentMeta';
 import '../styles/ds.css';
 import '../styles/public.css';
 
@@ -23,6 +24,12 @@ const SLUG_CANVAS = 'tranh-canvas';
 const SLUG_PHOTOBOOK_FALLBACK = 'tranh-son-dau';
 
 export function HomePage() {
+  useDocumentMeta({
+    title: 'Bubble Memories | Tranh canvas & photobook',
+    description: 'Bubble Memories — xưởng in tranh canvas và làm photobook theo yêu cầu.',
+    canonicalUrl: absoluteSiteUrl('/'),
+    type: 'website',
+  });
   const { data: categories } = useCategories();
   const idOf = (slug: string) => categories?.find((c) => c.slug === slug)?.id;
 

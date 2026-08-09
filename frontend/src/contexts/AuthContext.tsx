@@ -9,6 +9,7 @@ import {
   type AuthSession,
 } from '../api/auth'
 import { apiRequest, refreshSessionOnce } from '../api/http'
+import { mergeGuestCart } from '../api/guestCart'
 
 type LoginInput = { email: string; password: string }
 type RegisterInput = LoginInput & { firstName: string; lastName: string; phone?: string }
@@ -31,11 +32,6 @@ type AuthContextValue = {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-
-function persistSession(session: AuthSession, setSession: (value: AuthSession) => void) {
-  persistAccessToken(session.accessToken)
-  setSession(session)
-}
 
 function sessionFromCurrentUser(user: CurrentUserResponse, accessToken: string): AuthSession {
   return {
@@ -79,7 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
     void refreshSessionOnce()
-      .then((nextSession) => syncCurrentUser(nextSession))
+      .then(async (nextSession) => {
+        await mergeGuestCart()
+        return syncCurrentUser(nextSession)
+      })
       .catch(() => {
         if (active) clearSession()
       })
@@ -121,13 +120,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (input: LoginInput) => {
     const nextSession = await login(input)
-    persistSession(nextSession, setSession)
+    persistAccessToken(nextSession.accessToken)
+    await mergeGuestCart()
+    setSession(nextSession)
     return syncCurrentUser(nextSession).catch(() => nextSession)
   }, [syncCurrentUser])
 
   const signUp = useCallback(async (input: RegisterInput) => {
     const nextSession = await register(input)
-    persistSession(nextSession, setSession)
+    persistAccessToken(nextSession.accessToken)
+    await mergeGuestCart()
+    setSession(nextSession)
     return syncCurrentUser(nextSession).catch(() => nextSession)
   }, [syncCurrentUser])
 

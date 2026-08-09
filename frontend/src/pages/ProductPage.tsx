@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ApiRequestError } from '../api/http';
 import {
   fetchProductBySlug,
@@ -15,22 +15,16 @@ import {
 import { useProducts } from '../hooks/useCatalog';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../contexts/AuthContext';
-import { SiteHeader } from '../components/SiteHeader';
-import { SiteFooter } from '../components/SiteFooter';
+import { StoreShell } from '../components/StoreShell';
 import { ClosingCta } from '../components/ClosingCta';
 import { Frame } from '../components/Frame';
+import { useWishlist, wishlistKey } from '../contexts/WishlistContext';
+import { absoluteSiteUrl, metaDescription, useDocumentMeta } from '../hooks/useDocumentMeta';
 import '../styles/ds.css';
 import '../styles/public.css';
 
 /** Stepper của thiết kế dừng ở 9; tồn kho thật vẫn là trần cứng phía trên. */
 const MAX_QTY = 9;
-
-/**
- * Chưa có trang /danh-muc, nên "về danh sách" đáp xuống khối tranh canvas ở trang chủ.
- * Phải là <a> chứ không phải <Link>: react-router không tự cuộn tới hash, còn điều hướng
- * cả trang thì trình duyệt cuộn giúp. Đổi sang <Link> khi nào dựng trang danh mục thật.
- */
-const CATALOG_HREF = '/danh-muc/tranh-canvas';
 
 /**
  * Chính sách giao/đổi trả không có nguồn trong backend — đây là copy của cửa hàng,
@@ -119,6 +113,7 @@ export function ProductPage() {
   const location = useLocation();
   const { session } = useAuth();
   const { count: cartCount, add } = useCart();
+  const { itemFor, toggle: toggleWishlist, busyKey: wishlistBusyKey } = useWishlist();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -134,6 +129,7 @@ export function ProductPage() {
   const [added, setAdded] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [wishlistError, setWishlistError] = useState<string | null>(null);
 
   // Khối "Cùng bộ" điều hướng bằng <Link> nên trang không unmount khi đổi sản phẩm:
   // phải tự xoá khổ/khung của sản phẩm cũ, nếu không giá hiển thị sẽ là giá variant cũ
@@ -259,20 +255,35 @@ export function ProductPage() {
     return () => window.clearTimeout(timer);
   }, [added]);
 
-  // Trả tiêu đề tab về như cũ khi rời trang, nếu không thì điều hướng sang /auth hay /
-  // vẫn còn đề tên bức tranh vừa xem.
-  useEffect(() => {
-    const original = document.title;
-    return () => { document.title = original; };
-  }, []);
-
-  useEffect(() => {
-    if (product) document.title = `${product.name} | Bubble Memories`;
-  }, [product?.name]);
+  const shareImage = product?.primaryImageUrl ?? product?.images.find((image) => image.primaryImage)?.secureUrl ?? product?.images[0]?.secureUrl ?? null;
+  useDocumentMeta(product ? {
+    title: `${product.name} | Bubble Memories`,
+    description: metaDescription(product.description, `${product.name} thuộc danh mục ${product.categoryName} tại Bubble Memories.`),
+    canonicalUrl: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
+    type: 'product',
+    imageUrl: shareImage ? absoluteSiteUrl(shareImage) : null,
+    imageAlt: product.name,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.name,
+      description: metaDescription(product.description, `${product.name} thuộc danh mục ${product.categoryName} tại Bubble Memories.`),
+      image: shareImage ? [absoluteSiteUrl(shareImage)] : undefined,
+      sku: product.id,
+      category: product.categoryName,
+      url: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'VND',
+        price: product.price,
+        availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+        url: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
+      },
+    },
+  } : null);
 
   async function addToCart() {
     if (!product) return;
-    if (!session) { navigate('/auth', { state: { from: location } }); return; }
     setBusy(true);
     setCartError(null);
     try {
@@ -280,7 +291,15 @@ export function ProductPage() {
         productId: product.id,
         productVariantId: variantId,
         productFrameOptionId: frameOptionId,
+        // Trang này chỉ phục vụ hàng không bán theo trang — photobook đã chuyển sang /photobook/:slug.
+        pageCount: null,
         quantity: qty,
+        productName: product.name,
+        productSlug: product.slug,
+        selectedVariant: variant,
+        basePrice: variant?.price ?? product.price,
+        selectedFrameOption: frameOption,
+        unitPrice: price,
       });
       setAdded(true);
     } catch (error) {
@@ -290,23 +309,41 @@ export function ProductPage() {
     }
   }
 
+  async function toggleFavorite() {
+    if (!product) return;
+    if (!session) { navigate('/auth', { state: { from: location } }); return; }
+    setWishlistError(null);
+    try { await toggleWishlist(product.id, variantId); }
+    catch (cause) { setWishlistError(cause instanceof Error ? cause.message : 'Không cập nhật được yêu thích.'); }
+  }
+
+  // Photobook có trục giá riêng (khổ × số trang) mà khối mua ở đây không diễn tả được:
+  // hiện nó ở trang này sẽ ra giá của mức 20 trang và nút thêm vào giỏ luôn bị backend từ chối.
+  if (product?.pagePriced) {
+    return <Navigate to={`/photobook/${product.slug}`} replace />;
+  }
+
   if (loadError || !product) {
     return (
-      <Shell cartCount={cartCount}>
+      <StoreShell cartCount={cartCount}>
         <div style={{ display: 'grid', placeItems: 'center', minHeight: '40vh', padding: 'var(--space-8)', gap: 'var(--space-4)' }}>
           <p style={{ margin: 0, fontSize: 13, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
             {loadError ?? 'Đang tải sản phẩm…'}
           </p>
-          {loadError && <a className="btn btn-secondary" href={CATALOG_HREF}>← Về danh sách</a>}
+          {loadError && <Link className="btn btn-secondary" to="/">← Về trang chủ</Link>}
         </div>
-      </Shell>
+      </StoreShell>
     );
   }
 
   const activeTab = tabs[tab] ?? tabs[0];
 
+  const catalogHref = `/danh-muc/${product.categorySlug}`;
+  const favorite = itemFor(product.id, variantId);
+  const wishlistBusy = wishlistBusyKey === wishlistKey(product.id, variantId);
+
   return (
-    <Shell cartCount={cartCount}>
+    <StoreShell cartCount={cartCount}>
       <nav aria-label="Breadcrumb" data-breadcrumb="" style={{
         display: 'flex', alignItems: 'center', gap: 'var(--space-3)', height: 46, padding: '0 var(--space-8)',
         borderBottom: '2px solid var(--color-divider)', fontSize: 11, letterSpacing: '.16em',
@@ -314,10 +351,10 @@ export function ProductPage() {
       }}>
         <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Trang chủ</Link>
         <span aria-hidden="true">/</span>
-        <a href={CATALOG_HREF} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>{product.categoryName}</a>
+        <Link to={catalogHref} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>{product.categoryName}</Link>
         <span aria-hidden="true">/</span>
         <span style={{ color: 'var(--color-text)' }}>{product.name}</span>
-        <a href={CATALOG_HREF} data-breadcrumb-back="" style={{ marginLeft: 'auto', color: 'var(--color-neutral-700)', textDecoration: 'none' }}>← Về danh sách</a>
+        <Link to={catalogHref} data-breadcrumb-back="" style={{ marginLeft: 'auto', color: 'var(--color-neutral-700)', textDecoration: 'none' }}>← Về danh sách</Link>
       </nav>
 
       <section data-split="" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', alignItems: 'start' }}>
@@ -379,9 +416,10 @@ export function ProductPage() {
           display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', padding: 'var(--space-8)',
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <span style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
-              {product.categoryName}
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', alignItems: 'start' }}>
+              <span style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>{product.categoryName}</span>
+              <button type="button" aria-pressed={Boolean(favorite)} aria-label={favorite ? 'Bỏ sản phẩm khỏi yêu thích' : 'Lưu sản phẩm yêu thích'} disabled={wishlistBusy} onClick={() => void toggleFavorite()} style={{ appearance: 'none', display: 'grid', placeItems: 'center', width: 38, height: 38, flex: 'none', border: '2px solid var(--color-text)', background: favorite ? 'var(--color-accent)' : 'var(--color-bg)', color: favorite ? 'var(--color-bg)' : 'var(--color-text)', cursor: wishlistBusy ? 'not-allowed' : 'pointer' }}><svg width="18" height="18" viewBox="0 0 24 24" fill={favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="square"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z" /></svg></button>
+            </div>
             <h1 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 30, lineHeight: 1.05, letterSpacing: '-.03em' }}>
               {product.name}
             </h1>
@@ -488,6 +526,7 @@ export function ProductPage() {
             {cartError && (
               <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{cartError}</p>
             )}
+            {wishlistError && <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{wishlistError}</p>}
           </div>
         </div>
       </section>
@@ -541,7 +580,7 @@ export function ProductPage() {
             <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20, letterSpacing: '.04em', textTransform: 'uppercase' }}>
               Cùng bộ {product.categoryName.toLowerCase()}
             </h2>
-            <a href={CATALOG_HREF} className="btn btn-secondary">Xem tất cả</a>
+            <Link to={catalogHref} className="btn btn-secondary">Xem tất cả</Link>
           </div>
           <div data-grid="cols" style={{
             display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', borderTop: '2px solid var(--color-divider)',
@@ -575,23 +614,6 @@ export function ProductPage() {
         note="Gửi file gốc, xưởng báo giá kèm bản mô phỏng trong 24 giờ."
         titleSize="clamp(26px, 3.4vw, 42px)"
       />
-      <SiteFooter />
-    </Shell>
-  );
-}
-
-/** Khung trang: nền desk, container 1180px có kẻ dọc hai bên, header sticky. */
-function Shell({ cartCount, children }: { cartCount: number; children: React.ReactNode }) {
-  return (
-    <div style={{ background: 'var(--color-neutral-200)' }}>
-      <div style={{
-        fontFamily: 'var(--font-body)', color: 'var(--color-text)', background: 'var(--color-bg)',
-        minHeight: '100vh', width: '100%', maxWidth: 1180, margin: '0 auto',
-        borderLeft: '2px solid var(--color-divider)', borderRight: '2px solid var(--color-divider)',
-      }}>
-        <SiteHeader cartCount={cartCount} />
-        {children}
-      </div>
-    </div>
+    </StoreShell>
   );
 }

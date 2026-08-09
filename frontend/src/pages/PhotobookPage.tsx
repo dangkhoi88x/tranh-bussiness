@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPrice, formatSize, type Product } from '../api/storefront';
 import { useCategories, useProducts } from '../hooks/useCatalog';
 import { useCart } from '../hooks/useCart';
-import { SiteHeader } from '../components/SiteHeader';
-import { SiteFooter } from '../components/SiteFooter';
+import { absoluteSiteUrl, useDocumentMeta } from '../hooks/useDocumentMeta';
+import { StoreShell } from '../components/StoreShell';
 import { Frame } from '../components/Frame';
 import '../styles/ds.css';
 import '../styles/public.css';
@@ -33,11 +33,14 @@ export function PhotobookPage() {
 
   const [tab, setTab] = useState(0);
 
-  useEffect(() => {
-    const original = document.title;
-    document.title = 'Photobook | Bubble Memories';
-    return () => { document.title = original; };
-  }, []);
+  useDocumentMeta({
+    title: 'Photobook | Bubble Memories',
+    description: 'Làm photobook theo yêu cầu để giữ khoảnh khắc trong từng trang giấy.',
+    canonicalUrl: absoluteSiteUrl('/photobook'),
+    type: 'website',
+    imageUrl: items[0]?.primaryImageUrl ? absoluteSiteUrl(items[0].primaryImageUrl) : null,
+    imageAlt: 'Photobook Bubble Memories',
+  });
 
   const TABS = ['Tổng quan', 'Bao gồm', 'Lưu ý'];
   const tabContent = [
@@ -47,13 +50,7 @@ export function PhotobookPage() {
   ];
 
   return (
-    <div style={{ background: 'var(--color-neutral-200)' }}>
-      <div style={{
-        fontFamily: 'var(--font-body)', color: 'var(--color-text)', background: 'var(--color-bg)',
-        minHeight: '100vh', width: '100%', maxWidth: 1180, margin: '0 auto',
-        borderLeft: '2px solid var(--color-divider)', borderRight: '2px solid var(--color-divider)',
-      }}>
-        <SiteHeader cartCount={count} />
+    <StoreShell cartCount={count}>
 
         {/* ══ Hero ══ */}
         <section style={{
@@ -155,9 +152,7 @@ export function PhotobookPage() {
           </div>
         </section>
 
-        <SiteFooter />
-      </div>
-    </div>
+    </StoreShell>
   );
 }
 
@@ -168,7 +163,7 @@ function TemplateSection({ book, index }: { book: Product; index: number }) {
 
   const imageBlock = (
     <div style={{ overflow: 'hidden', borderRight: even ? '2px solid var(--color-text)' : undefined, borderLeft: even ? undefined : '2px solid var(--color-text)' }}>
-      <Link to={`/tranh/${book.slug}`} style={{ display: 'block', width: '100%', height: '100%', minHeight: 360 }}>
+      <Link to={`/photobook/${book.slug}`} style={{ display: 'block', width: '100%', height: '100%', minHeight: 360 }}>
         <Frame src={book.primaryImageUrl ?? undefined} label={book.name} tone="color" fit="cover" />
       </Link>
     </div>
@@ -203,7 +198,7 @@ function TemplateSection({ book, index }: { book: Product; index: number }) {
         <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 24 }}>{formatPrice(book.price)}</span>
       </div>
       <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
-        <Link to={`/tranh/${book.slug}`} className="btn btn-primary">Xem chi tiết</Link>
+        <Link to={`/photobook/${book.slug}`} className="btn btn-primary">Xem chi tiết</Link>
         <a href={`/dat-in?san-pham=${book.slug}`} className="btn btn-secondary">Đặt cuốn này</a>
       </div>
     </div>

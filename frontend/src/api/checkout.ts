@@ -76,6 +76,8 @@ export type OrderItem = {
   variantHeightCm: number | null;
   productFrameOptionId: string | null;
   frameName: string | null;
+  /** Số trang photobook đã chốt tại thời điểm đặt; null với sản phẩm khác. */
+  pageCount: number | null;
   productPrice: number;
   framePriceAdjustment: number;
   unitPrice: number;
@@ -109,6 +111,25 @@ export function checkout(request: CheckoutRequest): Promise<OrderResponse> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
+  });
+}
+
+export type PromotionPreview = {
+  promotionId: string;
+  couponCode: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  subtotalAmount: number;
+  eligibleSubtotal: number;
+  discountAmount: number;
+  totalAmount: number;
+  reservationExpiresAt: string | null;
+};
+
+export function previewPromotion(couponCode: string): Promise<PromotionPreview> {
+  return apiRequest<PromotionPreview>('/promotions/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ couponCode }),
   });
 }
 

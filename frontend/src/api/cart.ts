@@ -10,6 +10,8 @@ export type CartItem = {
   selectedVariant: ProductVariant | null;
   basePrice: number;
   selectedFrameOption: ProductFrameOption | null;
+  /** Photobook: số trang đã chọn — nó quyết định basePrice. Null với sản phẩm khác. */
+  pageCount: number | null;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
@@ -28,6 +30,8 @@ export type AddCartItemInput = {
   productId: string;
   productVariantId?: string | null;
   productFrameOptionId?: string | null;
+  /** Bắt buộc với photobook, phải bỏ trống với sản phẩm khác — backend từ chối nếu sai. */
+  pageCount?: number | null;
   quantity: number;
 };
 
@@ -45,6 +49,7 @@ export function addCartItem(input: AddCartItemInput): Promise<Cart> {
       productId: input.productId,
       productVariantId: input.productVariantId ?? null,
       productFrameOptionId: input.productFrameOptionId ?? null,
+      pageCount: input.pageCount ?? null,
       quantity: input.quantity,
     }),
   });

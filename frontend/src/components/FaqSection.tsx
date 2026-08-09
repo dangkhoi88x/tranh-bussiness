@@ -22,7 +22,6 @@ export function FaqSection() {
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--color-neutral-800)' }}>
             Không tìm thấy câu trả lời? Nhắn cho xưởng, thường trả lời trong vài giờ làm việc.
           </p>
-          {/* /lien-he chưa có trang (xem App.tsx). Số điện thoại và email thật đang ở footer. */}
           <a href="/lien-he" className="btn btn-secondary" style={{ alignSelf: 'start', marginTop: 'var(--space-2)' }}>Hỏi trực tiếp</a>
         </div>
 

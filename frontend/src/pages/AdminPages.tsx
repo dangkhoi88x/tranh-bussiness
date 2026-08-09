@@ -72,12 +72,3 @@ function MetricCard({ label, value, note, tone, link }: { label: string; value: 
   const inner = <><span>{label}</span><strong>{value}</strong><small>{note}</small></>
   return link ? <Link className={`metric-card${tone ? ` metric-card--${tone}` : ''}`} to={link}>{inner}</Link> : <div className={`metric-card${tone ? ` metric-card--${tone}` : ''}`}>{inner}</div>
 }
-
-export function ForbiddenPage() {
-  return <main className="forbidden-page"><p className="eyebrow">403 — KHÔNG ĐỦ QUYỀN</p><h1>Bạn không có quyền mở khu vực này.</h1><p>Hãy đăng nhập bằng tài khoản có permission phù hợp, hoặc quay lại trang quản trị được cấp quyền.</p></main>
-}
-
-export function AccountPage() {
-  const { session, signOut } = useAuth()
-  return <main className="account-page"><section className="account-card"><p className="eyebrow">TÀI KHOẢN</p><span className="account-card__seal">✓</span><h1>Chào {session?.firstName || session?.email}!</h1><p>Tài khoản của bạn đã đăng nhập thành công. Khu vực mua hàng sẽ được triển khai tiếp theo.</p><button className="secondary-button" type="button" onClick={() => void signOut()}>Đăng xuất</button></section></main>
-}

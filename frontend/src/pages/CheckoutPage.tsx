@@ -1,36 +1,30 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ApiRequestError } from '../api/http';
-import { formatPrice, formatSize } from '../api/storefront';
-import type { CartItem } from '../api/cart';
+import { formatPrice } from '../api/storefront';
 import {
   fetchShippingAddresses,
   createShippingAddress,
   checkout,
   createPayment,
+  previewPromotion,
   type ShippingAddress,
   type ShippingAddressInput,
   type OrderResponse,
+  type PromotionPreview,
 } from '../api/checkout';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../contexts/AuthContext';
-import { SiteHeader } from '../components/SiteHeader';
-import { SiteFooter } from '../components/SiteFooter';
+import {
+  cartItemOptions,
+  STORE_LABEL_STYLE,
+  StoreNotice,
+  StoreShell,
+  StoreSummaryRow,
+} from '../components/StoreShell';
+import { ShippingAddressForm } from '../components/ShippingAddressForm';
 import '../styles/ds.css';
 import '../styles/public.css';
-
-const label: React.CSSProperties = {
-  fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--color-neutral-700)',
-};
-
-function itemOptions(item: CartItem): string {
-  const variant = item.selectedVariant;
-  return [
-    variant ? formatSize(variant.widthCm, variant.heightCm) ?? variant.name : null,
-    variant?.material,
-    item.selectedFrameOption?.frameName ?? 'Căng viền',
-  ].filter(Boolean).join(' · ');
-}
 
 function formatAddressOneLine(a: ShippingAddress): string {
   return [a.addressLine, a.ward, a.district, a.province].filter(Boolean).join(', ');
@@ -48,6 +42,7 @@ export function CheckoutPage() {
 
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
+  const [addressError, setAddressError] = useState<string | null>(null);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
@@ -57,6 +52,9 @@ export function CheckoutPage() {
   const [savingAddress, setSavingAddress] = useState(false);
 
   const [coupon, setCoupon] = useState('');
+  const [promotionPreview, setPromotionPreview] = useState<PromotionPreview | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [previewingCoupon, setPreviewingCoupon] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,18 +66,27 @@ export function CheckoutPage() {
     return () => { document.title = original; };
   }, []);
 
-  useEffect(() => {
+  async function loadAddresses() {
     if (!session) return;
     setLoadingAddresses(true);
-    fetchShippingAddresses()
-      .then((list) => {
-        setAddresses(list);
-        const def = list.find((a) => a.defaultAddress) ?? list[0];
-        if (def) setSelectedAddressId(def.id);
-        if (list.length === 0) setShowForm(true);
-      })
-      .catch(() => {})
-      .finally(() => setLoadingAddresses(false));
+    setAddressError(null);
+    try {
+      const list = await fetchShippingAddresses();
+      setAddresses(list);
+      const def = list.find((a) => a.defaultAddress) ?? list[0];
+      setSelectedAddressId(def?.id ?? null);
+      setShowForm(list.length === 0);
+    } catch (e) {
+      setAddressError(e instanceof ApiRequestError
+        ? e.message
+        : 'Không tải được sổ địa chỉ. Vui lòng thử lại.');
+    } finally {
+      setLoadingAddresses(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAddresses();
   }, [session]);
 
   const items = cart?.items ?? [];
@@ -134,9 +141,34 @@ export function CheckoutPage() {
     }
   }
 
+  async function applyCoupon() {
+    const code = coupon.trim();
+    if (!code) {
+      setPromotionPreview(null);
+      setCouponError('Nhập mã giảm giá trước khi áp dụng.');
+      return;
+    }
+    setPreviewingCoupon(true);
+    setCouponError(null);
+    setPromotionPreview(null);
+    try {
+      const preview = await previewPromotion(code);
+      setPromotionPreview(preview);
+      setCoupon(preview.couponCode);
+    } catch (e) {
+      setCouponError(e instanceof ApiRequestError ? e.message : 'Không kiểm tra được mã giảm giá.');
+    } finally {
+      setPreviewingCoupon(false);
+    }
+  }
+
+  const couponNeedsPreview = coupon.trim().length > 0
+    && promotionPreview?.couponCode.toUpperCase() !== coupon.trim().toUpperCase();
+  const displayedTotal = promotionPreview?.totalAmount ?? cart?.subtotal ?? 0;
+
   if (order) {
     return (
-      <Shell cartCount={0}>
+      <StoreShell cartCount={0}>
         <Breadcrumb current="Đặt hàng thành công" />
         <section style={{
           display: 'grid', placeItems: 'center', gap: 'var(--space-4)', minHeight: '50vh',
@@ -151,18 +183,33 @@ export function CheckoutPage() {
             Mã đơn <strong>{order.orderCode}</strong> · Thanh toán khi nhận hàng (COD).
             <br />Xưởng sẽ xác nhận và liên hệ giao hàng sớm nhất.
           </p>
-          <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
-            <a href="/danh-muc/tranh-canvas" className="btn btn-secondary">Tiếp tục mua sắm</a>
-            <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>Về trang chủ</button>
+          <div style={{ width: 'min(100%, 380px)', borderTop: '2px solid var(--color-text)', textAlign: 'left' }}>
+            <StoreSummaryRow label="Tạm tính" value={formatPrice(order.subtotalAmount)} />
+            {order.discountAmount > 0 && (
+              <StoreSummaryRow label={`Giảm giá${order.promotionCode ? ` · ${order.promotionCode}` : ''}`}
+                value={`− ${formatPrice(order.discountAmount)}`} valueTone="discount" />
+            )}
+            <StoreSummaryRow label="Vận chuyển" value={formatPrice(order.shippingFee)} />
+            <div style={{
+              display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-4)',
+              padding: 'var(--space-4) 0', borderBottom: '2px solid var(--color-text)',
+            }}>
+              <span style={STORE_LABEL_STYLE}>Tổng thanh toán</span>
+              <strong style={{ fontFamily: 'var(--font-heading)', fontSize: 26 }}>{formatPrice(order.totalAmount)}</strong>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
+            <Link to="/danh-muc/tranh-canvas" className="btn btn-secondary">Tiếp tục mua sắm</Link>
+            <Link to={`/don-hang-cua-toi/${order.id}`} className="btn btn-primary">Theo dõi đơn hàng</Link>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate('/')}>Về trang chủ</button>
           </div>
         </section>
-        <SiteFooter />
-      </Shell>
+      </StoreShell>
     );
   }
 
   return (
-    <Shell cartCount={count}>
+    <StoreShell cartCount={count}>
       <Breadcrumb current="Thanh toán" />
 
       <section style={{
@@ -176,18 +223,24 @@ export function CheckoutPage() {
       </section>
 
       {!session ? (
-        <Notice
+        <StoreNotice
           title="Đăng nhập để thanh toán"
           body="Bạn cần đăng nhập để tiếp tục đặt hàng."
           action={<Link className="btn btn-primary" to="/auth" state={{ from: location }}>Đăng nhập</Link>}
         />
       ) : cartLoading || loadingAddresses ? (
-        <Notice title="Đang tải…" body="" />
+        <StoreNotice title="Đang tải…" body="" />
+      ) : addressError ? (
+        <StoreNotice
+          title="Không tải được địa chỉ giao hàng"
+          body={addressError}
+          action={<button type="button" className="btn btn-primary" onClick={() => void loadAddresses()}>Thử lại</button>}
+        />
       ) : items.length === 0 ? (
-        <Notice
+        <StoreNotice
           title="Giỏ hàng trống"
           body="Không có sản phẩm nào để thanh toán."
-          action={<a className="btn btn-primary" href="/danh-muc/tranh-canvas">Xem tranh canvas</a>}
+          action={<Link className="btn btn-primary" to="/danh-muc/tranh-canvas">Xem tranh canvas</Link>}
         />
       ) : (
         <section data-split="" style={{
@@ -219,7 +272,7 @@ export function CheckoutPage() {
                       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                         <span style={{ fontWeight: 600, fontSize: 14 }}>
                           {a.recipientName} · {a.phone}
-                          {a.defaultAddress && <span style={{ ...label, marginLeft: 8, color: 'var(--color-accent)' }}>Mặc định</span>}
+                          {a.defaultAddress && <span style={{ ...STORE_LABEL_STYLE, marginLeft: 8, color: 'var(--color-accent)' }}>Mặc định</span>}
                         </span>
                         <span style={{ fontSize: 13, color: 'var(--color-neutral-700)' }}>
                           {formatAddressOneLine(a)}
@@ -235,7 +288,7 @@ export function CheckoutPage() {
               )}
 
               {showForm && (
-                <AddressForm
+                <ShippingAddressForm
                   form={form} setField={setField}
                   fieldErrors={formFields} error={formError}
                   saving={savingAddress}
@@ -262,7 +315,7 @@ export function CheckoutPage() {
                     fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 15,
                     lineHeight: 1.15, letterSpacing: '-.015em',
                   }}>{item.productName}</span>
-                  <span style={label}>{itemOptions(item)}</span>
+                  <span style={STORE_LABEL_STYLE}>{cartItemOptions(item)}</span>
                   <span style={{ fontSize: 12, color: 'var(--color-neutral-700)' }}>SL: {item.quantity}</span>
                 </div>
                 <span style={{
@@ -284,40 +337,65 @@ export function CheckoutPage() {
             }}>Đơn hàng</h2>
 
             <div style={{ display: 'flex', flexDirection: 'column', borderTop: '2px solid var(--color-text)' }}>
-              <SummaryRow k="Số lượng" v={`${count} bức`} />
-              <SummaryRow k="Tạm tính" v={formatPrice(cart?.subtotal ?? 0)} />
-              <SummaryRow k="Vận chuyển" v="Miễn phí" />
-              <SummaryRow k="Thanh toán" v="COD — trả khi nhận hàng" />
+              <StoreSummaryRow label="Số lượng" value={`${count} bức`} />
+              <StoreSummaryRow label="Tạm tính" value={formatPrice(cart?.subtotal ?? 0)} />
+              {promotionPreview && promotionPreview.discountAmount > 0 && (
+                <StoreSummaryRow label={`Giảm giá · ${promotionPreview.couponCode}`}
+                  value={`− ${formatPrice(promotionPreview.discountAmount)}`} valueTone="discount" />
+              )}
+              <StoreSummaryRow label="Vận chuyển" value="Miễn phí" />
+              <StoreSummaryRow label="Thanh toán" value="COD — trả khi nhận hàng" />
             </div>
 
             {/* Coupon */}
-            <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'stretch' }}>
               <input type="text" className="input" placeholder="Mã giảm giá (nếu có)"
-                value={coupon} onChange={(e) => setCoupon(e.target.value)}
+                value={coupon} disabled={previewingCoupon}
+                onChange={(e) => {
+                  setCoupon(e.target.value);
+                  setPromotionPreview(null);
+                  setCouponError(null);
+                }}
                 style={{ flex: 1 }} />
+              <button type="button" className="btn btn-secondary" disabled={previewingCoupon}
+                onClick={() => void applyCoupon()}>
+                {previewingCoupon ? 'Đang kiểm tra…' : 'Áp dụng'}
+              </button>
             </div>
+            {couponError && <p role="alert" style={{ margin: '-10px 0 0', fontSize: 12, color: 'var(--color-accent-700)' }}>{couponError}</p>}
+            {promotionPreview && (
+              <p role="status" style={{ margin: '-10px 0 0', fontSize: 12, color: 'var(--color-neutral-800)' }}>
+                Đã áp dụng mã {promotionPreview.couponCode}, giảm {formatPrice(promotionPreview.discountAmount)}.
+              </p>
+            )}
 
             <div style={{
               display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
               gap: 'var(--space-4)', padding: 'var(--space-4) 0',
               borderTop: '2px solid var(--color-text)', borderBottom: '2px solid var(--color-text)',
             }}>
-              <span style={label}>Tổng</span>
+              <span style={STORE_LABEL_STYLE}>Tổng</span>
               <span style={{
                 fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 26, letterSpacing: '-.03em',
-              }}>{formatPrice(cart?.subtotal ?? 0)}</span>
+              }}>{formatPrice(displayedTotal)}</span>
             </div>
 
             <button type="button" className="btn btn-primary btn-block"
-              disabled={submitting || !selectedAddressId}
+              disabled={submitting || !selectedAddressId || couponNeedsPreview}
               onClick={() => void submit()}
-              style={{ cursor: submitting || !selectedAddressId ? 'not-allowed' : 'pointer' }}>
+              style={{ cursor: submitting || !selectedAddressId || couponNeedsPreview ? 'not-allowed' : 'pointer' }}>
               {submitting ? 'Đang xử lý…' : 'Xác nhận đặt hàng'}
             </button>
 
             {!selectedAddressId && !showForm && (
               <p style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>
                 Vui lòng chọn hoặc thêm địa chỉ giao hàng.
+              </p>
+            )}
+
+            {couponNeedsPreview && !couponError && (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-800)' }}>
+                Nhấn “Áp dụng” để kiểm tra mã và cập nhật tổng tiền trước khi đặt hàng.
               </p>
             )}
 
@@ -328,75 +406,7 @@ export function CheckoutPage() {
         </section>
       )}
 
-      <SiteFooter />
-    </Shell>
-  );
-}
-
-/* ── Sub-components ─────────────────────────────────────────────────── */
-
-function AddressForm({ form, setField, fieldErrors, error, saving, onSave, onCancel }: {
-  form: ShippingAddressInput;
-  setField: (key: keyof ShippingAddressInput, value: string | boolean) => void;
-  fieldErrors: Record<string, string>;
-  error: string | null;
-  saving: boolean;
-  onSave: () => void;
-  onCancel?: () => void;
-}) {
-  const fields: { key: keyof ShippingAddressInput; label: string; placeholder: string }[] = [
-    { key: 'recipientName', label: 'Người nhận', placeholder: 'Nguyễn Văn A' },
-    { key: 'phone', label: 'Số điện thoại', placeholder: '0909 000 000' },
-    { key: 'province', label: 'Tỉnh / Thành phố', placeholder: 'TP. Hồ Chí Minh' },
-    { key: 'district', label: 'Quận / Huyện', placeholder: 'Quận 1' },
-    { key: 'ward', label: 'Phường / Xã', placeholder: 'Phường Bến Nghé' },
-    { key: 'addressLine', label: 'Địa chỉ chi tiết', placeholder: '123 Lê Lợi' },
-  ];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 'var(--space-3)',
-      }} data-split="">
-        {fields.map(({ key, label: lbl, placeholder }) => (
-          <div key={key} className="field">
-            <label>{lbl}</label>
-            <input className="input" placeholder={placeholder}
-              value={form[key] as string} onChange={(e) => setField(key, e.target.value)} />
-            {fieldErrors[key] && (
-              <span style={{ fontSize: 11, color: 'var(--color-accent-700)', marginTop: 2 }}>{fieldErrors[key]}</span>
-            )}
-          </div>
-        ))}
-      </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 13, cursor: 'pointer' }}>
-        <input type="checkbox" checked={form.defaultAddress as boolean}
-          onChange={(e) => setField('defaultAddress', e.target.checked)} />
-        Đặt làm địa chỉ mặc định
-      </label>
-      {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-        <button type="button" className="btn btn-primary" disabled={saving}
-          onClick={onSave} style={{ cursor: saving ? 'not-allowed' : 'pointer' }}>
-          {saving ? 'Đang lưu…' : 'Lưu địa chỉ'}
-        </button>
-        {onCancel && (
-          <button type="button" className="btn btn-secondary" onClick={onCancel}>Huỷ</button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SummaryRow({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-4)',
-      padding: 'var(--space-3) 0', borderBottom: '1px solid var(--color-neutral-300)',
-    }}>
-      <span style={label}>{k}</span>
-      <span style={{ fontSize: 14 }}>{v}</span>
-    </div>
+    </StoreShell>
   );
 }
 
@@ -413,39 +423,5 @@ function Breadcrumb({ current }: { current: string }) {
       <span aria-hidden="true">/</span>
       <span style={{ color: 'var(--color-text)' }}>{current}</span>
     </nav>
-  );
-}
-
-function Notice({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
-  return (
-    <section style={{
-      display: 'grid', placeItems: 'center', gap: 'var(--space-4)', minHeight: '36vh',
-      padding: 'var(--space-8)', textAlign: 'center', borderTop: '2px solid var(--color-text)',
-    }}>
-      <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 26, letterSpacing: '-.025em' }}>
-        {title}
-      </h2>
-      {body && (
-        <p style={{ margin: 0, maxWidth: '46ch', fontSize: 15, lineHeight: 1.6, color: 'var(--color-neutral-800)' }}>
-          {body}
-        </p>
-      )}
-      {action}
-    </section>
-  );
-}
-
-function Shell({ cartCount, children }: { cartCount: number; children: React.ReactNode }) {
-  return (
-    <div style={{ background: 'var(--color-neutral-200)' }}>
-      <div style={{
-        fontFamily: 'var(--font-body)', color: 'var(--color-text)', background: 'var(--color-bg)',
-        minHeight: '100vh', width: '100%', maxWidth: 1180, margin: '0 auto',
-        borderLeft: '2px solid var(--color-divider)', borderRight: '2px solid var(--color-divider)',
-      }}>
-        <SiteHeader cartCount={cartCount} />
-        {children}
-      </div>
-    </div>
   );
 }
