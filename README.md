@@ -172,3 +172,16 @@ Mỗi Product có thể khai báo các khung tương thích và giá cộng thê
 - `src/main/java/com/example/businessstore/`: mã backend theo layer.
 - `src/main/resources/db/migration/`: Flyway migrations.
 - `architecture.md`: quy ước dependency giữa các layer.
+
+## SEO và chia sẻ sản phẩm
+
+Production storefront phải chạy prerender sau khi API catalogue publish đã sẵn sàng:
+
+```bash
+cd frontend
+SEO_API_BASE=https://api.example.com/api/v1 \
+SEO_SITE_URL=https://shop.example.com \
+npm run seo:prerender
+```
+
+Lệnh này tạo HTML có Open Graph/JSON-LD cho từng `/tranh/:slug` và `/danh-muc/:slug`, cùng `sitemap.xml` và `robots.txt` trong `frontend/dist`. Web server phải ưu tiên file route đã tạo (ví dụ `/tranh/<slug>/index.html`) trước fallback SPA; nếu luôn trả về `index.html`, crawler mạng xã hội chỉ thấy metadata chung của trang chủ.
