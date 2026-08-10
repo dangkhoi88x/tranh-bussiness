@@ -25,6 +25,7 @@
   [data-grid="cols"] > * + * { border-top: 2px solid var(--color-divider); }
   [data-split] { grid-template-columns: minmax(0, 1fr) !important; }
   [data-split] > * { border-right: 0 !important; }
+  [data-split] > [data-tpl-img] { order: -1 !important; border-left: 0 !important; }
 
   /* Breadcrumb 46px cố định sẽ tràn chữ khi tên sản phẩm xuống dòng. */
   [data-breadcrumb] {

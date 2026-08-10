@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { fetchPhotobookPricing } from '../api/photobook';
 import { formatPrice, formatSize, type Product } from '../api/storefront';
 import { useCategories, useProducts } from '../hooks/useCatalog';
 import { useCart } from '../hooks/useCart';
@@ -10,7 +11,6 @@ import '../styles/ds.css';
 import '../styles/public.css';
 
 const SLUG_PHOTOBOOK = 'photobook';
-const SLUG_PHOTOBOOK_FALLBACK = 'tranh-son-dau';
 
 const label: React.CSSProperties = {
   fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--color-neutral-700)',
@@ -18,12 +18,10 @@ const label: React.CSSProperties = {
 
 export function PhotobookPage() {
   const { count } = useCart();
-  const { data: categories } = useCategories();
-  const photobookCat = categories?.find((c) => c.slug === SLUG_PHOTOBOOK)
-    ?? categories?.find((c) => c.slug === SLUG_PHOTOBOOK_FALLBACK)
-    ?? categories?.[0] ?? null;
+  const { data: categories, error: catError } = useCategories();
+  const photobookCat = categories?.find((c) => c.slug === SLUG_PHOTOBOOK) ?? null;
 
-  const { data: books, loading } = useProducts(
+  const { data: books, loading, error } = useProducts(
     useMemo(
       () => (photobookCat ? { categoryId: photobookCat.id, sort: 'BEST_SELLING' as const, page: 1, size: 12 } : null),
       [photobookCat?.id],
@@ -80,12 +78,28 @@ export function PhotobookPage() {
         </section>
 
         {/* ══ Template showcase — each template gets its own section ══ */}
-        {loading && items.length === 0 && (
+        {!catError && !error && loading && items.length === 0 && (
           <div style={{
             display: 'grid', placeItems: 'center', minHeight: '30vh',
             fontSize: 13, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-neutral-700)',
             borderBottom: '2px solid var(--color-text)',
           }}>Đang tải template…</div>
+        )}
+
+        {(catError || error) && (
+          <div style={{
+            display: 'grid', placeItems: 'center', minHeight: '30vh',
+            fontSize: 14, color: 'var(--color-accent-700)',
+            borderBottom: '2px solid var(--color-text)', padding: 'var(--space-8)', textAlign: 'center',
+          }}>Không tải được danh sách template. Vui lòng thử lại sau.</div>
+        )}
+
+        {!catError && !error && !loading && categories && !photobookCat && (
+          <div style={{
+            display: 'grid', placeItems: 'center', minHeight: '30vh',
+            fontSize: 14, color: 'var(--color-neutral-700)',
+            borderBottom: '2px solid var(--color-text)', padding: 'var(--space-8)', textAlign: 'center',
+          }}>Chưa có template photobook nào.</div>
         )}
 
         {items.map((book, idx) => (
@@ -160,9 +174,25 @@ export function PhotobookPage() {
 
 function TemplateSection({ book, index }: { book: Product; index: number }) {
   const even = index % 2 === 0;
+  const [minPrice, setMinPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!book.pagePriced) return;
+    let alive = true;
+    fetchPhotobookPricing(book.id)
+      .then((pricing) => {
+        if (!alive) return;
+        const prices = pricing.sizes.flatMap((s) => s.pageOptions.map((o) => o.price));
+        if (prices.length > 0) setMinPrice(Math.min(...prices));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [book.id, book.pagePriced]);
+
+  const displayPrice = minPrice ?? book.price;
 
   const imageBlock = (
-    <div style={{ overflow: 'hidden', borderRight: even ? '2px solid var(--color-text)' : undefined, borderLeft: even ? undefined : '2px solid var(--color-text)' }}>
+    <div data-tpl-img="" style={{ overflow: 'hidden', borderRight: even ? '2px solid var(--color-text)' : undefined, borderLeft: even ? undefined : '2px solid var(--color-text)' }}>
       <Link to={`/photobook/${book.slug}`} style={{ display: 'block', width: '100%', height: '100%', minHeight: 360 }}>
         <Frame src={book.primaryImageUrl ?? undefined} label={book.name} tone="color" fit="cover" />
       </Link>
@@ -170,7 +200,7 @@ function TemplateSection({ book, index }: { book: Product; index: number }) {
   );
 
   const textBlock = (
-    <div style={{
+    <div data-tpl-text="" style={{
       display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'var(--space-4)',
       padding: 'var(--space-8)',
     }}>
@@ -195,11 +225,11 @@ function TemplateSection({ book, index }: { book: Product; index: number }) {
         display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)', marginTop: 'var(--space-2)',
       }}>
         <span style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>Từ</span>
-        <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 24 }}>{formatPrice(book.price)}</span>
+        <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 24 }}>{formatPrice(displayPrice)}</span>
       </div>
       <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
         <Link to={`/photobook/${book.slug}`} className="btn btn-primary">Xem chi tiết</Link>
-        <a href={`/dat-in?san-pham=${book.slug}`} className="btn btn-secondary">Đặt cuốn này</a>
+        <Link to="/dat-in" className="btn btn-secondary">Đặt cuốn này</Link>
       </div>
     </div>
   );

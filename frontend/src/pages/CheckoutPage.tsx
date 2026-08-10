@@ -87,7 +87,7 @@ export function CheckoutPage() {
 
   useEffect(() => {
     void loadAddresses();
-  }, [session]);
+  }, [session?.userId]);
 
   const items = cart?.items ?? [];
 
