@@ -54,6 +54,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/art-sizes", "/api/v1/art-sizes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products", "/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/frames", "/api/v1/frames/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/photobook-share-previews/**").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",

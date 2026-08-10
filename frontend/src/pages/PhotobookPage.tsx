@@ -7,6 +7,7 @@ import { useCart } from '../hooks/useCart';
 import { absoluteSiteUrl, useDocumentMeta } from '../hooks/useDocumentMeta';
 import { StoreShell } from '../components/StoreShell';
 import { Frame } from '../components/Frame';
+import { layoutByCode } from '../data/spreadLayouts';
 import '../styles/ds.css';
 import '../styles/public.css';
 
@@ -175,6 +176,7 @@ export function PhotobookPage() {
 function TemplateSection({ book, index }: { book: Product; index: number }) {
   const even = index % 2 === 0;
   const [minPrice, setMinPrice] = useState<number | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     if (!book.pagePriced) return;
@@ -192,10 +194,25 @@ function TemplateSection({ book, index }: { book: Product; index: number }) {
   const displayPrice = minPrice ?? book.price;
 
   const imageBlock = (
-    <div data-tpl-img="" style={{ overflow: 'hidden', borderRight: even ? '2px solid var(--color-text)' : undefined, borderLeft: even ? undefined : '2px solid var(--color-text)' }}>
+    <div data-tpl-img="" onPointerEnter={(event) => { if (event.pointerType === 'mouse') setShowPreview(true); }}
+      onPointerLeave={(event) => { if (event.pointerType === 'mouse') setShowPreview(false); }}
+      onFocusCapture={() => setShowPreview(true)} onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setShowPreview(false);
+      }}
+      style={{ position: 'relative', overflow: 'hidden', borderRight: even ? '2px solid var(--color-text)' : undefined, borderLeft: even ? undefined : '2px solid var(--color-text)' }}>
       <Link to={`/photobook/${book.slug}`} style={{ display: 'block', width: '100%', height: '100%', minHeight: 360 }}>
         <Frame src={book.primaryImageUrl ?? undefined} label={book.name} tone="color" fit="cover" />
       </Link>
+      <button type="button" onClick={() => setShowPreview((visible) => !visible)} aria-expanded={showPreview}
+        style={{
+          appearance: 'none', position: 'absolute', right: 'var(--space-4)', bottom: 'var(--space-4)', zIndex: 2,
+          height: 36, padding: '0 var(--space-4)', border: '2px solid var(--color-bg)', background: 'rgba(25,24,23,.86)',
+          color: 'var(--color-bg)', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase',
+          cursor: 'pointer', borderRadius: 2,
+        }}>
+        {showPreview ? 'Đóng xem trước' : 'Xem trước 3 spread'}
+      </button>
+      {showPreview && <TemplateQuickPreview book={book} templateIndex={index} onClose={() => setShowPreview(false)} />}
     </div>
   );
 
@@ -241,6 +258,62 @@ function TemplateSection({ book, index }: { book: Product; index: number }) {
     }}>
       {even ? <>{imageBlock}{textBlock}</> : <>{textBlock}{imageBlock}</>}
     </section>
+  );
+}
+
+const QUICK_PREVIEW_LAYOUTS = [
+  ['DOI_CAN', 'MOT_LON_MOT_NHO', 'BON_O'],
+  ['PANORAMA', 'MOT_HAI', 'GHEP_HINH'],
+  ['DOC_NGANG', 'BA_TAM', 'CONTACT_SHEET'],
+];
+
+function TemplateQuickPreview({ book, templateIndex, onClose }: { book: Product; templateIndex: number; onClose: () => void }) {
+  const imageUrls = [...book.images].sort((a, b) => a.sortOrder - b.sortOrder).map((image) => image.secureUrl);
+  if (!imageUrls.length && book.primaryImageUrl) imageUrls.push(book.primaryImageUrl);
+  const layouts = QUICK_PREVIEW_LAYOUTS[templateIndex % QUICK_PREVIEW_LAYOUTS.length];
+
+  return (
+    <div aria-label={`Xem trước spread mẫu của ${book.name}`} style={{
+      position: 'absolute', inset: 0, zIndex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      padding: 'var(--space-5)', background: 'rgba(22,21,20,.94)', color: 'var(--color-bg)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase' }}>Xem trước 3 spread</span>
+        <button type="button" onClick={onClose} aria-label="Đóng xem trước" style={{
+          appearance: 'none', width: 28, height: 28, padding: 0, border: '1px solid rgba(255,255,255,.65)',
+          background: 'transparent', color: 'var(--color-bg)', font: 'inherit', fontSize: 18, lineHeight: 1, cursor: 'pointer',
+        }}>×</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--space-3)' }}>
+        {layouts.map((layoutCode, spreadIndex) => (
+          <SampleSpread key={layoutCode} layoutCode={layoutCode} imageUrls={imageUrls} imageOffset={spreadIndex * 3} />
+        ))}
+      </div>
+      <Link to={`/photobook/${book.slug}`} style={{
+        alignSelf: 'center', marginTop: 'var(--space-5)', color: 'var(--color-bg)', fontSize: 11, fontWeight: 700,
+        letterSpacing: '.12em', textTransform: 'uppercase', textDecoration: 'underline', textUnderlineOffset: 4,
+      }}>Tùy chỉnh cuốn này →</Link>
+    </div>
+  );
+}
+
+function SampleSpread({ layoutCode, imageUrls, imageOffset }: { layoutCode: string; imageUrls: string[]; imageOffset: number }) {
+  const layout = layoutByCode(layoutCode);
+  return (
+    <div style={{ position: 'relative', width: '100%', aspectRatio: '2 / 1.4', overflow: 'hidden', background: 'var(--color-neutral-200)', border: '1px solid rgba(255,255,255,.35)' }}>
+      <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(0,0,0,.18)', zIndex: 1 }} />
+      {layout.slots.map((slot, slotIndex) => {
+        const imageUrl = imageUrls[(imageOffset + slotIndex) % imageUrls.length];
+        return (
+          <div key={slotIndex} style={{
+            position: 'absolute', left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: `${slot.w * 100}%`, height: `${slot.h * 100}%`,
+            overflow: 'hidden', borderRadius: slot.bleed ? 0 : 2, background: 'var(--color-neutral-400)',
+          }}>
+            {imageUrl && <img src={imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

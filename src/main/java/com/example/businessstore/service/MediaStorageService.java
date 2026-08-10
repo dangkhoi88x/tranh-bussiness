@@ -44,6 +44,12 @@ public interface MediaStorageService {
         deletePrivateImage(publicId);
     }
 
+    UploadedMedia uploadSharePreviewImage(UUID previewId, MultipartFile file);
+
+    String signedSharePreviewImageUrl(String publicId);
+
+    void deleteSharePreviewImage(String publicId);
+
     record UploadedMedia(String publicId, String secureUrl, int pages) {
 
         /** Ảnh đơn: luôn đúng một trang. */

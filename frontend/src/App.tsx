@@ -23,9 +23,16 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import './App.css'
 
 const AdminArea = lazy(() => import('./pages/AdminArea'))
+const PhotobookSharePreviewPage = lazy(async () => ({
+  default: (await import('./pages/PhotobookSharePreviewPage')).PhotobookSharePreviewPage,
+}))
 
 function AdminAreaLoader() {
   return <Suspense fallback={<main className="page-loading">Đang tải khu vực quản trị…</main>}><AdminArea /></Suspense>
+}
+
+function SharePreviewLoader() {
+  return <Suspense fallback={<main className="page-loading">Đang tải bản xem trước…</main>}><PhotobookSharePreviewPage /></Suspense>
 }
 
 function App() {
@@ -50,6 +57,7 @@ function App() {
         /tranh/:slug tự chuyển sang đây nếu sản phẩm bán theo trang. */}
     <Route path="/photobook/:slug" element={<PhotobookDetailPage />} />
     {/* Không bọc RequireAuth: trang tự mời đăng nhập, giống /gio-hang. */}
+    <Route path="/xem-truoc/:token" element={<SharePreviewLoader />} />
     <Route path="/photobook-cua-toi/:projectId" element={<PhotobookProjectPage />} />
     <Route path="/photobook-cua-toi/:projectId/sap-xep" element={<PhotobookArrangementPage />} />
     <Route path="/dat-in" element={<CustomPrintPage />} />

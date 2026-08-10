@@ -15,6 +15,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../hooks/useCart';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { STORE_LABEL_STYLE, StoreNotice, StoreShell } from '../components/StoreShell';
+import { compressPhotobookPhoto } from '../data/imageCompression';
 import '../styles/ds.css';
 import '../styles/public.css';
 
@@ -22,6 +23,11 @@ const dateTime = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeSty
 
 /** Cùng danh sách backend chấp nhận (CloudinaryMediaStorageService.SUPPORTED_CONTENT_TYPES). */
 const ACCEPT = 'image/jpeg,image/png,image/webp';
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function PhotobookProjectPage() {
   const { projectId = '' } = useParams();
@@ -40,7 +46,8 @@ export function PhotobookProjectPage() {
   const [revisionNote, setRevisionNote] = useState('');
   const [deciding, setDeciding] = useState(false);
   // Upload chạy tuần tự nên hiện được tiến độ thật thay vì một spinner mù.
-  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
+  const [uploading, setUploading] = useState<{ done: number; total: number; stage: 'compressing' | 'uploading' } | null>(null);
+  const [compressionSummary, setCompressionSummary] = useState<{ originalBytes: number; compressedBytes: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!session) { setLoading(false); return; }
@@ -72,6 +79,7 @@ export function PhotobookProjectPage() {
     if (files.length === 0 || !project) return;
 
     setError(null);
+    setCompressionSummary(null);
     const room = project.maxPhotos - project.photoCount;
     const batch = files.slice(0, Math.max(room, 0));
     if (batch.length === 0) {
@@ -79,13 +87,20 @@ export function PhotobookProjectPage() {
       return;
     }
 
-    setUploading({ done: 0, total: batch.length });
+    setUploading({ done: 0, total: batch.length, stage: 'compressing' });
     let latest = project;
+    let originalBytes = 0;
+    let compressedBytes = 0;
     for (const [index, file] of batch.entries()) {
       try {
-        latest = await uploadPhotobookPhoto(project.id, file);
+        setUploading({ done: index, total: batch.length, stage: 'compressing' });
+        const compressed = await compressPhotobookPhoto(file);
+        originalBytes += compressed.originalBytes;
+        compressedBytes += compressed.compressedBytes;
+        setUploading({ done: index, total: batch.length, stage: 'uploading' });
+        latest = await uploadPhotobookPhoto(project.id, compressed.file);
         setProject(latest);
-        setUploading({ done: index + 1, total: batch.length });
+        setUploading({ done: index + 1, total: batch.length, stage: 'uploading' });
       } catch (cause) {
         // Dừng ở ảnh hỏng thay vì chạy tiếp im lặng — thường là sai định dạng hoặc quá nặng.
         setError(`${file.name}: ${cause instanceof ApiRequestError ? cause.message : 'không tải lên được'}`);
@@ -93,6 +108,7 @@ export function PhotobookProjectPage() {
       }
     }
     setUploading(null);
+    if (originalBytes > 0) setCompressionSummary({ originalBytes, compressedBytes });
     if (files.length > batch.length) {
       setError(`Chỉ nhận thêm ${batch.length} ảnh; cuốn này tối đa ${project.maxPhotos} ảnh.`);
     }
@@ -244,9 +260,21 @@ export function PhotobookProjectPage() {
           <input ref={fileInput} type="file" accept={ACCEPT} multiple hidden onChange={(event) => void onPick(event)} />
           <button type="button" className="btn btn-primary" disabled={uploading !== null}
             onClick={() => fileInput.current?.click()}>
-            {uploading ? `Đang tải ${uploading.done}/${uploading.total}…` : '+ Chọn ảnh từ máy'}
+            {uploading
+              ? uploading.stage === 'compressing'
+                ? `Đang tối ưu ${Math.min(uploading.done + 1, uploading.total)}/${uploading.total}…`
+                : `Đang tải ${uploading.done}/${uploading.total}…`
+              : '+ Chọn ảnh từ máy'}
           </button>
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-700)' }}>JPEG, PNG hoặc WebP</span>
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-700)' }}>JPEG, PNG hoặc WebP · tự tối ưu cạnh dài 2.000px</span>
+          {compressionSummary && (
+            <span role="status" style={{ fontSize: 12, color: 'var(--color-accent-700)' }}>
+              Đã tối ưu {formatFileSize(compressionSummary.originalBytes)} → {formatFileSize(compressionSummary.compressedBytes)}
+              {compressionSummary.compressedBytes < compressionSummary.originalBytes
+                ? ` (giảm ${Math.round((1 - compressionSummary.compressedBytes / compressionSummary.originalBytes) * 100)}%)`
+                : ''}
+            </span>
+          )}
         </section>
       ) : (
         <section style={{ padding: '0 var(--space-8) var(--space-6)' }}>
