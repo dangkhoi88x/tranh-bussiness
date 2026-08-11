@@ -21,6 +21,7 @@ public class NotificationEventListener {
 
     private final NotificationService notificationService;
     private final MailService mailService;
+    private final AdminOrderNotificationPublisher adminOrderNotificationPublisher;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onUserRegistered(UserRegisteredEvent event) {
@@ -56,6 +57,7 @@ public class NotificationEventListener {
         if (created) {
             sendOrderPlacedEmail(event);
         }
+        adminOrderNotificationPublisher.publish(event);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

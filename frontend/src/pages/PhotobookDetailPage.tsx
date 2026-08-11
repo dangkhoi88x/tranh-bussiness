@@ -16,8 +16,11 @@ import {
   readPhotobookDraft,
   readPhotobookDraftImages,
   savePhotobookDraft,
+  loadDraftFromServer,
+  saveDraftToServer,
   type StoredPhotobookDraft,
 } from '../data/photobookDraft';
+import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../hooks/useCart';
 import { absoluteSiteUrl, useDocumentMeta } from '../hooks/useDocumentMeta';
 import { STORE_LABEL_STYLE, StoreNotice, StoreShell } from '../components/StoreShell';
@@ -74,6 +77,18 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function pickNewerDraft(
+  local: StoredPhotobookDraft | null,
+  server: StoredPhotobookDraft | null,
+): { draft: StoredPhotobookDraft; source: 'local' | 'server' } | null {
+  if (!local && !server) return null;
+  if (!server) return { draft: local!, source: 'local' };
+  if (!local) return { draft: server, source: 'server' };
+  return server.updatedAt > local.updatedAt
+    ? { draft: server, source: 'server' }
+    : { draft: local, source: 'local' };
+}
+
 function SlotImage({ slot, alt }: { slot: DraftSlot; alt: string }) {
   const zoom = clamp(slot.zoom ?? 1, 1, 3);
   const panRange = ((zoom - 1) / zoom) * 50;
@@ -110,7 +125,10 @@ function hydrateDraftSpreads(draft: StoredPhotobookDraft, images: Map<string, Fi
       const preview = file ? URL.createObjectURL(file) : null;
       if (preview) trackPreview(preview);
       return {
-        imageId: file ? slot.imageId : null,
+        // Retain the server-side reference when this device has no matching
+        // IndexedDB blob. A later autosave must not convert this into an
+        // empty slot in the shared draft.
+        imageId: slot.imageId,
         file,
         preview,
         zoom: clamp(slot.zoom, 1, 3),
@@ -163,6 +181,8 @@ const chipGrid: React.CSSProperties = {
 
 export function PhotobookDetailPage() {
   const { slug = '' } = useParams();
+  const { session } = useAuth();
+  const sessionUserId = session?.userId ?? null;
   const { count: cartCount, add } = useCart();
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -186,18 +206,62 @@ export function PhotobookDetailPage() {
   const [historyBySpread, setHistoryBySpread] = useState<Record<number, SpreadHistory>>({});
   const [draftHydrated, setDraftHydrated] = useState(false);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [serverDraftReady, setServerDraftReady] = useState(false);
+  const [serverDraftReadOnly, setServerDraftReadOnly] = useState(false);
   const draftSaveVersionRef = useRef(0);
+  const serverDraftUserRef = useRef<string | null>(null);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const draftSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const [added, setAdded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
 
+  const hydrateFromDraft = useCallback(async (
+    draft: StoredPhotobookDraft,
+    fromServer: boolean,
+    isCurrent: () => boolean,
+  ) => {
+    const images = await readPhotobookDraftImages(draft);
+    if (!isCurrent()) return false;
+    const hasUnavailableImages = draft.spreads.some((spread) =>
+      spread.slots.some((slot) => slot.imageId !== null && !images.has(slot.imageId)),
+    );
+    const restored = hydrateDraftSpreads(draft, images, (url) => previewUrlsRef.current.add(url));
+    spreadsRef.current = restored;
+    setSpreads(restored);
+    setSizeId(draft.sizeId);
+    setPageIndex(Math.max(0, draft.pageIndex));
+    setFinish(FINISHES.includes(draft.finish) ? draft.finish : FINISHES[0]);
+    setQty(Math.max(1, draft.qty));
+    setPhotoCount(draft.photoCount);
+    setTemplateId(draft.templateId ?? 'free');
+    setStepRaw(clamp(draft.step, 0, 2));
+    setCurrentSpreadIdx(Math.max(0, draft.currentSpreadIdx));
+    // This flag is intentionally sticky for the current page session. Layout
+    // or template changes must not silently authorize overwriting image
+    // metadata that only exists on another device.
+    setServerDraftReadOnly(hasUnavailableImages);
+    if (hasUnavailableImages) {
+      setDraftNotice('\u0110\u00e3 kh\u00f4i ph\u1ee5c b\u1ed1 c\u1ee5c. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.');
+    } else if (fromServer) {
+      setDraftNotice(images.size
+        ? 'Đã khôi phục bản nháp từ tài khoản và ảnh trên thiết bị này.'
+        : 'Đã khôi phục bản nháp từ tài khoản. Hãy chọn lại ảnh.');
+    } else {
+      setDraftNotice(images.size ? 'Đã khôi phục bản nháp và ảnh trên thiết bị này.' : 'Đã khôi phục bố cục bản nháp. Hãy chọn lại ảnh bị thiếu.');
+    }
+    setDraftHydrated(true);
+    return true;
+  }, []);
+
   useEffect(() => {
     let alive = true;
     const savedDraft = readPhotobookDraft(slug);
     setProduct(null); setPricing(null); setLoadError(null);
-    setDraftHydrated(false); setDraftNotice(null);
+    setDraftHydrated(false); setDraftNotice(null); setServerDraftReady(false); setServerDraftReadOnly(false);
+    serverDraftUserRef.current = null;
     draftSaveVersionRef.current++;
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     previewUrlsRef.current.clear();
@@ -206,31 +270,30 @@ export function PhotobookDetailPage() {
     setSizeId(null); setPageIndex(0); setFinish(FINISHES[0]); setQty(1); setPhotoCount(''); setTemplateId('free');
     setStepRaw(0); setCurrentSpreadIdx(0); setSpreads([]); setHistoryBySpread({});
 
-    if (savedDraft) {
-      void readPhotobookDraftImages(savedDraft)
-        .then((images) => {
-          if (!alive) return;
-          const restored = hydrateDraftSpreads(savedDraft, images, (url) => previewUrlsRef.current.add(url));
-          spreadsRef.current = restored;
-          setSpreads(restored);
-          setSizeId(savedDraft.sizeId);
-          setPageIndex(Math.max(0, savedDraft.pageIndex));
-          setFinish(FINISHES.includes(savedDraft.finish) ? savedDraft.finish : FINISHES[0]);
-          setQty(Math.max(1, savedDraft.qty));
-          setPhotoCount(savedDraft.photoCount);
-          setTemplateId(savedDraft.templateId ?? 'free');
-          setStepRaw(clamp(savedDraft.step, 0, 2));
-          setCurrentSpreadIdx(Math.max(0, savedDraft.currentSpreadIdx));
-          setDraftNotice(images.size ? 'Đã khôi phục bản nháp và ảnh trên thiết bị này.' : 'Đã khôi phục bố cục bản nháp. Hãy chọn lại ảnh bị thiếu.');
+    const initialUserId = sessionRef.current?.userId ?? null;
+    if (initialUserId) serverDraftUserRef.current = initialUserId;
+
+    void (async () => {
+      try {
+        const serverDraft = initialUserId ? await loadDraftFromServer(slug) : null;
+        if (!alive) return;
+        const winner = pickNewerDraft(savedDraft, serverDraft);
+        if (winner) {
+          await hydrateFromDraft(winner.draft, winner.source === 'server', () => alive);
+        } else {
           setDraftHydrated(true);
-        })
-        .catch(() => {
-          if (!alive) return;
-          setDraftNotice('Không thể đọc ảnh của bản nháp trên thiết bị này.');
-        });
-    } else {
-      setDraftHydrated(true);
-    }
+        }
+        if (alive && initialUserId) setServerDraftReady(true);
+      } catch {
+        if (!alive) return;
+        if (savedDraft) {
+          await hydrateFromDraft(savedDraft, false, () => alive);
+        } else {
+          setDraftHydrated(true);
+        }
+        if (alive && initialUserId) setServerDraftReady(true);
+      }
+    })();
 
     fetchProductBySlug(slug)
       .then((item) => {
@@ -248,7 +311,32 @@ export function PhotobookDetailPage() {
       })
       .catch((e: Error) => { if (alive) setLoadError(e.message); });
     return () => { alive = false; };
-  }, [slug]);
+  }, [slug, hydrateFromDraft]);
+
+  useEffect(() => {
+    const userId = session?.userId ?? null;
+    if (!userId) {
+      serverDraftUserRef.current = null;
+      setServerDraftReady(false);
+      return;
+    }
+    if (!draftHydrated || serverDraftUserRef.current === userId) return;
+
+    let alive = true;
+    setServerDraftReady(false);
+    void (async () => {
+      const serverDraft = await loadDraftFromServer(slug);
+      if (!alive) return;
+      const winner = pickNewerDraft(readPhotobookDraft(slug), serverDraft);
+      if (winner?.source === 'server') {
+        await hydrateFromDraft(winner.draft, true, () => alive);
+      }
+      if (!alive) return;
+      serverDraftUserRef.current = userId;
+      setServerDraftReady(true);
+    })();
+    return () => { alive = false; };
+  }, [draftHydrated, hydrateFromDraft, session?.userId, slug]);
 
   const size: PhotobookSize | null = pricing?.sizes.find((s) => s.variantId === sizeId) ?? null;
   const pageOptions = size?.pageOptions ?? [];
@@ -326,7 +414,7 @@ export function PhotobookDetailPage() {
         position: spread.position,
         layoutCode: spread.layoutCode,
         slots: spread.slots.map((slot) => ({
-          imageId: slot.file ? slot.imageId : null,
+          imageId: slot.imageId,
           zoom: slot.zoom,
           panX: slot.panX,
           panY: slot.panY,
@@ -344,14 +432,27 @@ export function PhotobookDetailPage() {
         .then(async () => {
           if (version !== draftSaveVersionRef.current) return;
           await savePhotobookDraft(draft, images);
-          if (version === draftSaveVersionRef.current) setDraftNotice('Bản nháp đã được lưu trên thiết bị này.');
+          const synced = sessionUserId && serverDraftReady && !serverDraftReadOnly
+            ? await saveDraftToServer(draft)
+            : false;
+          if (version === draftSaveVersionRef.current) {
+            setDraftNotice(!sessionUserId
+              ? 'Bản nháp đã được lưu trên thiết bị này.'
+              : serverDraftReadOnly
+                ? '\u0110\u00e3 l\u01b0u b\u1ea3n nh\u00e1p tr\u00ean thi\u1ebft b\u1ecb n\u00e0y. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.'
+              : synced
+                ? 'Bản nháp đã được lưu và đồng bộ lên tài khoản.'
+                : serverDraftReady
+                  ? 'Bản nháp đã được lưu trên thiết bị này, nhưng chưa đồng bộ được lên tài khoản.'
+                  : 'Bản nháp đã được lưu trên thiết bị này. Đang kiểm tra bản nháp trên tài khoản.');
+          }
         })
         .catch(() => {
           if (version === draftSaveVersionRef.current) setDraftNotice('Không thể lưu bản nháp trên thiết bị này.');
         });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [currentSpreadIdx, draftHydrated, finish, pageIndex, photoCount, qty, sizeId, slug, spreads, step]);
+  }, [currentSpreadIdx, draftHydrated, finish, pageIndex, photoCount, qty, serverDraftReadOnly, serverDraftReady, sessionUserId, sizeId, slug, spreads, step, templateId]);
 
   useDocumentMeta({
     title: product ? `${product.name} | Bubble Memories` : 'Photobook | Bubble Memories',
@@ -381,7 +482,8 @@ export function PhotobookDetailPage() {
   const restoreSpread = useCallback((spreadIdx: number, snapshot: DraftSpread) => {
     setSpreads((prev) => {
       const next = [...prev];
-      next[spreadIdx] = cloneSpread(snapshot);
+      // History follows the spread when it is reordered; its former ordinal must not overwrite the new one.
+      next[spreadIdx] = { ...cloneSpread(snapshot), position: next[spreadIdx].position };
       spreadsRef.current = next;
       return next;
     });
@@ -493,6 +595,27 @@ export function PhotobookDetailPage() {
       return next;
     });
   }, []);
+
+  const moveSpread = useCallback((fromIdx: number, toIdx: number) => {
+    const current = spreadsRef.current;
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= current.length || toIdx >= current.length) return;
+
+    // Keep the undo/redo stack attached to the spread, not its former array index.
+    const priorIndexes = current.map((_, index) => index);
+    const [movedIndex] = priorIndexes.splice(fromIdx, 1);
+    priorIndexes.splice(toIdx, 0, movedIndex);
+    const reordered = priorIndexes.map((oldIndex, index) => ({ ...current[oldIndex], position: index + 1 }));
+    const reorderedHistory = priorIndexes.reduce<Record<number, SpreadHistory>>((result, oldIndex, index) => {
+      const history = historyRef.current[oldIndex];
+      if (history) result[index] = history;
+      return result;
+    }, {});
+
+    spreadsRef.current = reordered;
+    setSpreads(reordered);
+    setHistory(reorderedHistory);
+    setCurrentSpreadIdx((currentIdx) => priorIndexes.indexOf(currentIdx));
+  }, [setHistory]);
 
   const setSlotCrop = useCallback((spreadIdx: number, slotIdx: number, crop: Pick<DraftSlot, 'zoom' | 'panX' | 'panY'>) => {
     setSpreads((prev) => {
@@ -625,6 +748,8 @@ export function PhotobookDetailPage() {
         })}
       </div>
 
+      {step > 0 && spreads.length > 0 && <PhotobookProgressBar spreads={spreads} />}
+
       {/* Step content */}
       {step === 0 && (
         <StepSpecs
@@ -646,6 +771,7 @@ export function PhotobookDetailPage() {
           onAddCaption={addCaption} onUpdateCaption={updateCaption} onRemoveCaption={removeCaption}
           history={historyBySpread[currentSpreadIdx]} onRemember={rememberSpread}
           onUndo={undoSpread} onRedo={redoSpread} onAutoFillFiles={autoFillFiles}
+          onMoveSpread={moveSpread}
           draftNotice={draftNotice}
           onBack={() => setStep(0)} onNext={() => setStep(2)}
         />
@@ -654,10 +780,14 @@ export function PhotobookDetailPage() {
       {step === 2 && (
         <StepReview
           spreads={spreads} price={price} qty={qty} finish={finish} size={size} selected={selected}
+          pricing={pricing} pageOptions={pageOptions} pageIndex={pageIndex}
           added={added} busy={busy} cartError={cartError} slug={slug} templateId={templateId}
           onEdit={(idx) => { setCurrentSpreadIdx(idx); setStep(1); }}
+          onMoveSpread={moveSpread}
           onBack={() => setStep(1)}
           onAddToCart={() => void addToCart()}
+          onUpgradePages={(idx) => { setPageIndex(idx); }}
+          onUpgradeSize={(id) => { setSizeId(id); setPageIndex(0); }}
         />
       )}
     </StoreShell>
@@ -727,6 +857,51 @@ function PhotobookDetailSkeleton() {
           <SkeletonBlock height={50} />
         </div>
       </section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Progress bar
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function PhotobookProgressBar({ spreads }: { spreads: DraftSpread[] }) {
+  const { filled, total } = useMemo(() => {
+    let filled = 0, total = 0;
+    for (const s of spreads) {
+      const slotCount = layoutByCode(s.layoutCode).slots.length;
+      total += slotCount;
+      for (let i = 0; i < slotCount; i++) {
+        if (s.slots[i]?.file) filled++;
+      }
+    }
+    return { filled, total };
+  }, [spreads]);
+
+  if (total === 0) return null;
+  const pct = Math.round((filled / total) * 100);
+  const done = filled === total;
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
+      padding: 'var(--space-3) var(--space-8)',
+      borderBottom: '1px solid var(--color-neutral-200)', background: 'var(--color-bg)',
+    }}>
+      <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--color-neutral-200)', overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 3,
+          width: `${pct}%`,
+          background: done ? 'var(--color-accent-700)' : 'var(--color-text)',
+          transition: 'width .3s ease',
+        }} />
+      </div>
+      <span style={{
+        fontSize: 11, fontWeight: 600, letterSpacing: '.04em', whiteSpace: 'nowrap',
+        color: done ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+      }}>
+        {filled}/{total} ảnh · {pct}%
+      </span>
     </div>
   );
 }
@@ -957,7 +1132,7 @@ function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex, setPa
    Step 2 — Sắp xếp spread
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function StepArrange({ spreads, currentIdx, setCurrentIdx, onChangeLayout, onSetSlotFile, onSwapSlots, onSetSlotCrop, onAddCaption, onUpdateCaption, onRemoveCaption, history, onRemember, onUndo, onRedo, onAutoFillFiles, draftNotice, onBack, onNext }: {
+function StepArrange({ spreads, currentIdx, setCurrentIdx, onChangeLayout, onSetSlotFile, onSwapSlots, onSetSlotCrop, onAddCaption, onUpdateCaption, onRemoveCaption, history, onRemember, onUndo, onRedo, onAutoFillFiles, onMoveSpread, draftNotice, onBack, onNext }: {
   spreads: DraftSpread[]; currentIdx: number; setCurrentIdx: (i: number) => void;
   onChangeLayout: (spreadIdx: number, code: string) => void;
   onSetSlotFile: (spreadIdx: number, slotIdx: number, file: File | null) => void;
@@ -971,6 +1146,7 @@ function StepArrange({ spreads, currentIdx, setCurrentIdx, onChangeLayout, onSet
   onUndo: (spreadIdx: number) => void;
   onRedo: (spreadIdx: number) => void;
   onAutoFillFiles: (files: File[]) => AutoFillResult;
+  onMoveSpread: (fromIdx: number, toIdx: number) => void;
   draftNotice: string | null;
   onBack: () => void; onNext: () => void;
 }) {
@@ -1129,6 +1305,17 @@ function StepArrange({ spreads, currentIdx, setCurrentIdx, onChangeLayout, onSet
         <button type="button" className="btn btn-ghost" disabled={currentIdx >= spreads.length - 1}
           onClick={() => navigateSpread(currentIdx + 1)}>Sau →</button>
       </div>
+
+      {spreads.length > 1 && (
+        <SpreadOrderGrid
+          spreads={spreads}
+          activeIndex={currentIdx}
+          onSelect={setCurrentIdx}
+          onMove={onMoveSpread}
+          compact
+          ariaLabel="Sắp xếp thứ tự spread"
+        />
+      )}
 
       <div aria-label="Lịch sử chỉnh sửa" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-ghost" disabled={!history?.past.length} onClick={handleUndo} title="Ctrl+Z">
@@ -1624,14 +1811,101 @@ function LayoutThumb({ layout, active, onClick }: { layout: SpreadLayout; active
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Upsell suggestions
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function UpsellSuggestions({ size, selected, pricing, pageOptions, pageIndex, onUpgradePages, onUpgradeSize }: {
+  size: PhotobookSize | null; selected: { pageCount: number; price: number } | null;
+  pricing: PhotobookPricing | null; pageOptions: { pageCount: number; price: number }[];
+  pageIndex: number;
+  onUpgradePages: (pageIdx: number) => void; onUpgradeSize: (sizeId: string) => void;
+}) {
+  const suggestions = useMemo(() => {
+    if (!size || !selected || !pricing) return [];
+    const items: { key: string; label: string; detail: string; diff: number; action: () => void }[] = [];
+
+    const PAGE_JUMP = 5;
+    const targetIdx = pageOptions.findIndex((o) => o.pageCount >= selected.pageCount + PAGE_JUMP * 2);
+    if (targetIdx > pageIndex) {
+      const target = pageOptions[targetIdx];
+      const extraPages = target.pageCount - selected.pageCount;
+      const extraSpreads = extraPages / 2;
+      items.push({
+        key: 'pages',
+        label: `Thêm ${extraPages} trang`,
+        detail: `+${extraSpreads} spread — thêm chỗ cho ${extraSpreads * 2}–${extraSpreads * 3} ảnh nữa`,
+        diff: target.price - selected.price,
+        action: () => onUpgradePages(targetIdx),
+      });
+    }
+
+    const sizeIdx = pricing.sizes.findIndex((s) => s.variantId === size.variantId);
+    if (sizeIdx >= 0 && sizeIdx < pricing.sizes.length - 1) {
+      const next = pricing.sizes[sizeIdx + 1];
+      const nextOption = next.pageOptions.find((o) => o.pageCount === selected.pageCount);
+      if (nextOption) {
+        items.push({
+          key: 'size',
+          label: `Nâng ${next.name}`,
+          detail: `${next.widthCm}×${next.heightCm} cm — ảnh sắc nét hơn, chi tiết rõ hơn`,
+          diff: nextOption.price - selected.price,
+          action: () => onUpgradeSize(next.variantId),
+        });
+      }
+    }
+
+    return items;
+  }, [size, selected, pricing, pageOptions, pageIndex, onUpgradePages, onUpgradeSize]);
+
+  if (!suggestions.length) return null;
+
+  return (
+    <div style={{
+      display: 'grid', gap: 'var(--space-3)',
+      padding: 'var(--space-5)', background: 'var(--color-neutral-50)',
+      border: '2px solid var(--color-neutral-200)', borderRadius: 6,
+    }}>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-neutral-500)' }}>
+        Nâng cấp cuốn sách
+      </p>
+      <div style={{ display: 'grid', gap: 'var(--space-3)', gridTemplateColumns: `repeat(${suggestions.length}, 1fr)` }}>
+        {suggestions.map((s) => (
+          <button key={s.key} type="button" onClick={s.action} style={{
+            appearance: 'none', display: 'flex', flexDirection: 'column', gap: 6,
+            padding: 'var(--space-4)', border: '2px solid var(--color-neutral-300)',
+            borderRadius: 4, background: 'var(--color-bg)', cursor: 'pointer',
+            textAlign: 'left', font: 'inherit', transition: 'border-color .15s',
+          }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-neutral-300)'; }}
+          >
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{s.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', lineHeight: 1.4 }}>{s.detail}</span>
+            <span style={{
+              marginTop: 'auto', paddingTop: 'var(--space-2)',
+              fontSize: 13, fontWeight: 700, color: 'var(--color-accent-700)',
+            }}>
+              chỉ +{formatPrice(s.diff)}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Step 3 — Xem lại
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function StepReview({ spreads, price, qty, finish, size, selected, added, busy, cartError, slug, templateId, onEdit, onBack, onAddToCart }: {
+function StepReview({ spreads, price, qty, finish, size, selected, pricing, pageOptions, pageIndex, added, busy, cartError, slug, templateId, onEdit, onMoveSpread, onBack, onAddToCart, onUpgradePages, onUpgradeSize }: {
   spreads: DraftSpread[]; price: number; qty: number; finish: string;
   size: PhotobookSize | null; selected: { pageCount: number; price: number } | null;
+  pricing: PhotobookPricing | null; pageOptions: { pageCount: number; price: number }[]; pageIndex: number;
   added: boolean; busy: boolean; cartError: string | null; slug: string; templateId: string;
   onEdit: (idx: number) => void; onBack: () => void; onAddToCart: () => void;
+  onMoveSpread: (fromIdx: number, toIdx: number) => void;
+  onUpgradePages: (pageIdx: number) => void; onUpgradeSize: (sizeId: string) => void;
 }) {
   const [viewMode, setViewMode] = useState<'grid' | 'book'>('grid');
   const [sharing, setSharing] = useState(false);
@@ -1733,7 +2007,7 @@ function StepReview({ spreads, price, qty, finish, size, selected, added, busy, 
       </div>
 
       {viewMode === 'grid' ? (
-        <ReviewGrid spreads={spreads} onEdit={onEdit} />
+        <ReviewGrid spreads={spreads} onEdit={onEdit} onMove={onMoveSpread} />
       ) : (
         <BookDemo spreads={spreads} onEdit={onEdit} />
       )}
@@ -1784,6 +2058,13 @@ function StepReview({ spreads, price, qty, finish, size, selected, added, busy, 
         )}
       </div>
 
+      {/* Upsell suggestions */}
+      <UpsellSuggestions
+        size={size} selected={selected} pricing={pricing}
+        pageOptions={pageOptions} pageIndex={pageIndex}
+        onUpgradePages={onUpgradePages} onUpgradeSize={onUpgradeSize}
+      />
+
       {/* Summary + CTA */}
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)',
@@ -1809,28 +2090,102 @@ function StepReview({ spreads, price, qty, finish, size, selected, added, busy, 
   );
 }
 
-function ReviewGrid({ spreads, onEdit }: { spreads: DraftSpread[]; onEdit: (idx: number) => void }) {
+function ReviewGrid({ spreads, onEdit, onMove }: { spreads: DraftSpread[]; onEdit: (idx: number) => void; onMove: (fromIdx: number, toIdx: number) => void }) {
+  return <SpreadOrderGrid spreads={spreads} onSelect={onEdit} onMove={onMove} ariaLabel="Sắp xếp thứ tự spread trong bản xem lại" />;
+}
+
+function SpreadOrderGrid({ spreads, activeIndex, onSelect, onMove, compact = false, ariaLabel }: {
+  spreads: DraftSpread[];
+  activeIndex?: number;
+  onSelect: (idx: number) => void;
+  onMove: (fromIdx: number, toIdx: number) => void;
+  compact?: boolean;
+  ariaLabel: string;
+}) {
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<{ index: number; after: boolean } | null>(null);
+
+  function beginDrag(event: React.DragEvent<HTMLButtonElement>, index: number) {
+    setDragFrom(index);
+    event.dataTransfer.effectAllowed = 'move';
+    // Firefox only starts an HTML5 drag after at least one data item is supplied.
+    event.dataTransfer.setData('text/plain', String(index));
+  }
+
+  function updateDropTarget(event: React.DragEvent<HTMLDivElement>, index: number) {
+    if (dragFrom === null || dragFrom === index) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setDragOver({ index, after: event.clientY - bounds.top >= bounds.height / 2 });
+  }
+
+  function dropOn(event: React.DragEvent<HTMLDivElement>, index: number) {
+    event.preventDefault();
+    if (dragFrom === null || dragFrom === index) {
+      setDragOver(null);
+      return;
+    }
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const after = event.clientY - bounds.top >= bounds.height / 2;
+    const destination = dragFrom < index ? (after ? index : index - 1) : (after ? index + 1 : index);
+    onMove(dragFrom, destination);
+    setDragFrom(null);
+    setDragOver(null);
+  }
+
   return (
-    <div data-pb-review-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-4)' }}>
-      {spreads.map((spread, idx) => {
-        const layout = layoutByCode(spread.layoutCode);
-        return (
-          <button key={idx} type="button" onClick={() => onEdit(idx)} style={{
-            appearance: 'none', display: 'flex', flexDirection: 'column', gap: 4,
-            border: '2px solid var(--color-neutral-300)', borderRadius: 4,
-            background: 'var(--color-bg)', cursor: 'pointer', padding: 6, textAlign: 'left',
-            transition: 'border-color .15s',
-          }}>
-            <SpreadMini spread={spread} layout={layout} />
-            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
-              {idx + 1}. {layout.name}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <section aria-label={ariaLabel} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
+        <span style={STORE_LABEL_STYLE}>Thứ tự spread</span>
+        <span style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>Kéo ⠿ hoặc dùng mũi tên</span>
+      </div>
+      <div data-pb-review-grid="" style={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(auto-fill, minmax(132px, 1fr))' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: compact ? 'var(--space-2)' : 'var(--space-4)' }}>
+        {spreads.map((spread, idx) => {
+          const layout = layoutByCode(spread.layoutCode);
+          const isDragged = dragFrom === idx;
+          const target = dragOver?.index === idx ? dragOver : null;
+          return (
+            <div key={idx} onDragOver={(event) => updateDropTarget(event, idx)} onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragOver((current) => current?.index === idx ? null : current);
+            }} onDrop={(event) => dropOn(event, idx)} style={{
+              position: 'relative', opacity: isDragged ? 0.45 : 1, transition: 'opacity .15s, transform .15s',
+              transform: target ? 'scale(1.015)' : undefined,
+            }}>
+              {target && <span aria-hidden="true" style={{ position: 'absolute', zIndex: 2, left: 0, right: 0, height: 3, borderRadius: 99, background: 'var(--color-accent)', [target.after ? 'bottom' : 'top']: -5 }} />}
+              <button type="button" onClick={() => onSelect(idx)} style={{
+                appearance: 'none', display: 'flex', width: '100%', flexDirection: 'column', gap: 4,
+                border: `2px solid ${activeIndex === idx ? 'var(--color-accent)' : 'var(--color-neutral-300)'}`, borderRadius: 4,
+                background: 'var(--color-bg)', cursor: 'pointer', padding: compact ? 4 : 6, textAlign: 'left',
+                transition: 'border-color .15s',
+              }}>
+                <SpreadMini spread={spread} layout={layout} />
+                <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
+                  {idx + 1}. {compact ? 'Spread' : layout.name}
+                </span>
+              </button>
+              <button type="button" draggable onDragStart={(event) => beginDrag(event, idx)} onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                aria-label={`Kéo spread ${idx + 1} để đổi thứ tự`} title="Kéo để đổi thứ tự" style={{
+                  position: 'absolute', top: compact ? 7 : 9, right: compact ? 7 : 9, zIndex: 3, width: 29, height: 29,
+                  border: '1px solid var(--color-neutral-300)', borderRadius: 4, color: 'var(--color-neutral-700)', background: 'rgba(255,255,255,.9)',
+                  cursor: 'grab', fontSize: 16, lineHeight: 1,
+                }}>⠿</button>
+              <div aria-label={`Di chuyển spread ${idx + 1}`} style={{ position: 'absolute', zIndex: 3, right: compact ? 6 : 8, bottom: compact ? 24 : 27, display: 'flex', gap: 3 }}>
+                <button type="button" disabled={idx === 0} onClick={() => onMove(idx, idx - 1)} aria-label={`Đưa spread ${idx + 1} lên trước`} style={moveButtonStyle}>↑</button>
+                <button type="button" disabled={idx === spreads.length - 1} onClick={() => onMove(idx, idx + 1)} aria-label={`Đưa spread ${idx + 1} xuống sau`} style={moveButtonStyle}>↓</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
+
+const moveButtonStyle: React.CSSProperties = {
+  width: 24, height: 22, padding: 0, border: '1px solid var(--color-neutral-300)', borderRadius: 3,
+  color: 'var(--color-neutral-700)', background: 'rgba(255,255,255,.92)', cursor: 'pointer', fontSize: 13, lineHeight: 1,
+};
 
 function SpreadMini({ spread, layout }: { spread: DraftSpread; layout: SpreadLayout }) {
   return (

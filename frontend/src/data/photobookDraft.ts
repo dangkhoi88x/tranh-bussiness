@@ -1,3 +1,5 @@
+import { apiFetch } from '../api/http';
+
 const DRAFT_VERSION = 1;
 const DRAFT_KEY_PREFIX = 'bubble-memories.photobook-draft.v1:';
 const DATABASE_NAME = 'bubble-memories-photobook-drafts';
@@ -183,4 +185,53 @@ export async function clearPhotobookDraft(slug: string) {
   if (typeof window !== 'undefined') window.localStorage.removeItem(storageKey(slug));
   const staleIds = (await storedImagesForDraft(storageKey(slug))).map((record) => record.id);
   await removeImages(staleIds);
+}
+
+// ---------------------------------------------------------------------------
+// Server sync (metadata-only, no image upload)
+// ---------------------------------------------------------------------------
+
+type ServerDraftResponse = {
+  productSlug: string;
+  draftJson: string;
+  updatedAt: string;
+};
+
+export async function loadDraftFromServer(slug: string): Promise<StoredPhotobookDraft | null> {
+  try {
+    const response = await apiFetch(`/photobook-drafts/${encodeURIComponent(slug)}`);
+    if (response.status === 204 || !response.ok) return null;
+    const envelope = await response.json() as { data?: ServerDraftResponse };
+    if (!envelope.data?.draftJson) return null;
+    const draft = JSON.parse(envelope.data.draftJson) as unknown;
+    if (isStoredDraft(draft, slug)) {
+      const updatedAt = Date.parse(envelope.data.updatedAt);
+      return Number.isFinite(updatedAt) ? { ...draft, updatedAt } : draft;
+    }
+  } catch {
+    // Non-fatal — local draft is still available.
+  }
+  return null;
+}
+
+export async function saveDraftToServer(draft: StoredPhotobookDraft): Promise<boolean> {
+  try {
+    const response = await apiFetch(`/photobook-drafts/${encodeURIComponent(draft.slug)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(draft),
+    });
+    return response.ok;
+  } catch {
+    // Non-fatal — draft is already saved locally.
+    return false;
+  }
+}
+
+export async function deleteDraftFromServer(slug: string): Promise<void> {
+  try {
+    await apiFetch(`/photobook-drafts/${encodeURIComponent(slug)}`, { method: 'DELETE' });
+  } catch {
+    // Non-fatal.
+  }
 }

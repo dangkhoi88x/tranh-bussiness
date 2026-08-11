@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useAdminOrderNotifications } from '../contexts/AdminOrderNotificationContext'
 
 type MenuItem = { to: string; label: string; permission: string; marker: string }
 
@@ -21,12 +22,18 @@ const menuItems: MenuItem[] = [
 
 export function AdminLayout() {
   const { session, hasPermission, signOut } = useAuth()
+  const { newOrderCount, latestOrder, soundEnabled, enableSound, clearNewOrders } = useAdminOrderNotifications()
   const navigate = useNavigate()
   const visibleItems = menuItems.filter((item) => hasPermission(item.permission))
 
   async function handleSignOut() {
     await signOut()
     navigate('/auth', { replace: true })
+  }
+
+  function openNewOrders() {
+    clearNewOrders()
+    navigate('/admin/orders')
   }
 
   return (
@@ -50,8 +57,18 @@ export function AdminLayout() {
       <section className="admin-main">
         <header className="admin-header">
           <div><p className="eyebrow">BUSINESS STORE</p><h1>Không gian quản trị</h1></div>
-          <div className="admin-header__account"><span>{session?.firstName?.slice(0, 1) || 'A'}</span><div><strong>{[session?.firstName, session?.lastName].filter(Boolean).join(' ')}</strong><small>{session?.email}</small></div></div>
+          <div className="admin-header__actions">
+            {hasPermission('ORDER_MANAGE') && <>
+              <button type="button" className="admin-sound-button" aria-pressed={soundEnabled} onClick={() => void enableSound()}>{soundEnabled ? 'Âm báo bật' : 'Bật âm báo'}</button>
+              <button type="button" className="admin-order-bell" onClick={openNewOrders} aria-label={newOrderCount ? `${newOrderCount} đơn hàng mới` : 'Không có đơn hàng mới'} title="Đơn hàng mới">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 10a6 6 0 0 0-12 0c0 7-2.5 7-2.5 9h17c0-2-2.5-2-2.5-9" /><path d="M10 22h4" /></svg>
+                {newOrderCount > 0 && <span aria-hidden="true">{newOrderCount > 99 ? '99+' : newOrderCount}</span>}
+              </button>
+            </>}
+            <div className="admin-header__account"><span>{session?.firstName?.slice(0, 1) || 'A'}</span><div><strong>{[session?.firstName, session?.lastName].filter(Boolean).join(' ')}</strong><small>{session?.email}</small></div></div>
+          </div>
         </header>
+        {latestOrder && newOrderCount > 0 && <button type="button" className="admin-order-toast" onClick={openNewOrders} aria-live="polite"><span>Đơn hàng mới</span><strong>{latestOrder.orderCode}</strong><small>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(latestOrder.totalAmount)} · Xem danh sách đơn →</small></button>}
         <main className="admin-content"><Outlet /></main>
       </section>
     </div>

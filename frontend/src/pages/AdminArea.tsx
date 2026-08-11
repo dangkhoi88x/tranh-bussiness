@@ -12,13 +12,14 @@ import { OrdersSearchPage, PaymentsSearchPage } from './OperationsFilterPages';
 import { PromotionsPage } from './PromotionPages';
 import { ShipmentsPage } from './ShipmentPages';
 import { StaffPage } from './StaffPages';
+import { AdminOrderNotificationProvider } from '../contexts/AdminOrderNotificationContext';
 
 /**
  * Toàn bộ màn quản trị nằm sau import động từ App.tsx. Các route con vẫn giữ guard
  * theo permission ở đúng vị trí cũ; chỉ thời điểm tải JavaScript thay đổi.
  */
 export default function AdminArea() {
-  return <Routes>
+  return <AdminOrderNotificationProvider><Routes>
     <Route element={<AdminLayout />}>
       <Route index element={<AdminIndex />} />
       <Route element={<RequirePermission permission="DASHBOARD_VIEW" />}><Route path="dashboard" element={<AdminDashboard />} /></Route>
@@ -35,5 +36,5 @@ export default function AdminArea() {
       <Route element={<RequirePermission permission="USER_MANAGE" />}><Route path="users" element={<StaffPage />} /></Route>
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Route>
-  </Routes>;
+  </Routes></AdminOrderNotificationProvider>;
 }
