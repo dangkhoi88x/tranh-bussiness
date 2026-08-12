@@ -70,11 +70,11 @@ function FrameForm({ item, onClose, onSaved }: { item: Frame | null; onClose: ()
 }
 
 export function ProductDetailPage() {
-  const { productId } = useParams(); const navigate = useNavigate(); const [product, setProduct] = useState<Product | null>(null); const [tab, setTab] = useState<'images' | 'variants' | 'frames'>('images'); const [message, setMessage] = useState<string | null>(null)
+  const { productId } = useParams(); const navigate = useNavigate(); const [product, setProduct] = useState<Product | null>(null); const [tab, setTab] = useState<'images' | 'variants' | 'frames' | 'pages'>('images'); const [message, setMessage] = useState<string | null>(null)
   async function load() { try { setProduct(await apiRequest<Product>(`/products/management/${productId}`)) } catch (error) { setMessage(apiError(error)) } }
   useEffect(() => { void load() }, [productId])
   if (!product) return <section className="admin-page"><p>{message || 'Đang tải sản phẩm…'}</p><button className="ghost-button" onClick={() => navigate('/admin/products')}>← Quay lại danh sách</button></section>
-  return <><PageHeader eyebrow="SẢN PHẨM" title={product.name} description={`${product.categoryName} · ${formatMoney.format(product.price)} · ${product.status}`} action={<button className="ghost-button" onClick={() => navigate('/admin/products')}>← Danh sách</button>} /><Message text={message} /><div className="detail-tabs" role="tablist"><button className={tab === 'images' ? 'is-active' : ''} onClick={() => setTab('images')}>Ảnh</button><button className={tab === 'variants' ? 'is-active' : ''} onClick={() => setTab('variants')}>Variants</button><button className={tab === 'frames' ? 'is-active' : ''} onClick={() => setTab('frames')}>Frame options</button></div>{tab === 'images' && <ImagesTab productId={product.id} onMessage={setMessage} />}{tab === 'variants' && <VariantsTab productId={product.id} onMessage={setMessage} />}{tab === 'frames' && <FrameOptionsTab productId={product.id} onMessage={setMessage} />}</>
+  return <><PageHeader eyebrow="SẢN PHẨM" title={product.name} description={`${product.categoryName} · ${formatMoney.format(product.price)} · ${product.status}`} action={<button className="ghost-button" onClick={() => navigate('/admin/products')}>← Danh sách</button>} /><Message text={message} /><div className="detail-tabs" role="tablist"><button className={tab === 'images' ? 'is-active' : ''} onClick={() => setTab('images')}>Ảnh</button><button className={tab === 'variants' ? 'is-active' : ''} onClick={() => setTab('variants')}>Variants</button><button className={tab === 'frames' ? 'is-active' : ''} onClick={() => setTab('frames')}>Frame options</button><button className={tab === 'pages' ? 'is-active' : ''} onClick={() => setTab('pages')}>Giá theo trang</button></div>{tab === 'images' && <ImagesTab productId={product.id} onMessage={setMessage} />}{tab === 'variants' && <VariantsTab productId={product.id} onMessage={setMessage} />}{tab === 'frames' && <FrameOptionsTab productId={product.id} onMessage={setMessage} />}{tab === 'pages' && <PagePricingTab productId={product.id} onMessage={setMessage} />}</>
 }
 
 function ImagesTab({ productId, onMessage }: { productId: string; onMessage: (text: string) => void }) {
@@ -99,6 +99,132 @@ function VariantForm({ item, productId, onClose, onSaved }: { item: Variant | nu
   const [form, setForm] = useState({ sku: item?.sku ?? '', name: item?.name ?? '', widthCm: String(item?.widthCm ?? ''), heightCm: String(item?.heightCm ?? ''), material: item?.material ?? '', price: String(item?.price ?? ''), stockQuantity: String(item?.stockQuantity ?? 0), available: item?.available ?? true }); const [error, setError] = useState<string | null>(null); const [busy, setBusy] = useState(false); const change = (key: keyof typeof form, value: string | boolean) => setForm({ ...form, [key]: value } as typeof form)
   async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); try { await apiRequest(item ? `/products/${productId}/variants/${item.id}` : `/products/${productId}/variants`, { method: item ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, widthCm: number(form.widthCm), heightCm: number(form.heightCm), price: number(form.price), stockQuantity: number(form.stockQuantity) }) }); onSaved() } catch (cause) { setError(apiError(cause)) } finally { setBusy(false) } }
   return <Modal title={item ? 'Sửa variant' : 'Thêm variant'} onClose={onClose}><form className="admin-form" onSubmit={(event) => void submit(event)}><div className="form-grid"><label>SKU<input value={form.sku} onChange={(event) => change('sku', event.target.value)} required /></label><label>Tên variant<input value={form.name} onChange={(event) => change('name', event.target.value)} required /></label><label>Rộng (cm)<input type="number" min="0.01" value={form.widthCm} onChange={(event) => change('widthCm', event.target.value)} required /></label><label>Cao (cm)<input type="number" min="0.01" value={form.heightCm} onChange={(event) => change('heightCm', event.target.value)} required /></label><label>Vật liệu<input value={form.material} onChange={(event) => change('material', event.target.value)} required /></label><label>Giá<input type="number" min="1" value={form.price} onChange={(event) => change('price', event.target.value)} required /></label><label>Tồn kho<input type="number" min="0" value={form.stockQuantity} onChange={(event) => change('stockQuantity', event.target.value)} required /></label><label className="check-label"><input type="checkbox" checked={form.available} onChange={(event) => change('available', event.target.checked)} /> Có thể bán</label></div>{error && <p className="form-error">{error}</p>}<footer><button type="button" className="ghost-button" onClick={onClose}>Hủy</button><button className="primary-button compact" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu variant'}</button></footer></form></Modal>
+}
+
+type PagePricingTier = { pageCount: number; price: number }
+type PagePricingVariant = { variantId: string; sku: string; name: string; tiers: PagePricingTier[]; selectable: PagePricingTier[] }
+type PagePricing = { productId: string; pagePriced: boolean; minPages: number | null; maxPages: number | null; pageStep: number | null; pricePerStep: number | null; variants: PagePricingVariant[] }
+type TierDraft = { pageCount: string; price: string }
+
+/**
+ * Bảng giá theo trang của photobook. Giá không suy ra được bằng một công thức duy nhất — xưởng
+ * niêm yết cứng ở vài mức trang, phụ thu mỗi bậc chỉ áp cho phần vượt trên mức cao nhất — nên
+ * màn này nhập neo giá cho từng khổ, rồi hiển thị lại đúng danh sách mức trang và giá mà khách
+ * sẽ thấy. Trước đây phải chạy SQL tay mới tạo được một photobook mới.
+ */
+function PagePricingTab({ productId, onMessage }: { productId: string; onMessage: (text: string) => void }) {
+  const [data, setData] = useState<PagePricing | null>(null)
+  const [enabled, setEnabled] = useState(false)
+  const [form, setForm] = useState({ minPages: '', maxPages: '', pageStep: '', pricePerStep: '' })
+  const [tiers, setTiers] = useState<Record<string, TierDraft[]>>({})
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  function hydrate(pricing: PagePricing) {
+    setData(pricing)
+    setEnabled(pricing.pagePriced)
+    setForm({
+      minPages: pricing.minPages == null ? '' : String(pricing.minPages),
+      maxPages: pricing.maxPages == null ? '' : String(pricing.maxPages),
+      pageStep: pricing.pageStep == null ? '' : String(pricing.pageStep),
+      pricePerStep: pricing.pricePerStep == null ? '' : String(pricing.pricePerStep),
+    })
+    setTiers(Object.fromEntries(pricing.variants.map((variant) => [
+      variant.variantId,
+      variant.tiers.map((tier) => ({ pageCount: String(tier.pageCount), price: String(tier.price) })),
+    ])))
+  }
+
+  async function load() { try { hydrate(await apiRequest<PagePricing>(`/products/management/${productId}/page-pricing`)) } catch (cause) { onMessage(apiError(cause)) } }
+  useEffect(() => { void load() }, [productId])
+
+  const change = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value })
+  const editTier = (variantId: string, index: number, patch: Partial<TierDraft>) =>
+    setTiers((prev) => ({ ...prev, [variantId]: prev[variantId].map((row, i) => i === index ? { ...row, ...patch } : row) }))
+  const addTier = (variantId: string) =>
+    setTiers((prev) => ({ ...prev, [variantId]: [...(prev[variantId] ?? []), { pageCount: '', price: '' }] }))
+  const removeTier = (variantId: string, index: number) =>
+    setTiers((prev) => ({ ...prev, [variantId]: prev[variantId].filter((_, i) => i !== index) }))
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true); setError(null)
+    const body = enabled
+      ? {
+        minPages: number(form.minPages), maxPages: number(form.maxPages),
+        pageStep: number(form.pageStep), pricePerStep: number(form.pricePerStep),
+        variants: (data?.variants ?? []).map((variant) => ({
+          variantId: variant.variantId,
+          tiers: (tiers[variant.variantId] ?? [])
+            .filter((row) => row.pageCount.trim() !== '' && row.price.trim() !== '')
+            .map((row) => ({ pageCount: number(row.pageCount), price: number(row.price) })),
+        })),
+      }
+      : { minPages: null, maxPages: null, pageStep: null, pricePerStep: null, variants: [] }
+    try {
+      hydrate(await apiRequest<PagePricing>(`/products/${productId}/page-pricing`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }))
+      onMessage('Đã lưu bảng giá theo trang.')
+    } catch (cause) { setError(apiError(cause)) } finally { setBusy(false) }
+  }
+
+  if (!data) return <Panel><p className="empty-state">Đang tải bảng giá…</p></Panel>
+
+  return <Panel>
+    <div className="panel-heading">
+      <div>
+        <h3>Giá theo trang</h3>
+        <p>Xưởng niêm yết giá cứng ở vài mức trang; phụ thu mỗi bậc chỉ áp cho phần vượt trên mức cao nhất.</p>
+      </div>
+    </div>
+    <form className="admin-form page-pricing" onSubmit={(event) => void submit(event)}>
+      <label className="check-label">
+        <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
+        Bán theo số trang
+      </label>
+
+      {!enabled && <p className="form-hint">
+        Tắt mục này thì sản phẩm bán theo giá của từng khổ như tranh thường, và mọi mức giá niêm yết đã nhập sẽ bị xoá khi lưu.
+      </p>}
+
+      {enabled && <>
+        <div className="form-grid">
+          <label>Trang tối thiểu<input type="number" min="1" value={form.minPages} onChange={(event) => change('minPages', event.target.value)} required /></label>
+          <label>Trang tối đa<input type="number" min="1" value={form.maxPages} onChange={(event) => change('maxPages', event.target.value)} required /></label>
+          <label>Bước trang<input type="number" min="1" value={form.pageStep} onChange={(event) => change('pageStep', event.target.value)} required /></label>
+          <label>Phụ thu mỗi bậc<input type="number" min="0" step="any" value={form.pricePerStep} onChange={(event) => change('pricePerStep', event.target.value)} required /></label>
+        </div>
+
+        {data.variants.length === 0 && <p className="form-hint">Chưa có khổ nào. Thêm variant ở tab Variants trước khi nhập giá.</p>}
+
+        {data.variants.map((variant) => {
+          const rows = tiers[variant.variantId] ?? []
+          return <fieldset key={variant.variantId}>
+            <legend>{variant.sku} · {variant.name}</legend>
+            <p className="form-hint">Mức giá niêm yết — mỗi dòng là một mức trang có giá riêng, không suy ra từ mức khác.</p>
+            {rows.map((row, index) => <div className="form-grid" key={index}>
+              <label>Số trang<input type="number" min="1" value={row.pageCount} onChange={(event) => editTier(variant.variantId, index, { pageCount: event.target.value })} /></label>
+              {/* step="any": mốc bước của trình duyệt tính từ min, nên min="1" cộng step="1000"
+                  sẽ chỉ nhận 1, 1001, 2001… và chặn mọi giá thật. Giá là NUMERIC(19,2), không
+                  có lý do gì bắt tròn nghìn. */}
+              <label>Giá<input type="number" min="1" step="any" value={row.price} onChange={(event) => editTier(variant.variantId, index, { price: event.target.value })} /></label>
+              <button type="button" className="ghost-button" onClick={() => removeTier(variant.variantId, index)}>Xoá mức</button>
+            </div>)}
+            <button type="button" className="ghost-button" onClick={() => addTier(variant.variantId)}>+ Thêm mức giá</button>
+            {rows.length === 0 && <p className="form-error">Khổ này chưa có mức nào nên khách không mua được.</p>}
+            {variant.selectable.length > 0 && <p className="form-hint">
+              Khách chọn được {variant.selectable.length} mức: {variant.selectable.slice(0, 4).map((page) => `${page.pageCount} trang ${formatMoney.format(page.price)}`).join(' · ')}
+              {variant.selectable.length > 4 && ` … tới ${variant.selectable[variant.selectable.length - 1].pageCount} trang ${formatMoney.format(variant.selectable[variant.selectable.length - 1].price)}`}
+            </p>}
+          </fieldset>
+        })}
+      </>}
+
+      {error && <p className="form-error">{error}</p>}
+      <footer><button className="primary-button compact" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu bảng giá'}</button></footer>
+    </form>
+  </Panel>
 }
 
 function FrameOptionsTab({ productId, onMessage }: { productId: string; onMessage: (text: string) => void }) {
