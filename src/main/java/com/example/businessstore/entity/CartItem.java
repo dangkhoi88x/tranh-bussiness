@@ -43,6 +43,14 @@ public class CartItem extends BaseEntity {
     @JoinColumn(name = "photobook_design_id")
     private PhotobookDesign photobookDesign;
 
+    /**
+     * Mã mẫu khách chọn ở trang sản phẩm ({@link PhotobookTemplate#getCode()}). Chỉ có ý nghĩa
+     * với cuốn mua mà chưa thiết kế: nó là thứ duy nhất cho xưởng biết dựng theo chu kỳ nào khi
+     * khách gửi ảnh sau. Cuốn kèm photobookDesign đã có sẵn layout từng spread nên không dùng tới.
+     */
+    @Column(name = "photobook_template_code", length = 40)
+    private String photobookTemplateCode;
+
     @Column(nullable = false)
     private int quantity;
 }

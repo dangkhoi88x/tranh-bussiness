@@ -57,12 +57,12 @@ class PhotobookLayoutEngine {
     }
 
     /**
-     * Sinh toàn bộ spread (chưa lưu) cho một cuốn, theo chu kỳ archetype của template mặc định,
-     * và phân phối ảnh của khách vào các ô theo đúng thứ tự đã gửi lên. Ảnh nhiều hơn số ô thì
-     * phần dư không được gán — chúng hiện ở danh sách "chưa xếp" để khách tự kéo vào sau.
+     * Sinh toàn bộ spread (chưa lưu) cho một cuốn, theo chu kỳ archetype của mẫu khách đã chọn
+     * lúc mua, và phân phối ảnh của khách vào các ô theo đúng thứ tự đã gửi lên. Ảnh nhiều hơn
+     * số ô thì phần dư không được gán — chúng hiện ở danh sách "chưa xếp" để khách tự kéo vào sau.
      */
     List<PhotobookSpread> generateSpreads(PhotobookProject project) {
-        List<String> cycle = defaultCycle();
+        List<String> cycle = cycleFor(project.getTemplateCode());
         Map<String, PhotobookLayout> byCode = activeLayouts().stream()
                 .collect(Collectors.toMap(PhotobookLayout::getCode, layout -> layout));
         int numSpreads = project.getPageCount() / 2;
@@ -120,10 +120,20 @@ class PhotobookLayoutEngine {
         return result;
     }
 
-    private List<String> defaultCycle() {
-        PhotobookTemplate template = templateRepository.findByDefaultTemplateTrue()
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_LAYOUT_NOT_FOUND,
-                        "No default photobook template is configured"));
+    /**
+     * Cuốn đặt trước khi có tính năng chọn mẫu không mang mã nào, và một mẫu đã bán vẫn có thể
+     * bị gỡ khỏi thư viện sau đó (order_items chụp lại mã chứ không khoá ngoại) — cả hai trường
+     * hợp đều lùi về mẫu mặc định thay vì chặn khách gửi ảnh.
+     */
+    private List<String> cycleFor(String templateCode) {
+        PhotobookTemplate template = templateCode == null || templateCode.isBlank()
+                ? null
+                : templateRepository.findByCode(templateCode).orElse(null);
+        if (template == null) {
+            template = templateRepository.findByDefaultTemplateTrue()
+                    .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_LAYOUT_NOT_FOUND,
+                            "No default photobook template is configured"));
+        }
         try {
             return objectMapper.readValue(template.getLayoutCodes(), new TypeReference<List<String>>() {
             });

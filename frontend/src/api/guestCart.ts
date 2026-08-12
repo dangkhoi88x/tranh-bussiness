@@ -22,12 +22,13 @@ export type GuestCartMergeResult = {
  * Khoá gộp dòng phải trùng khớp với khoá bên server (index uq_cart_items_selection): cùng
  * một cuốn photobook ở 20 trang và 40 trang là hai dòng khác nhau vì giá khác nhau.
  */
-function itemId(input: Pick<AddCartItemInput, 'productId' | 'productVariantId' | 'productFrameOptionId' | 'pageCount'>) {
+function itemId(input: Pick<AddCartItemInput, 'productId' | 'productVariantId' | 'productFrameOptionId' | 'pageCount' | 'photobookTemplateCode'>) {
   return [
     input.productId,
     input.productVariantId ?? '',
     input.productFrameOptionId ?? '',
     input.pageCount ?? '',
+    input.photobookTemplateCode ?? '',
   ].join(':');
 }
 
@@ -111,6 +112,7 @@ export function addGuestCartItem(input: GuestCartItemInput): Cart {
       selectedFrameOption: input.selectedFrameOption,
       pageCount: input.pageCount ?? null,
       photobookDesignId: input.photobookDesignId ?? null,
+      photobookTemplateCode: input.photobookTemplateCode ?? null,
       unitPrice: input.unitPrice,
       quantity: Math.min(MAX_QUANTITY, Math.max(1, input.quantity)),
       lineTotal: input.unitPrice * Math.min(MAX_QUANTITY, Math.max(1, input.quantity)),
@@ -158,6 +160,9 @@ async function mergeItems(): Promise<GuestCartMergeResult> {
         // khi đăng nhập, và dòng đó lặng lẽ rơi vào nhánh failed.
         pageCount: item.pageCount ?? null,
         photobookDesignId: item.photobookDesignId ?? null,
+        // Mẫu cũng phải theo sang giỏ server, nếu không cuốn khách chọn "Đám cưới" lúc chưa
+        // đăng nhập sẽ lặng lẽ về mẫu mặc định ngay khi đăng nhập.
+        photobookTemplateCode: item.photobookTemplateCode ?? null,
         quantity: item.quantity,
       });
       removeGuestCartItem(item.id);

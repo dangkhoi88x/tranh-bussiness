@@ -7,6 +7,7 @@ import { ArtSizesPage } from './ArtSizePages';
 import { CategoriesPage, FramesPage, ProductDetailPage } from './CatalogPages';
 import { ProductsSearchPage } from './CatalogFilterPage';
 import { MaterialsPage } from './MaterialPages';
+import { PhotobookTemplatesPage } from './PhotobookTemplatePages';
 import { CustomOrdersPage, OrderDetailPage } from './OperationsPages';
 import { OrdersSearchPage, PaymentsSearchPage } from './OperationsFilterPages';
 import { PromotionsPage } from './PromotionPages';
@@ -27,6 +28,7 @@ export default function AdminArea() {
       <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="products" element={<ProductsSearchPage />} /><Route path="products/:productId" element={<ProductDetailPage />} /></Route>
       <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="materials" element={<MaterialsPage />} /></Route>
       <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="art-sizes" element={<ArtSizesPage />} /></Route>
+      <Route element={<RequirePermission permission="PRODUCT_MANAGE" />}><Route path="photobook-templates" element={<PhotobookTemplatesPage />} /></Route>
       <Route element={<RequirePermission permission="FRAME_MANAGE" />}><Route path="frames" element={<FramesPage />} /></Route>
       <Route element={<RequirePermission permission="ORDER_MANAGE" />}><Route path="orders" element={<OrdersSearchPage />} /><Route path="orders/:orderId" element={<OrderDetailPage />} /></Route>
       <Route element={<RequirePermission permission="PAYMENT_MANAGE" />}><Route path="payments" element={<PaymentsSearchPage />} /></Route>

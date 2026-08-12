@@ -10,7 +10,8 @@ import {
 } from '../api/photobook';
 import { fetchProductBySlug, formatPrice, formatSize, type Product, type ProductVariant } from '../api/storefront';
 import { layoutByCode, SPREAD_LAYOUTS, type SpreadLayout } from '../data/spreadLayouts';
-import { PHOTOBOOK_TEMPLATES, templateById, type PhotobookTemplate } from '../data/photobookTemplates';
+import { templateById, type PhotobookTemplate } from '../data/photobookTemplates';
+import { usePhotobookTemplates } from '../hooks/usePhotobookTemplates';
 import { compressPhotobookPhoto, compressSharePreviewImage } from '../data/imageCompression';
 import { createPhotobookDesign } from '../api/photobookDesigns';
 import {
@@ -196,6 +197,7 @@ export function PhotobookDetailPage() {
   const [qty, setQty] = useState(1);
   const [photoCount, setPhotoCount] = useState('');
   const [templateId, setTemplateId] = useState('free');
+  const templates = usePhotobookTemplates();
 
   const [step, setStepRaw] = useState(0);
   const setStep = useCallback((s: number) => { setStepRaw(s); window.scrollTo(0, 0); }, []);
@@ -353,7 +355,7 @@ export function PhotobookDetailPage() {
     return suggested === null || suggested === selected.pageCount ? null : suggested;
   }, [photoCount, pageOptions, selected]);
 
-  const template = templateById(templateId);
+  const template = templateById(templates, templateId);
 
   const applyTemplateToSpreads = useCallback((tpl: PhotobookTemplate) => {
     setSpreads((prev) => {
@@ -709,7 +711,9 @@ export function PhotobookDetailPage() {
       const photobookDesignId = await saveDesign();
       await add({
         productId: product.id, productVariantId: size.variantId, productFrameOptionId: null,
-        pageCount: selected.pageCount, photobookDesignId, quantity: qty,
+        // saveDesign() trả null khi khách chưa tải ảnh nào lên: cuốn đi tiếp bằng luồng gửi ảnh
+        // sau khi mua, và mã mẫu là thứ duy nhất còn giữ lựa chọn của khách tới lúc xưởng dựng.
+        pageCount: selected.pageCount, photobookDesignId, photobookTemplateCode: templateId, quantity: qty,
         productName: product.name, productSlug: product.slug,
         selectedVariant: variantSnapshot(product, size, selected.price),
         basePrice: selected.price, selectedFrameOption: null, unitPrice: selected.price,
@@ -798,7 +802,7 @@ export function PhotobookDetailPage() {
           pageIndex={pageIndex} setPageIndex={setPageIndex} pageOptions={pageOptions} selected={selected}
           finish={finish} setFinish={setFinish} qty={qty} setQty={setQty}
           price={price} photos={photos} photoCount={photoCount} setPhotoCount={setPhotoCount}
-          suggestion={suggestion} templateId={templateId} setTemplateId={setTemplateId}
+          suggestion={suggestion} templates={templates} templateId={templateId} setTemplateId={setTemplateId}
           spreadsHaveImages={spreads.some((s) => s.slots.some((sl) => sl.file !== null))}
           onApplyTemplate={() => applyTemplateToSpreads(template)}
           onNext={() => setStep(1)}
@@ -953,7 +957,7 @@ function PhotobookProgressBar({ spreads }: { spreads: DraftSpread[] }) {
 
 function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex, setPageIndex, pageOptions, selected,
   finish, setFinish, qty, setQty, price, photos, photoCount, setPhotoCount, suggestion,
-  templateId, setTemplateId, spreadsHaveImages, onApplyTemplate, onNext,
+  templates, templateId, setTemplateId, spreadsHaveImages, onApplyTemplate, onNext,
 }: {
   product: Product; pricing: PhotobookPricing;
   size: PhotobookSize | null; sizeId: string | null; setSizeId: (id: string) => void;
@@ -963,7 +967,8 @@ function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex, setPa
   qty: number; setQty: (fn: number | ((q: number) => number)) => void;
   price: number; photos: { min: number; max: number } | null;
   photoCount: string; setPhotoCount: (v: string) => void;
-  suggestion: number | null; templateId: string; setTemplateId: (id: string) => void;
+  suggestion: number | null; templates: PhotobookTemplate[];
+  templateId: string; setTemplateId: (id: string) => void;
   spreadsHaveImages: boolean; onApplyTemplate: () => void; onNext: () => void;
 }) {
   const images = product.images ?? [];
@@ -1116,7 +1121,7 @@ function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex, setPa
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           <span style={STORE_LABEL_STYLE}>Chọn chủ đề</span>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
-            {PHOTOBOOK_TEMPLATES.map((tpl) => {
+            {templates.map((tpl) => {
               const on = tpl.id === templateId;
               const previewColors = tpl.spreadColors.slice(0, 3);
               return (

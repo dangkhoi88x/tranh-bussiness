@@ -71,6 +71,13 @@ class PhotobookLayoutEngineTest {
         template.setLayoutCodes(
                 "[\"TRAN_DOI\",\"DOI_CAN\",\"CONTACT_SHEET\",\"TRAN_DOI\",\"DOI_CAN\",\"KHOI_MAU\",\"CONTACT_SHEET\",\"DOI_CAN\"]");
         when(templateRepository.findByDefaultTemplateTrue()).thenReturn(Optional.of(template));
+
+        // Mẫu khách chọn: mở bằng KHOI_MAU để phân biệt rõ với chu kỳ mặc định (mở bằng TRAN_DOI).
+        PhotobookTemplate wedding = new PhotobookTemplate();
+        wedding.setCode("wedding");
+        wedding.setLayoutCodes("[\"KHOI_MAU\",\"DOI_CAN\",\"TRAN_DOI\"]");
+        when(templateRepository.findByCode("wedding")).thenReturn(Optional.of(wedding));
+        when(templateRepository.findByCode("da_go")).thenReturn(Optional.empty());
     }
 
     private PhotobookLayout layout(String code, String slotsJson) {
@@ -139,6 +146,31 @@ class PhotobookLayoutEngineTest {
         for (int i = 0; i < spreads.size(); i++) {
             assertThat(spreads.get(i).getPosition()).isEqualTo(i + 1);
         }
+    }
+
+    @Test
+    void generateSpreads_followsTheTemplateTheCustomerPickedAtCheckout() {
+        PhotobookProject project = projectWithPhotos(12, 60); // 6 spread, chu kỳ "wedding" dài 3
+        project.setTemplateCode("wedding");
+
+        List<PhotobookSpread> spreads = engine.generateSpreads(project);
+
+        assertThat(spreads).extracting(PhotobookSpread::getLayoutCode)
+                .containsExactly("KHOI_MAU", "DOI_CAN", "TRAN_DOI", "KHOI_MAU", "DOI_CAN", "TRAN_DOI");
+    }
+
+    @Test
+    void generateSpreads_fallsBackToTheDefaultTemplateWhenTheProjectHasNoneOrAnUnknownOne() {
+        // Cuốn đặt trước khi có tính năng chọn mẫu (null) và cuốn mang mã đã bị gỡ khỏi thư viện
+        // đều phải dựng được, không được chặn khách gửi ảnh.
+        PhotobookProject withoutTemplate = projectWithPhotos(4, 10);
+        PhotobookProject withStaleTemplate = projectWithPhotos(4, 10);
+        withStaleTemplate.setTemplateCode("da_go");
+
+        assertThat(engine.generateSpreads(withoutTemplate)).extracting(PhotobookSpread::getLayoutCode)
+                .containsExactly("TRAN_DOI", "DOI_CAN");
+        assertThat(engine.generateSpreads(withStaleTemplate)).extracting(PhotobookSpread::getLayoutCode)
+                .containsExactly("TRAN_DOI", "DOI_CAN");
     }
 
     @Test

@@ -83,6 +83,7 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
             project.setOrderItem(item);
             project.setUser(order.getUser());
             project.setPageCount(item.getPageCount());
+            project.setTemplateCode(item.getPhotobookTemplateCode());
 
             PhotobookDesign design = item.getPhotobookDesignId() == null
                     ? null : photobookDesignRepository.findById(item.getPhotobookDesignId()).orElse(null);

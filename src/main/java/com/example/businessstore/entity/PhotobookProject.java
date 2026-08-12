@@ -49,6 +49,13 @@ public class PhotobookProject extends BaseEntity {
     @Column(name = "page_count", nullable = false)
     private int pageCount;
 
+    /**
+     * Mẫu khách chọn lúc mua ({@link PhotobookTemplate#getCode()}), chụp lại từ dòng đơn. Null
+     * với cuốn đặt trước khi có tính năng chọn mẫu — khi đó engine lùi về mẫu mặc định.
+     */
+    @Column(name = "template_code", length = 40)
+    private String templateCode;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private PhotobookProjectStatus status;

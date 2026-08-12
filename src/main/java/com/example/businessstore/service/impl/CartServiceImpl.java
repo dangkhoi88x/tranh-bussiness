@@ -23,6 +23,7 @@ import com.example.businessstore.repository.CartItemRepository;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.PhotobookDesignRepository;
 import com.example.businessstore.repository.PhotobookPageTierRepository;
+import com.example.businessstore.repository.PhotobookTemplateRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
@@ -50,6 +51,7 @@ public class CartServiceImpl implements CartService {
     private final ProductVariantRepository productVariantRepository;
     private final PhotobookPageTierRepository photobookPageTierRepository;
     private final PhotobookDesignRepository photobookDesignRepository;
+    private final PhotobookTemplateRepository photobookTemplateRepository;
 
     @Override
     @Transactional
@@ -69,9 +71,10 @@ public class CartServiceImpl implements CartService {
         validateFrameCompatibility(frameOption, variant);
         Integer pageCount = validatePageCount(product, variant, request.pageCount());
         PhotobookDesign design = resolveDesign(userId, product, pageCount, request.photobookDesignId());
+        String templateCode = resolveTemplateCode(product, pageCount, request.photobookTemplateCode());
 
-        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount, design == null ? null : design.getId())
-                .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount, design));
+        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount, design == null ? null : design.getId(), templateCode)
+                .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount, design, templateCode));
         int requestedQuantity = item.getQuantity() + request.quantity();
         validateStock(product, variant, requestedQuantity);
         item.setQuantity(requestedQuantity);
@@ -134,24 +137,24 @@ public class CartServiceImpl implements CartService {
     }
 
     /**
-     * Cùng sản phẩm nhưng khác khổ, khung, số trang hay bản thiết kế là những dòng giỏ hàng
+     * Cùng sản phẩm nhưng khác khổ, khung, số trang, bản thiết kế hay mẫu là những dòng giỏ hàng
      * riêng biệt — hai bản thiết kế khác nhau ở cùng khổ/số trang không được gộp làm một, nếu
      * không cuốn sẽ in nhầm theo bản thiết kế còn lại.
+     *
+     * Đối chiếu ngay trên cart.getItems() thay vì hỏi repository: khoá gộp có sáu chiều nullable
+     * nên derived query phải liệt kê đủ tổ hợp IsNull, và mỗi chiều thêm vào lại nhân đôi số
+     * phương thức. Danh sách item đã nạp sẵn trong cùng transaction (toResponse duyệt nó ngay
+     * sau đây), lại thấy được cả dòng vừa thêm chưa flush — điều derived query không làm được.
      */
-    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId, Integer pageCount, UUID designId) {
-        if (pageCount == null) {
-            return frameOptionId == null
-                    ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNullAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId)
-                    : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountIsNullAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId, frameOptionId);
-        }
-        if (designId == null) {
-            return frameOptionId == null
-                    ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId, pageCount)
-                    : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId, frameOptionId, pageCount);
-        }
-        return frameOptionId == null
-                ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountAndPhotobookDesignId(cart.getId(), productId, variantId, pageCount, designId)
-                : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountAndPhotobookDesignId(cart.getId(), productId, variantId, frameOptionId, pageCount, designId);
+    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId, Integer pageCount, UUID designId, String templateCode) {
+        return cart.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId)
+                        && java.util.Objects.equals(item.getProductVariant() == null ? null : item.getProductVariant().getId(), variantId)
+                        && java.util.Objects.equals(item.getProductFrameOption() == null ? null : item.getProductFrameOption().getId(), frameOptionId)
+                        && java.util.Objects.equals(item.getPageCount(), pageCount)
+                        && java.util.Objects.equals(item.getPhotobookDesign() == null ? null : item.getPhotobookDesign().getId(), designId)
+                        && java.util.Objects.equals(item.getPhotobookTemplateCode(), templateCode))
+                .findFirst();
     }
 
     /** Design phải khớp đúng sản phẩm và số trang khách vừa chọn — không tin liên kết từ client. */
@@ -167,7 +170,25 @@ public class CartServiceImpl implements CartService {
         return design;
     }
 
-    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption, Integer pageCount, PhotobookDesign design) {
+    /**
+     * Mẫu chỉ có nghĩa với cuốn bán theo trang, và phải là mã có thật trong thư viện — client
+     * gửi mã lạ thì báo lỗi ngay thay vì để dòng đơn mang mã chết tới tận lúc xưởng dựng spread.
+     */
+    private String resolveTemplateCode(Product product, Integer pageCount, String requested) {
+        if (requested == null || requested.isBlank()) return null;
+        if (!product.isPagePriced() || pageCount == null) {
+            throw new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_ALLOWED,
+                    "This product is not sold with photobook templates");
+        }
+        // Lọc theo active: chủ đề đã ẩn khỏi thư viện thì khách không chọn mới được nữa, dù cuốn
+        // đã đặt theo nó trước đó vẫn dựng bình thường.
+        return photobookTemplateRepository.findByCodeAndActiveTrue(requested)
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_FOUND,
+                        "Unknown photobook template: " + requested))
+                .getCode();
+    }
+
+    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption, Integer pageCount, PhotobookDesign design, String templateCode) {
         CartItem item = new CartItem();
         item.setCart(cart);
         item.setProduct(product);
@@ -175,6 +196,7 @@ public class CartServiceImpl implements CartService {
         item.setProductFrameOption(frameOption);
         item.setPageCount(pageCount);
         item.setPhotobookDesign(design);
+        item.setPhotobookTemplateCode(templateCode);
         item.setQuantity(0);
         cart.getItems().add(item);
         return item;
@@ -259,6 +281,7 @@ public class CartServiceImpl implements CartService {
                 frameOption,
                 item.getPageCount(),
                 item.getPhotobookDesign() == null ? null : item.getPhotobookDesign().getId(),
+                item.getPhotobookTemplateCode(),
                 unitPrice,
                 item.getQuantity(),
                 unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));

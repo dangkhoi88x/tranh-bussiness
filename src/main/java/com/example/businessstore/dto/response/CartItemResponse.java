@@ -15,6 +15,8 @@ public record CartItemResponse(
         Integer pageCount,
         /** Bản thiết kế photobook đã chốt cho dòng này; null nếu khách bỏ qua bước thiết kế. */
         UUID photobookDesignId,
+        /** Mẫu đã chọn cho dòng này; null nếu khách không chọn mẫu nào. */
+        String photobookTemplateCode,
         BigDecimal unitPrice,
         int quantity,
         BigDecimal lineTotal) {

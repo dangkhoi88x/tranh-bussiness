@@ -55,6 +55,9 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/products", "/api/v1/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/frames", "/api/v1/frames/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/photobook-share-previews/**").permitAll()
+                        // Chỉ đúng đường dẫn danh sách, không kèm "/**": nhánh /management nằm
+                        // dưới cùng tiền tố nhưng phải qua PRODUCT_MANAGE.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/photobook-templates").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/auth/register",
                                 "/api/v1/auth/login",

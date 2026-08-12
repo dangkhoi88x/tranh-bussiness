@@ -141,6 +141,14 @@ export const PHOTOBOOK_TEMPLATES: PhotobookTemplate[] = [
   },
 ];
 
-export function templateById(id: string): PhotobookTemplate {
-  return PHOTOBOOK_TEMPLATES.find((t) => t.id === id) ?? PHOTOBOOK_TEMPLATES[0];
+/**
+ * Danh sách truyền vào là danh sách đang hiển thị (thường lấy từ server qua
+ * usePhotobookTemplates), không phải hằng số phía trên: chủ đề khách chọn có thể đã được xưởng
+ * sửa hoặc thêm mới sau khi bundle này được build.
+ */
+export function templateById(templates: PhotobookTemplate[], id: string): PhotobookTemplate {
+  return templates.find((t) => t.id === id)
+    ?? PHOTOBOOK_TEMPLATES.find((t) => t.id === id)
+    ?? templates[0]
+    ?? PHOTOBOOK_TEMPLATES[0];
 }

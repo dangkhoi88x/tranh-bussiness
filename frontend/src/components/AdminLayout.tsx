@@ -16,6 +16,7 @@ const menuItems: MenuItem[] = [
   { to: '/admin/payments', label: 'Thanh toán', permission: 'PAYMENT_MANAGE', marker: '07' },
   { to: '/admin/custom-orders', label: 'Đặt theo yêu cầu', permission: 'CUSTOM_ORDER_MANAGE', marker: '08' },
   { to: '/admin/photobooks', label: 'Photobook', permission: 'CUSTOM_ORDER_MANAGE', marker: '08' },
+  { to: '/admin/photobook-templates', label: 'Chủ đề photobook', permission: 'PRODUCT_MANAGE', marker: '04' },
   { to: '/admin/shipments', label: 'Vận chuyển', permission: 'SHIPMENT_MANAGE', marker: '09' },
   { to: '/admin/promotions', label: 'Khuyến mãi', permission: 'PROMOTION_MANAGE', marker: '10' },
 ]

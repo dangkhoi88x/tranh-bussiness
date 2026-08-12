@@ -294,6 +294,7 @@ export function ProductPage() {
         // Trang này chỉ phục vụ hàng không bán theo trang — photobook đã chuyển sang /photobook/:slug.
         pageCount: null,
         photobookDesignId: null,
+        photobookTemplateCode: null,
         quantity: qty,
         productName: product.name,
         productSlug: product.slug,
