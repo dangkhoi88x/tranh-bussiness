@@ -119,6 +119,8 @@ export type PhotobookArrangementSlot = {
   photoUrl: string | null;
   focalX: number;
   focalY: number;
+  /** Độ phóng lúc chốt thiết kế (1..3) — chỉ khác 1 khi cuốn được hydrate từ một bản thiết kế. */
+  zoom: number;
 };
 
 /** Mirrors PhotobookSpreadResponse — một spread cụ thể của cuốn, kèm ô và ảnh đã đặt. */
@@ -126,6 +128,9 @@ export type PhotobookArrangementSpread = {
   id: string;
   position: number;
   layoutCode: string;
+  backgroundColor: string;
+  /** Mảng JSON thô {id,text,x,y,fontSize,color,bold,align,fontFamily} — chỉ khác "[]" khi cuốn được hydrate từ một bản thiết kế. */
+  captionsJson: string;
   slots: PhotobookArrangementSlot[];
 };
 

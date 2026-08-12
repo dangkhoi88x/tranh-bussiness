@@ -45,4 +45,8 @@ public class PhotobookSpreadSlot extends BaseEntity {
 
     @Column(name = "focal_y", nullable = false, precision = 4, scale = 3)
     private BigDecimal focalY = new BigDecimal("0.500");
+
+    /** Độ phóng khách chọn khi crop — 1.00 (không phóng) đến 3.00. Đi kèm focalX/focalY. */
+    @Column(nullable = false, precision = 3, scale = 2)
+    private BigDecimal zoom = new BigDecimal("1.00");
 }

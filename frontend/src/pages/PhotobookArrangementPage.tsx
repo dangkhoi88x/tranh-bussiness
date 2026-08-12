@@ -14,8 +14,27 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../hooks/useCart';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { STORE_LABEL_STYLE, StoreNotice, StoreShell } from '../components/StoreShell';
+import { cropStyle, focalToPan } from '../data/spreadRendering';
 import '../styles/ds.css';
 import '../styles/public.css';
+
+/** Caption đè lên spread — chỉ khác rỗng khi cuốn được hydrate từ một bản thiết kế đã chốt. */
+type SpreadCaption = { id?: string; text: string; x: number; y: number; fontSize: number; color: string; bold: boolean; align: 'left' | 'center' | 'right'; fontFamily: string };
+
+const CAPTION_FONTS: Record<string, string> = {
+  'Archivo': 'sans-serif', 'Playfair Display': 'serif', 'Lora': 'serif',
+  'Cormorant Garamond': 'serif', 'Spectral': 'serif', 'Montserrat': 'sans-serif',
+  'Quicksand': 'sans-serif', 'Dancing Script': 'cursive', 'Great Vibes': 'cursive', 'Pacifico': 'cursive',
+};
+
+function parseCaptions(captionsJson: string): SpreadCaption[] {
+  try {
+    const parsed = JSON.parse(captionsJson) as unknown;
+    return Array.isArray(parsed) ? parsed as SpreadCaption[] : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Storyboard — bản nháp sắp xếp ảnh vào từng spread cho xưởng hoàn thiện.
@@ -327,11 +346,12 @@ function SpreadCanvas({ spread, layout, interactive, selectedPhotoId, onSlotTap,
 }) {
   const defs = layout?.slots ?? [];
   const isColorBlock = defs.length === 0;
+  const captions = useMemo(() => parseCaptions(spread.captionsJson), [spread.captionsJson]);
 
   return (
     <div style={{
-      position: 'relative', width: '100%', aspectRatio: '2 / 1',
-      background: isColorBlock ? 'var(--color-accent)' : 'var(--color-neutral-200)',
+      position: 'relative', width: '100%', aspectRatio: '2 / 1', containerType: 'inline-size',
+      background: spread.backgroundColor || (isColorBlock ? 'var(--color-accent)' : 'var(--color-neutral-200)'),
       border: '2px solid var(--color-divider)', overflow: 'hidden',
     }}>
       {!isColorBlock && (
@@ -366,13 +386,17 @@ function SpreadCanvas({ spread, layout, interactive, selectedPhotoId, onSlotTap,
               border: carried ? '3px solid var(--color-accent)' : compact ? 0 : '1px solid var(--color-bg)',
               background: slot.photoUrl ? 'transparent' : 'var(--color-neutral-100)',
             }}>
-            {slot.photoUrl ? (
-              <img src={slot.photoUrl} alt="" style={{
-                width: '100%', height: '100%', objectFit: 'cover',
-                objectPosition: `${slot.focalX * 100}% ${slot.focalY * 100}%`,
-                opacity: carried ? 0.35 : 1,
-              }} />
-            ) : (!compact && interactive && (
+            {slot.photoUrl ? (() => {
+              const { panX, panY } = focalToPan(slot.focalX, slot.focalY);
+              const crop = cropStyle(slot.zoom, panX, panY);
+              return (
+                <img src={slot.photoUrl} alt="" style={{
+                  width: '100%', height: '100%', objectFit: 'cover',
+                  objectPosition: crop.objectPosition, transform: crop.transform, transformOrigin: 'center',
+                  opacity: carried ? 0.35 : 1,
+                }} />
+              );
+            })() : (!compact && interactive && (
               <span aria-hidden="true" style={{
                 position: 'absolute', inset: 0, display: 'grid', placeItems: 'center',
                 fontSize: 18, color: 'var(--color-neutral-400)',
@@ -391,6 +415,19 @@ function SpreadCanvas({ spread, layout, interactive, selectedPhotoId, onSlotTap,
           </div>
         );
       })}
+      {captions.map((caption, ci) => (
+        <div key={caption.id ?? ci} aria-hidden="true" style={{
+          position: 'absolute', left: `${caption.x * 100}%`, top: `${caption.y * 100}%`,
+          transform: 'translate(-50%, -50%)', zIndex: 5, maxWidth: '60%',
+          padding: compact ? '1px 3px' : '2px 6px', fontSize: `${caption.fontSize}cqw`,
+          fontWeight: caption.bold ? 700 : 400, color: caption.color,
+          fontFamily: `"${caption.fontFamily}", ${CAPTION_FONTS[caption.fontFamily] ?? 'sans-serif'}`,
+          textAlign: caption.align, lineHeight: 1.3, whiteSpace: 'pre-wrap',
+          pointerEvents: 'none', overflow: 'hidden',
+        }}>
+          {caption.text}
+        </div>
+      ))}
     </div>
   );
 }

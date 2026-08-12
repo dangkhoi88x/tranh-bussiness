@@ -152,6 +152,8 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
                         spread.getId(),
                         spread.getPosition(),
                         spread.getLayoutCode(),
+                        spread.getBackgroundColor(),
+                        spread.getCaptionsJson(),
                         spread.getSlots().stream()
                                 .map(slot -> new PhotobookSpreadResponse.Slot(
                                         slot.getId(),
@@ -160,7 +162,8 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
                                         slot.getPhoto() == null ? null
                                                 : mediaStorageService.signedPrivateImageUrl(slot.getPhoto().getPublicId()),
                                         slot.getFocalX(),
-                                        slot.getFocalY()))
+                                        slot.getFocalY(),
+                                        slot.getZoom()))
                                 .toList()))
                 .toList();
 

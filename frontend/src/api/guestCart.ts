@@ -110,6 +110,7 @@ export function addGuestCartItem(input: GuestCartItemInput): Cart {
       basePrice: input.basePrice,
       selectedFrameOption: input.selectedFrameOption,
       pageCount: input.pageCount ?? null,
+      photobookDesignId: input.photobookDesignId ?? null,
       unitPrice: input.unitPrice,
       quantity: Math.min(MAX_QUANTITY, Math.max(1, input.quantity)),
       lineTotal: input.unitPrice * Math.min(MAX_QUANTITY, Math.max(1, input.quantity)),
@@ -156,6 +157,7 @@ async function mergeItems(): Promise<GuestCartMergeResult> {
         // Không có dòng này thì photobook trong giỏ khách vãng lai bị backend từ chối
         // khi đăng nhập, và dòng đó lặng lẽ rơi vào nhánh failed.
         pageCount: item.pageCount ?? null,
+        photobookDesignId: item.photobookDesignId ?? null,
         quantity: item.quantity,
       });
       removeGuestCartItem(item.id);

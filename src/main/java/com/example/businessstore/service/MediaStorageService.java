@@ -50,6 +50,13 @@ public interface MediaStorageService {
 
     void deleteSharePreviewImage(String publicId);
 
+    /** Ảnh của một bản thiết kế photobook đã chốt trước khi mua — riêng tư như ảnh dự án. */
+    UploadedMedia uploadPhotobookDesignImage(UUID designId, MultipartFile file);
+
+    String signedPhotobookDesignImageUrl(String publicId);
+
+    void deletePhotobookDesignImage(String publicId);
+
     record UploadedMedia(String publicId, String secureUrl, int pages) {
 
         /** Ảnh đơn: luôn đúng một trang. */

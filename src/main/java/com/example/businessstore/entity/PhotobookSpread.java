@@ -13,6 +13,8 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +43,14 @@ public class PhotobookSpread extends BaseEntity {
     /** Mã archetype đang dùng — tham chiếu {@link PhotobookLayout#getCode()}. */
     @Column(name = "layout_code", nullable = false, length = 40)
     private String layoutCode;
+
+    @Column(name = "background_color", nullable = false, length = 20)
+    private String backgroundColor = "#ffffff";
+
+    /** Chú thích chữ đè lên spread — mảng JSON {id,text,x,y,fontSize,color,bold,align,fontFamily}. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "captions_json", nullable = false, columnDefinition = "jsonb")
+    private String captionsJson = "[]";
 
     @OneToMany(mappedBy = "photobookSpread", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("slotIndex ASC")

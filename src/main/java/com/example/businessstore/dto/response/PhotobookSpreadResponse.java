@@ -8,6 +8,9 @@ public record PhotobookSpreadResponse(
         UUID id,
         int position,
         String layoutCode,
+        String backgroundColor,
+        /** Mảng JSON thô {id,text,x,y,fontSize,color,bold,align,fontFamily} — FE tự parse, cùng shape với draft/share preview. */
+        String captionsJson,
         List<Slot> slots) {
 
     public record Slot(
@@ -17,6 +20,7 @@ public record PhotobookSpreadResponse(
             /** URL đã ký; null nếu ô đang trống. */
             String photoUrl,
             BigDecimal focalX,
-            BigDecimal focalY) {
+            BigDecimal focalY,
+            BigDecimal zoom) {
     }
 }

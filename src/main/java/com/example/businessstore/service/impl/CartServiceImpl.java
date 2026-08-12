@@ -10,6 +10,7 @@ import com.example.businessstore.dto.response.ProductFrameOptionResponse;
 import com.example.businessstore.dto.response.ProductVariantResponse;
 import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
+import com.example.businessstore.entity.PhotobookDesign;
 import com.example.businessstore.entity.PhotobookPageTier;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
@@ -20,6 +21,7 @@ import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.mapper.ProductFrameOptionMapper;
 import com.example.businessstore.repository.CartItemRepository;
 import com.example.businessstore.repository.CartRepository;
+import com.example.businessstore.repository.PhotobookDesignRepository;
 import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
@@ -47,6 +49,7 @@ public class CartServiceImpl implements CartService {
     private final ProductFrameOptionMapper productFrameOptionMapper;
     private final ProductVariantRepository productVariantRepository;
     private final PhotobookPageTierRepository photobookPageTierRepository;
+    private final PhotobookDesignRepository photobookDesignRepository;
 
     @Override
     @Transactional
@@ -65,9 +68,10 @@ public class CartServiceImpl implements CartService {
                 : getAvailableFrameOption(product.getId(), request.productFrameOptionId());
         validateFrameCompatibility(frameOption, variant);
         Integer pageCount = validatePageCount(product, variant, request.pageCount());
+        PhotobookDesign design = resolveDesign(userId, product, pageCount, request.photobookDesignId());
 
-        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount)
-                .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount));
+        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount, design == null ? null : design.getId())
+                .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount, design));
         int requestedQuantity = item.getQuantity() + request.quantity();
         validateStock(product, variant, requestedQuantity);
         item.setQuantity(requestedQuantity);
@@ -129,25 +133,48 @@ public class CartServiceImpl implements CartService {
         return option;
     }
 
-    /** Cùng sản phẩm nhưng khác khổ, khung hay số trang là những dòng giỏ hàng riêng biệt. */
-    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId, Integer pageCount) {
-        if (frameOptionId == null) {
-            return pageCount == null
-                    ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNull(cart.getId(), productId, variantId)
-                    : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCount(cart.getId(), productId, variantId, pageCount);
+    /**
+     * Cùng sản phẩm nhưng khác khổ, khung, số trang hay bản thiết kế là những dòng giỏ hàng
+     * riêng biệt — hai bản thiết kế khác nhau ở cùng khổ/số trang không được gộp làm một, nếu
+     * không cuốn sẽ in nhầm theo bản thiết kế còn lại.
+     */
+    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId, Integer pageCount, UUID designId) {
+        if (pageCount == null) {
+            return frameOptionId == null
+                    ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountIsNullAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId)
+                    : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountIsNullAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId, frameOptionId);
         }
-        return pageCount == null
-                ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountIsNull(cart.getId(), productId, variantId, frameOptionId)
-                : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCount(cart.getId(), productId, variantId, frameOptionId, pageCount);
+        if (designId == null) {
+            return frameOptionId == null
+                    ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId, pageCount)
+                    : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountAndPhotobookDesignIdIsNull(cart.getId(), productId, variantId, frameOptionId, pageCount);
+        }
+        return frameOptionId == null
+                ? cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNullAndPageCountAndPhotobookDesignId(cart.getId(), productId, variantId, pageCount, designId)
+                : cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIdAndPageCountAndPhotobookDesignId(cart.getId(), productId, variantId, frameOptionId, pageCount, designId);
     }
 
-    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption, Integer pageCount) {
+    /** Design phải khớp đúng sản phẩm và số trang khách vừa chọn — không tin liên kết từ client. */
+    private PhotobookDesign resolveDesign(UUID userId, Product product, Integer pageCount, UUID designId) {
+        if (designId == null) return null;
+        PhotobookDesign design = photobookDesignRepository.findByIdAndUserId(designId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_DESIGN_NOT_FOUND, "Photobook design not found"));
+        if (!design.getProductSlug().equals(product.getSlug())
+                || pageCount == null || design.getPageCount() != pageCount) {
+            throw new AppException(ErrorCode.PHOTOBOOK_DESIGN_MISMATCH,
+                    "Design does not match the selected product or page count");
+        }
+        return design;
+    }
+
+    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption, Integer pageCount, PhotobookDesign design) {
         CartItem item = new CartItem();
         item.setCart(cart);
         item.setProduct(product);
         item.setProductVariant(variant);
         item.setProductFrameOption(frameOption);
         item.setPageCount(pageCount);
+        item.setPhotobookDesign(design);
         item.setQuantity(0);
         cart.getItems().add(item);
         return item;
@@ -231,6 +258,7 @@ public class CartServiceImpl implements CartService {
                 basePrice,
                 frameOption,
                 item.getPageCount(),
+                item.getPhotobookDesign() == null ? null : item.getPhotobookDesign().getId(),
                 unitPrice,
                 item.getQuantity(),
                 unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));

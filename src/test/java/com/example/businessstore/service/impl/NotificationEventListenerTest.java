@@ -28,6 +28,7 @@ class NotificationEventListenerTest {
 
     @Mock private NotificationService notificationService;
     @Mock private MailService mailService;
+    @Mock private AdminOrderNotificationPublisher adminOrderNotificationPublisher;
     @InjectMocks private NotificationEventListener listener;
 
     @Test

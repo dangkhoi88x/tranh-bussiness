@@ -11,7 +11,8 @@ import {
 import { fetchProductBySlug, formatPrice, formatSize, type Product, type ProductVariant } from '../api/storefront';
 import { layoutByCode, SPREAD_LAYOUTS, type SpreadLayout } from '../data/spreadLayouts';
 import { PHOTOBOOK_TEMPLATES, templateById, type PhotobookTemplate } from '../data/photobookTemplates';
-import { compressSharePreviewImage } from '../data/imageCompression';
+import { compressPhotobookPhoto, compressSharePreviewImage } from '../data/imageCompression';
+import { createPhotobookDesign } from '../api/photobookDesigns';
 import {
   readPhotobookDraft,
   readPhotobookDraftImages,
@@ -664,20 +665,60 @@ export function PhotobookDetailPage() {
     };
   }, []);
 
+  /**
+   * Chốt bản thiết kế hiện tại (layout, ảnh, crop, caption, màu nền) lên server trước khi thêm
+   * vào giỏ, để những gì khách sắp xếp không bị bỏ đi sau khi mua — xem PhotobookProjectServiceImpl.
+   * Trả về null nếu khách chưa đặt ảnh nào (dùng luồng gửi ảnh thủ công sau khi mua thay thế).
+   */
+  async function saveDesign(): Promise<string | null> {
+    if (!selected) return null;
+    const images = new Map<string, File>();
+    for (const spread of spreads) {
+      for (const slot of spread.slots) {
+        if (slot.imageId && slot.file && !images.has(slot.imageId)) images.set(slot.imageId, slot.file);
+      }
+    }
+    if (!images.size) return null;
+
+    const compressedImages = new Map<string, File>();
+    for (const [imageId, file] of images) {
+      const { file: compressed } = await compressPhotobookPhoto(file);
+      compressedImages.set(imageId, compressed);
+    }
+
+    const metadata = {
+      productSlug: slug,
+      sizeLabel: size?.name ?? null,
+      pageCount: selected.pageCount,
+      finish,
+      templateId,
+      spreads: spreads.map((s) => ({
+        position: s.position, layoutCode: s.layoutCode, backgroundColor: s.backgroundColor,
+        slots: s.slots.map((sl) => ({ imageId: sl.imageId, zoom: sl.zoom, panX: sl.panX, panY: sl.panY })),
+        captions: s.captions.map((c) => ({ id: c.id, text: c.text, x: c.x, y: c.y, fontSize: c.fontSize, color: c.color, bold: c.bold, align: c.align, fontFamily: c.fontFamily })),
+      })),
+    };
+    const { id } = await createPhotobookDesign(metadata, compressedImages);
+    return id;
+  }
+
   async function addToCart() {
     if (!product || !size || !selected) return;
     setBusy(true); setCartError(null);
     try {
+      const photobookDesignId = await saveDesign();
       await add({
         productId: product.id, productVariantId: size.variantId, productFrameOptionId: null,
-        pageCount: selected.pageCount, quantity: qty,
+        pageCount: selected.pageCount, photobookDesignId, quantity: qty,
         productName: product.name, productSlug: product.slug,
         selectedVariant: variantSnapshot(product, size, selected.price),
         basePrice: selected.price, selectedFrameOption: null, unitPrice: selected.price,
       });
       setAdded(true);
     } catch (e) {
-      setCartError(e instanceof ApiRequestError ? e.message : 'Không thêm được vào giỏ.');
+      setCartError(e instanceof ApiRequestError && e.status === 401
+        ? 'Vui lòng đăng nhập để lưu thiết kế trước khi thêm cuốn này vào giỏ.'
+        : e instanceof ApiRequestError ? e.message : 'Không thêm được vào giỏ.');
     } finally { setBusy(false); }
   }
 
@@ -2083,7 +2124,9 @@ function StepReview({ spreads, price, qty, finish, size, selected, pricing, page
         </div>
         {cartError && <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{cartError}</p>}
         <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-700)', textAlign: 'center', maxWidth: '50ch' }}>
-          Sau khi đặt đơn, bạn gửi ảnh gốc lên để xưởng dàn layout chính thức. Bố cục ở đây là bản xem trước.
+          {shareableImages.size
+            ? 'Bố cục và ảnh bạn vừa sắp xếp sẽ là bản nháp đầu tiên gửi cho xưởng — bạn vẫn chỉnh sửa được sau khi đặt hàng, trước khi xưởng gửi bản mềm duyệt.'
+            : 'Sau khi đặt đơn, bạn gửi ảnh gốc lên để xưởng dàn layout chính thức. Bố cục ở đây là bản xem trước.'}
         </p>
       </div>
     </div>

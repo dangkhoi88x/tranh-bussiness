@@ -121,6 +121,7 @@ public class OrderServiceImpl implements OrderService {
             OrderItem item = new OrderItem();
             item.setProductId(lockedProduct.getId()); item.setProductName(lockedProduct.getName()); item.setProductSlug(lockedProduct.getSlug());
             item.setPageCount(cartItem.getPageCount());
+            item.setPhotobookDesignId(cartItem.getPhotobookDesign() == null ? null : cartItem.getPhotobookDesign().getId());
             item.setProductPrice(basePrice); item.setFramePriceAdjustment(adjustment); item.setUnitPrice(unitPrice);
             item.setQuantity(cartItem.getQuantity()); item.setLineTotal(unitPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity())));
             if (variant != null) { item.setProductVariantId(variant.getId()); item.setVariantSku(variant.getSku()); item.setVariantName(variant.getName()); item.setVariantMaterial(variant.getMaterial()); item.setVariantWidthCm(variant.getWidthCm()); item.setVariantHeightCm(variant.getHeightCm()); }

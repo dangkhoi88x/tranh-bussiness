@@ -8,12 +8,16 @@ import com.example.businessstore.dto.response.PhotobookProjectResponse;
 import com.example.businessstore.dto.response.PhotobookProofResponse;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.OrderItem;
+import com.example.businessstore.entity.PhotobookDesign;
+import com.example.businessstore.entity.PhotobookDesignImage;
 import com.example.businessstore.entity.PhotobookProject;
 import com.example.businessstore.entity.PhotobookProjectPhoto;
 import com.example.businessstore.entity.PhotobookProof;
 import com.example.businessstore.entity.PhotobookSpread;
+import com.example.businessstore.entity.PhotobookSpreadSlot;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
+import com.example.businessstore.repository.PhotobookDesignRepository;
 import com.example.businessstore.repository.PhotobookProjectRepository;
 import com.example.businessstore.repository.PhotobookSpreadRepository;
 import com.example.businessstore.service.MediaStorageService;
@@ -27,9 +31,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -52,10 +63,12 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
 
     private final PhotobookProjectRepository projectRepository;
     private final PhotobookSpreadRepository spreadRepository;
+    private final PhotobookDesignRepository photobookDesignRepository;
     private final PhotobookLayoutEngine layoutEngine;
     private final MediaStorageService mediaStorageService;
     private final MediaTransactionSynchronizer mediaTransactionSynchronizer;
     private final NotificationService notificationService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -70,9 +83,95 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
             project.setOrderItem(item);
             project.setUser(order.getUser());
             project.setPageCount(item.getPageCount());
-            project.setStatus(PhotobookProjectStatus.AWAITING_PHOTOS);
-            projectRepository.save(project);
+
+            PhotobookDesign design = item.getPhotobookDesignId() == null
+                    ? null : photobookDesignRepository.findById(item.getPhotobookDesignId()).orElse(null);
+            // Đối chiếu lại slug/số trang phòng khi liên kết ở bước thêm giỏ hàng đã lệch —
+            // không tin thẳng photobookDesignId dù đã kiểm ở CartServiceImpl.
+            if (design != null && design.getProductSlug().equals(item.getProductSlug())
+                    && design.getPageCount() == item.getPageCount()) {
+                // Không save() project ở đây trước — project chưa có id nên save() bên trong
+                // hydrateFromDesign() là persist() thật, cascade đúng các PhotobookProjectPhoto
+                // mới thành entity managed cùng instance. Nếu save() project ở đây trước (đã có
+                // id), lần save() thứ hai bên trong sẽ thành merge() và trả về bản sao khác —
+                // slot vẫn giữ tham chiếu tới ảnh transient cũ, vỡ ràng buộc khi flush.
+                hydrateFromDesign(project, design);
+            } else {
+                project.setStatus(PhotobookProjectStatus.AWAITING_PHOTOS);
+                projectRepository.save(project);
+            }
         }
+    }
+
+    /**
+     * Nạp thẳng project từ bản thiết kế đã chốt lúc thêm giỏ hàng: ảnh, layout, crop, caption
+     * và màu nền của khách trở thành dữ liệu sản xuất thật, bỏ qua bước AWAITING_PHOTOS/submit()
+     * thủ công. Toàn bộ chỉ là ghi DB (ảnh đã upload từ trước, publicId dùng lại trực tiếp) nên
+     * chạy gọn trong transaction checkout, không cần bước AFTER_COMMIT hay job bù trừ.
+     */
+    private void hydrateFromDesign(PhotobookProject project, PhotobookDesign design) {
+        // Phải set trước lần save() đầu tiên: spreadRepository.saveAll() bên dưới sẽ tự flush,
+        // và flush ghi đúng trạng thái field hiện có trên entity tại lúc đó — set sau sẽ để lại
+        // status null trong câu INSERT đầu tiên, vỡ ràng buộc NOT NULL của cột status.
+        project.setStatus(PhotobookProjectStatus.PHOTOS_SUBMITTED);
+        project.setSubmittedAt(Instant.now());
+
+        Map<String, PhotobookProjectPhoto> photosByKey = new HashMap<>();
+        for (PhotobookDesignImage image : design.getImages()) {
+            PhotobookProjectPhoto photo = new PhotobookProjectPhoto();
+            photo.setPhotobookProject(project);
+            photo.setPublicId(image.getPublicId());
+            photo.setOriginalFilename(image.getImageKey());
+            project.getPhotos().add(photo);
+            photosByKey.put(image.getImageKey(), photo);
+        }
+        projectRepository.save(project);
+
+        JsonNode spreadNodes = objectMapper.readTree(design.getSpreadsJson());
+        List<PhotobookSpread> spreads = new ArrayList<>();
+        for (JsonNode spreadNode : spreadNodes) {
+            PhotobookSpread spread = new PhotobookSpread();
+            spread.setPhotobookProject(project);
+            spread.setPosition(spreadNode.path("position").asInt());
+            spread.setLayoutCode(spreadNode.path("layoutCode").asText());
+            spread.setBackgroundColor(textOrDefault(spreadNode, "backgroundColor", "#ffffff"));
+            JsonNode captions = spreadNode.get("captions");
+            spread.setCaptionsJson(captions == null || !captions.isArray() ? "[]" : captions.toString());
+
+            int slotIndex = 0;
+            for (JsonNode slotNode : spreadNode.path("slots")) {
+                PhotobookSpreadSlot slot = new PhotobookSpreadSlot();
+                slot.setPhotobookSpread(spread);
+                slot.setSlotIndex(slotIndex++);
+                JsonNode imageId = slotNode.get("imageId");
+                if (imageId != null && !imageId.isNull()) {
+                    slot.setPhoto(photosByKey.get(imageId.asText()));
+                }
+                double zoom = clamp(slotNode.path("zoom").asDouble(1.0), 1.0, 3.0);
+                double panX = clamp(slotNode.path("panX").asDouble(0.0), -1.0, 1.0);
+                double panY = clamp(slotNode.path("panY").asDouble(0.0), -1.0, 1.0);
+                slot.setZoom(scale(zoom, 2));
+                slot.setFocalX(scale(0.5 + panX / 2, 3));
+                slot.setFocalY(scale(0.5 + panY / 2, 3));
+                spread.getSlots().add(slot);
+            }
+            spreads.add(spread);
+        }
+        spreadRepository.saveAll(spreads);
+    }
+
+    private String textOrDefault(JsonNode node, String field, String fallback) {
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() || !value.isTextual() || value.asText().isBlank()
+                ? fallback : value.asText();
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.min(Math.max(value, min), max);
+    }
+
+    private BigDecimal scale(double value, int digits) {
+        return BigDecimal.valueOf(value).setScale(digits, RoundingMode.HALF_UP);
     }
 
     @Override

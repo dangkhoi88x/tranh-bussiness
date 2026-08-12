@@ -293,6 +293,7 @@ export function ProductPage() {
         productFrameOptionId: frameOptionId,
         // Trang này chỉ phục vụ hàng không bán theo trang — photobook đã chuyển sang /photobook/:slug.
         pageCount: null,
+        photobookDesignId: null,
         quantity: qty,
         productName: product.name,
         productSlug: product.slug,

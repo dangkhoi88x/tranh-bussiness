@@ -12,5 +12,7 @@ public record AddCartItemRequest(
         UUID productFrameOptionId,
         /** Bắt buộc với photobook (sản phẩm bán theo trang), phải bỏ trống với sản phẩm khác. */
         @Min(1) Integer pageCount,
+        /** Bản thiết kế đã chốt trước khi thêm vào giỏ; tuỳ chọn — thiếu thì dùng luồng gửi ảnh thủ công sau khi mua. */
+        UUID photobookDesignId,
         @NotNull @Min(1) @Max(999) Integer quantity) {
 }

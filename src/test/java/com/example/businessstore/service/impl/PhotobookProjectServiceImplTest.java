@@ -5,12 +5,15 @@ import com.example.businessstore.constant.PhotobookProjectStatus;
 import com.example.businessstore.constant.PhotobookProofDecision;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.OrderItem;
+import com.example.businessstore.entity.PhotobookDesign;
+import com.example.businessstore.entity.PhotobookDesignImage;
 import com.example.businessstore.entity.PhotobookProject;
 import com.example.businessstore.entity.PhotobookProjectPhoto;
 import com.example.businessstore.entity.PhotobookProof;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
+import com.example.businessstore.repository.PhotobookDesignRepository;
 import com.example.businessstore.repository.PhotobookProjectRepository;
 import com.example.businessstore.service.MediaStorageService;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
@@ -21,10 +24,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.data.domain.PageImpl;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,10 +49,12 @@ class PhotobookProjectServiceImplTest {
 
     @Mock private PhotobookProjectRepository projectRepository;
     @Mock private com.example.businessstore.repository.PhotobookSpreadRepository spreadRepository;
+    @Mock private PhotobookDesignRepository photobookDesignRepository;
     @Mock private PhotobookLayoutEngine layoutEngine;
     @Mock private MediaStorageService mediaStorageService;
     @Mock private MediaTransactionSynchronizer mediaTransactionSynchronizer;
     @Mock private NotificationService notificationService;
+    @Spy private ObjectMapper objectMapper = new ObjectMapper();
     @InjectMocks private PhotobookProjectServiceImpl service;
 
     private final UUID userId = UUID.randomUUID();
@@ -131,6 +138,81 @@ class PhotobookProjectServiceImplTest {
         assertThat(saved.getValue().getOrderItem().getProductName()).isEqualTo("Photobook Eco Matte");
         assertThat(saved.getValue().getPageCount()).isEqualTo(20);
         assertThat(saved.getValue().getStatus()).isEqualTo(PhotobookProjectStatus.AWAITING_PHOTOS);
+    }
+
+    @Test
+    void openProjectsFor_hydratesSpreadsAndPhotosFromALinkedDesign() {
+        UUID designId = UUID.randomUUID();
+        project.getOrderItem().setPhotobookDesignId(designId);
+        Order order = project.getOrder();
+        order.getItems().add(project.getOrderItem());
+
+        PhotobookDesign design = new PhotobookDesign();
+        design.setId(designId);
+        design.setProductSlug("photobook-eco-matte");
+        design.setPageCount(20);
+        PhotobookDesignImage image = new PhotobookDesignImage();
+        image.setDesign(design);
+        image.setImageKey("img-1");
+        image.setPublicId("business-store/photobook-designs/" + designId + "/abc");
+        design.getImages().add(image);
+        design.setSpreadsJson("""
+                [{"position":1,"layoutCode":"TRAN_DOI","backgroundColor":"#111111",
+                  "captions":[{"id":"c1","text":"He 2024"}],
+                  "slots":[{"imageId":"img-1","zoom":2.0,"panX":1.0,"panY":-1.0}]}]
+                """);
+
+        when(photobookDesignRepository.findById(designId)).thenReturn(Optional.of(design));
+        when(spreadRepository.saveAll(any())).thenAnswer(call -> call.getArgument(0));
+
+        // openProjectsFor tạo một PhotobookProject mới bên trong nó (khác với "project" của
+        // fixture @BeforeEach, vốn chỉ được dùng để dựng sẵn Order/OrderItem) — phải bắt lại
+        // đúng đối tượng đã lưu để kiểm tra kết quả hydrate.
+        service.openProjectsFor(order);
+
+        ArgumentCaptor<PhotobookProject> projectCaptor = ArgumentCaptor.forClass(PhotobookProject.class);
+        verify(projectRepository, org.mockito.Mockito.atLeastOnce()).save(projectCaptor.capture());
+        PhotobookProject hydrated = projectCaptor.getValue();
+
+        assertThat(hydrated.getStatus()).isEqualTo(PhotobookProjectStatus.PHOTOS_SUBMITTED);
+        assertThat(hydrated.getSubmittedAt()).isNotNull();
+        assertThat(hydrated.getPhotos()).singleElement()
+                .satisfies(photo -> assertThat(photo.getPublicId()).isEqualTo(image.getPublicId()));
+
+        ArgumentCaptor<List<com.example.businessstore.entity.PhotobookSpread>> captor = ArgumentCaptor.forClass(List.class);
+        verify(spreadRepository).saveAll(captor.capture());
+        var spread = captor.getValue().getFirst();
+        assertThat(spread.getLayoutCode()).isEqualTo("TRAN_DOI");
+        assertThat(spread.getBackgroundColor()).isEqualTo("#111111");
+        assertThat(spread.getCaptionsJson()).contains("He 2024");
+        var slot = spread.getSlots().getFirst();
+        assertThat(slot.getPhoto().getPublicId()).isEqualTo(image.getPublicId());
+        // zoom clamped to 3.00 max; panX/panY clamped to ±1 -> focal 1.000/0.000.
+        assertThat(slot.getZoom()).isEqualByComparingTo("2.00");
+        assertThat(slot.getFocalX()).isEqualByComparingTo("1.000");
+        assertThat(slot.getFocalY()).isEqualByComparingTo("0.000");
+    }
+
+    @Test
+    void openProjectsFor_fallsBackToAwaitingPhotosWhenDesignDoesNotMatchTheOrderLine() {
+        UUID designId = UUID.randomUUID();
+        project.getOrderItem().setPhotobookDesignId(designId);
+        Order order = project.getOrder();
+        order.getItems().add(project.getOrderItem());
+
+        PhotobookDesign design = new PhotobookDesign();
+        design.setId(designId);
+        design.setProductSlug("a-different-photobook");
+        design.setPageCount(20);
+        when(photobookDesignRepository.findById(designId)).thenReturn(Optional.of(design));
+
+        service.openProjectsFor(order);
+
+        ArgumentCaptor<PhotobookProject> projectCaptor = ArgumentCaptor.forClass(PhotobookProject.class);
+        verify(projectRepository).save(projectCaptor.capture());
+        assertThat(projectCaptor.getValue().getStatus()).isEqualTo(PhotobookProjectStatus.AWAITING_PHOTOS);
+        assertThat(projectCaptor.getValue().getPhotos()).isEmpty();
+        verify(spreadRepository, never()).saveAll(any());
     }
 
     @Test

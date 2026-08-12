@@ -321,7 +321,7 @@ function SampleSpread({ layoutCode, imageUrls, imageOffset }: { layoutCode: stri
 
 const PB_FAQS = [
   { q: 'Template là gì, tôi có thể tuỳ chỉnh không?', a: 'Template là bố cục sẵn với phông chữ, bảng màu và cách sắp ảnh đã được thiết kế. Bạn gửi ảnh, xưởng đặt vào template và gửi bản mềm duyệt. Nếu muốn đổi phông, thay màu hoặc thêm trang thì báo khi duyệt — sửa miễn phí 2 lần.' },
-  { q: 'Cần gửi bao nhiêu ảnh?', a: 'Tuỳ số trang: cuốn 20 trang cần khoảng 30–40 ảnh, 40 trang cần 60–80 ảnh. Gửi nhiều hơn cũng được, xưởng sẽ chọn và bố cục giúp.' },
+  { q: 'Cần gửi bao nhiêu ảnh?', a: 'Tuỳ số trang: cuốn 20 trang cần khoảng 60–80 ảnh, 40 trang cần 120–160 ảnh. Gửi nhiều hơn cũng được, xưởng sẽ chọn và bố cục giúp.' },
   { q: 'Chất liệu giấy và bìa thế nào?', a: 'Ruột in trên giấy mỹ thuật 250gsm, phủ mờ chống loá. Bìa cứng bọc vải, ép nhũ tên hoặc in UV tuỳ template. Có thể nâng cấp giấy ảnh 300gsm hoặc bìa da nếu cần.' },
   { q: 'Bao lâu thì nhận được?', a: 'Sau khi duyệt bản mềm: 7–10 ngày làm việc. Đơn gấp rút còn 5 ngày, phụ thu 30%. Ship toàn quốc, đóng hộp chống ẩm.' },
   { q: 'Đặt số lượng nhiều có giảm giá không?', a: 'Từ 5 cuốn trở lên có giá sỉ. Liên hệ xưởng để nhận bảng giá riêng theo số lượng và quy cách.' },

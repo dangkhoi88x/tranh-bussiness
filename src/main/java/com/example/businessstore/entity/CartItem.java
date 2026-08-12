@@ -38,6 +38,11 @@ public class CartItem extends BaseEntity {
     @Column(name = "page_count")
     private Integer pageCount;
 
+    /** Bản thiết kế photobook đã chốt trước khi thêm vào giỏ; null nếu khách bỏ qua bước thiết kế. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "photobook_design_id")
+    private PhotobookDesign photobookDesign;
+
     @Column(nullable = false)
     private int quantity;
 }

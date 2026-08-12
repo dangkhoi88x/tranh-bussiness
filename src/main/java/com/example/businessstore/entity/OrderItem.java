@@ -30,6 +30,8 @@ public class OrderItem extends BaseEntity {
     @Column(name = "frame_name", length = 120) private String frameName;
     /** Số trang đã chốt của photobook — quyết định productPrice, nên phải chụp lại cùng đơn. */
     @Column(name = "page_count") private Integer pageCount;
+    /** Bản thiết kế đã chốt lúc thêm vào giỏ — dùng để hydrate PhotobookProject; null nếu không có. */
+    @Column(name = "photobook_design_id") private java.util.UUID photobookDesignId;
     @Column(name = "product_price", nullable = false, precision = 19, scale = 2) private BigDecimal productPrice;
     @Column(name = "frame_price_adjustment", nullable = false, precision = 19, scale = 2) private BigDecimal framePriceAdjustment;
     @Column(name = "unit_price", nullable = false, precision = 19, scale = 2) private BigDecimal unitPrice;

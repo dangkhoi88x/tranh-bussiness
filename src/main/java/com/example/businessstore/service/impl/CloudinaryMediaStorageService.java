@@ -67,6 +67,21 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
         deletePrivateImage(publicId);
     }
 
+    @Override
+    public UploadedMedia uploadPhotobookDesignImage(UUID designId, MultipartFile file) {
+        return uploadImage("business-store/photobook-designs/" + designId, file, "authenticated");
+    }
+
+    @Override
+    public String signedPhotobookDesignImageUrl(String publicId) {
+        return signedPrivateImageUrl(publicId);
+    }
+
+    @Override
+    public void deletePhotobookDesignImage(String publicId) {
+        deletePrivateImage(publicId);
+    }
+
     /**
      * Bản mềm nạp bằng resource_type "image" kể cả khi là PDF — đó là điều kiện để Cloudinary
      * render được từng trang thành ảnh (transformation pg_N) cho khách lật xem inline.
