@@ -198,7 +198,7 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
         requireEditable(project);
         if (project.getPhotos().size() >= maxPhotos(project.getPageCount())) {
             throw new AppException(ErrorCode.PHOTOBOOK_PHOTO_LIMIT_REACHED,
-                    "This photobook already holds the maximum number of photos");
+                    "Cuốn photobook này đã đạt số ảnh tối đa.");
         }
 
         MediaStorageService.UploadedMedia uploaded = mediaStorageService.uploadPhotobookPhoto(projectId, file);
@@ -227,7 +227,7 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
         PhotobookProjectPhoto photo = project.getPhotos().stream()
                 .filter(item -> item.getId().equals(photoId))
                 .findFirst()
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PHOTO_NOT_FOUND, "Photo not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PHOTO_NOT_FOUND, "Không tìm thấy ảnh."));
 
         project.getPhotos().remove(photo);
         PhotobookProject saved = projectRepository.save(project);
@@ -244,7 +244,7 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
         int minimum = project.getPageCount() * PHOTOS_PER_PAGE_MIN;
         if (project.getPhotos().size() < minimum) {
             throw new AppException(ErrorCode.PHOTOBOOK_NOT_ENOUGH_PHOTOS,
-                    "A " + project.getPageCount() + "-page photobook needs at least " + minimum + " photos");
+                    "Cuốn photobook " + project.getPageCount() + " trang cần ít nhất " + minimum + " ảnh.");
         }
         project.setCustomerNote(normalizeNote(customerNote));
         project.setStatus(PhotobookProjectStatus.PHOTOS_SUBMITTED);
@@ -272,11 +272,11 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
         String note = normalizeNote(customerNote);
         if (note == null) {
             throw new AppException(ErrorCode.PHOTOBOOK_REVISION_NOTE_REQUIRED,
-                    "Tell the studio what to change so they can send a new proof");
+                    "Hãy nêu rõ chỗ cần sửa để xưởng gửi lại bản mềm mới.");
         }
         if (project.getRevisionCount() >= MAX_REVISIONS) {
             throw new AppException(ErrorCode.PHOTOBOOK_REVISION_LIMIT_REACHED,
-                    "This photobook has used its " + MAX_REVISIONS + " free revisions; contact the studio");
+                    "Cuốn photobook này đã dùng hết " + MAX_REVISIONS + " lượt chỉnh sửa miễn phí; vui lòng liên hệ xưởng.");
         }
         proof.setDecision(PhotobookProofDecision.REVISION_REQUESTED);
         proof.setCustomerNote(note);
@@ -302,19 +302,19 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
     @Transactional(readOnly = true)
     public PhotobookProjectResponse getForManagementById(UUID projectId) {
         return toResponse(projectRepository.findById(projectId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Photobook project not found")));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Không tìm thấy cuốn photobook.")));
     }
 
     @Override
     @Transactional
     public PhotobookProjectResponse uploadProof(UUID projectId, MultipartFile file, String staffNote) {
         PhotobookProject project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Photobook project not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Không tìm thấy cuốn photobook."));
         // Chỉ gửi bản mềm khi đã có ảnh để layout, và không gửi chồng lên bản khách chưa quyết.
         if (project.getStatus() != PhotobookProjectStatus.PHOTOS_SUBMITTED
                 && project.getStatus() != PhotobookProjectStatus.REVISION_REQUESTED) {
             throw new AppException(ErrorCode.PHOTOBOOK_PROOF_NOT_ALLOWED,
-                    "A proof can be sent only after the customer submits photos or asks for a revision");
+                    "Chỉ gửi được bản mềm sau khi khách đã gửi ảnh hoặc yêu cầu chỉnh sửa.");
         }
 
         MediaStorageService.UploadedMedia uploaded = mediaStorageService.uploadPhotobookProof(projectId, file);
@@ -359,13 +359,13 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
     /** Bản mềm mới nhất đang chờ khách quyết định. */
     private PhotobookProof pendingProof(PhotobookProject project) {
         if (project.getStatus() != PhotobookProjectStatus.PROOF_SENT) {
-            throw new AppException(ErrorCode.PHOTOBOOK_NO_PENDING_PROOF, "There is no proof waiting for your decision");
+            throw new AppException(ErrorCode.PHOTOBOOK_NO_PENDING_PROOF, "Không có bản mềm nào đang chờ bạn duyệt.");
         }
         return project.getProofs().stream()
                 .filter(proof -> proof.getDecision() == PhotobookProofDecision.PENDING)
                 .reduce((first, second) -> second)
                 .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_NO_PENDING_PROOF,
-                        "There is no proof waiting for your decision"));
+                        "Không có bản mềm nào đang chờ bạn duyệt."));
     }
 
     private void notifyProofSent(PhotobookProject project, int revision) {
@@ -381,14 +381,14 @@ public class PhotobookProjectServiceImpl implements PhotobookProjectService {
 
     private PhotobookProject owned(UUID userId, UUID projectId) {
         return projectRepository.findByIdAndUserId(projectId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Photobook project not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Không tìm thấy cuốn photobook."));
     }
 
     /** Chỉ sửa được bộ ảnh trước khi khách chốt; sau đó xưởng đã bắt đầu lên layout. */
     private void requireEditable(PhotobookProject project) {
         if (project.getStatus() != PhotobookProjectStatus.AWAITING_PHOTOS) {
             throw new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_EDITABLE,
-                    "Photos are locked once you have submitted them to the studio");
+                    "Ảnh đã gửi cho xưởng thì không sửa được nữa.");
         }
     }
 

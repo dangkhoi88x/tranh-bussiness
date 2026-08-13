@@ -63,12 +63,12 @@ public class UserManagementServiceImpl implements UserManagementService {
         rejectSelfManagement(actorId, userId);
         User user = getUser(userId);
         if (hasAdminRole(user) && !request.roles().contains(RoleName.ADMIN) && user.isEnabled() && userRepository.countOtherEnabledAdmins(userId) == 0) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Cannot remove the last enabled administrator role");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể gỡ quyền của quản trị viên đang hoạt động cuối cùng.");
         }
         Map<String, Role> rolesByName = roleRepository.findAllByOrderByNameAsc().stream()
                 .collect(Collectors.toMap(Role::getName, Function.identity()));
         if (request.roles().stream().anyMatch(role -> !rolesByName.containsKey(role.name()))) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "One or more roles do not exist");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Có vai trò không tồn tại.");
         }
         user.getUserRoles().removeIf(assignment -> !request.roles().contains(RoleName.valueOf(assignment.getRole().getName())));
         request.roles().forEach(role -> {
@@ -86,7 +86,7 @@ public class UserManagementServiceImpl implements UserManagementService {
         rejectSelfManagement(actorId, userId);
         User user = getUser(userId);
         if (!request.enabled() && hasAdminRole(user) && userRepository.countOtherEnabledAdmins(userId) == 0) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Cannot disable the last enabled administrator");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Không thể khoá quản trị viên đang hoạt động cuối cùng.");
         }
         user.setEnabled(request.enabled());
         tokenStore.revokeAllRefreshTokens(userId);
@@ -103,14 +103,14 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional
     public ManagedRoleResponse updateStaffPermissions(UpdateRolePermissionsRequest request) {
         if (!STAFF_ASSIGNABLE_PERMISSIONS.containsAll(request.permissions())) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "USER_MANAGE can only belong to ADMIN");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Quyền quản lý người dùng chỉ thuộc về vai trò quản trị viên.");
         }
         Role staff = roleRepository.findWithPermissionsByNameIgnoreCase(RoleName.STAFF.name())
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "STAFF role not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy vai trò nhân viên."));
         Map<String, Permission> permissionsByName = permissionRepository.findAll().stream()
                 .collect(Collectors.toMap(Permission::getName, Function.identity()));
         if (request.permissions().stream().anyMatch(permission -> !permissionsByName.containsKey(permission.name()))) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "One or more permissions do not exist");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Có quyền không tồn tại.");
         }
         rolePermissionRepository.deleteByRole(staff);
         rolePermissionRepository.flush();
@@ -127,7 +127,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private User getUser(UUID userId) {
         return userRepository.findWithRolesById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy người dùng."));
     }
 
     private boolean hasAdminRole(User user) {
@@ -136,7 +136,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     private void rejectSelfManagement(UUID actorId, UUID userId) {
         if (actorId.equals(userId)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "You cannot change your own roles or account status");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Bạn không thể tự đổi vai trò hoặc trạng thái tài khoản của chính mình.");
         }
     }
 

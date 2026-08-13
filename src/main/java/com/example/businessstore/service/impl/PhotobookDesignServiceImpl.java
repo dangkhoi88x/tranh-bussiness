@@ -41,16 +41,16 @@ public class PhotobookDesignServiceImpl implements PhotobookDesignService {
         // khác nhau, hydrate sau này sẽ tạo ra một cuốn sai số trang so với cái khách đã trả tiền.
         if (!spreads.isArray() || spreads.size() != pageCount / 2) {
             throw new AppException(ErrorCode.INVALID_REQUEST,
-                    "Spread count must match pageCount / 2");
+                    "Số trang đôi phải bằng một nửa số trang.");
         }
         Set<String> referencedImageIds = payloadValidator.imageIdsIn(spreads);
         Set<String> uploadedImageIds = payloadValidator.uploadedImageIds(images);
         if (!referencedImageIds.equals(uploadedImageIds)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Uploaded images must match the photos placed in spreads");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Ảnh tải lên phải khớp với ảnh đã đặt trong các trang đôi.");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Authenticated user was not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy tài khoản của phiên đăng nhập này."));
 
         PhotobookDesign design = new PhotobookDesign();
         design.setUser(user);
@@ -87,7 +87,7 @@ public class PhotobookDesignServiceImpl implements PhotobookDesignService {
     private int requirePageCount(JsonNode metadata) {
         JsonNode value = metadata.get("pageCount");
         if (value == null || value.isNull() || !value.canConvertToInt() || value.asInt() <= 0) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "pageCount must be a positive integer");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Số trang phải là số nguyên dương.");
         }
         return value.asInt();
     }

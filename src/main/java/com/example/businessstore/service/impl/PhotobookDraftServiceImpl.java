@@ -65,20 +65,20 @@ public class PhotobookDraftServiceImpl implements PhotobookDraftService {
 
     private void validateDraft(String productSlug, String draftJson) {
         if (productSlug == null || productSlug.isBlank() || productSlug.length() > 255) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Invalid photobook product");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Sản phẩm photobook không hợp lệ.");
         }
         if (draftJson == null || draftJson.isBlank() || draftJson.length() > MAX_DRAFT_JSON_CHARS) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Draft JSON is too large");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Bản nháp quá lớn.");
         }
         try {
             JsonNode draft = objectMapper.readTree(draftJson);
             JsonNode draftSlug = draft == null ? null : draft.get("slug");
             if (draft == null || !draft.isObject() || draftSlug == null || !draftSlug.isTextual()
                     || !productSlug.equals(draftSlug.asText())) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Draft does not match the photobook product");
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Bản nháp không khớp với sản phẩm photobook.");
             }
         } catch (JacksonException exception) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Draft JSON is invalid");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Dữ liệu bản nháp không hợp lệ.");
         }
     }
 }

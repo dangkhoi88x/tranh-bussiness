@@ -33,7 +33,7 @@ public class PhotobookDesignController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(ApiResponse.success(
-                        photobookDesignService.create(userId(jwt), metadataJson, images), "Design saved"));
+                        photobookDesignService.create(userId(jwt), metadataJson, images), "Đã lưu thiết kế."));
     }
 
     private UUID userId(Jwt jwt) {

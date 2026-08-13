@@ -49,7 +49,7 @@ public class PhotobookTemplateServiceImpl implements PhotobookTemplateService {
         String code = request.code().trim();
         if (templateRepository.existsByCode(code)) {
             throw new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_CODE_ALREADY_EXISTS,
-                    "A photobook template with code " + code + " already exists");
+                    "Đã có mẫu photobook dùng mã " + code + ".");
         }
         PhotobookTemplate template = new PhotobookTemplate();
         template.setCode(code);
@@ -62,7 +62,7 @@ public class PhotobookTemplateServiceImpl implements PhotobookTemplateService {
     public PhotobookTemplateResponse update(UUID id, SavePhotobookTemplateRequest request) {
         PhotobookTemplate template = templateRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_FOUND,
-                        "Photobook template not found"));
+                        "Không tìm thấy mẫu photobook."));
         // Mã không đổi được: order_items và photobook_projects chụp lại mã chứ không giữ khoá
         // ngoại, đổi mã ở đây là làm mọi cuốn đã bán trỏ vào khoảng không.
         apply(template, request);
@@ -73,7 +73,7 @@ public class PhotobookTemplateServiceImpl implements PhotobookTemplateService {
         requireKnownLayouts(request.layoutCycle());
         if (request.defaultTemplate() && !request.active()) {
             throw new AppException(ErrorCode.INVALID_PHOTOBOOK_TEMPLATE,
-                    "The default template cannot be hidden — it is what every book without a chosen theme falls back to");
+                    "Không ẩn được mẫu mặc định — mọi cuốn chưa chọn giao diện đều dùng mẫu này.");
         }
         template.setName(request.name().trim());
         template.setDescription(blankToNull(request.description()));
@@ -94,7 +94,7 @@ public class PhotobookTemplateServiceImpl implements PhotobookTemplateService {
             template.setDefaultTemplate(true);
         } else if (template.isDefaultTemplate()) {
             throw new AppException(ErrorCode.INVALID_PHOTOBOOK_TEMPLATE,
-                    "Pick another template as the default before clearing this one");
+                    "Hãy đặt một mẫu khác làm mặc định trước khi bỏ mẫu này.");
         }
     }
 
@@ -117,7 +117,7 @@ public class PhotobookTemplateServiceImpl implements PhotobookTemplateService {
                 .filter(code -> !known.contains(code)).distinct().toList();
         if (!unknown.isEmpty()) {
             throw new AppException(ErrorCode.INVALID_PHOTOBOOK_TEMPLATE,
-                    "Unknown or inactive layout codes: " + String.join(", ", unknown));
+                    "Không tìm thấy bố cục đang dùng được: " + String.join(", ", unknown));
         }
     }
 
@@ -130,7 +130,7 @@ public class PhotobookTemplateServiceImpl implements PhotobookTemplateService {
             return objectMapper.readValue(json, type);
         } catch (JacksonException exception) {
             throw new AppException(ErrorCode.INVALID_PHOTOBOOK_TEMPLATE,
-                    "Corrupt " + field + " for template " + code);
+                    "Trường " + field + " của mẫu " + code + " bị hỏng.");
         }
     }
 

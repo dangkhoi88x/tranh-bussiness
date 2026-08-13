@@ -109,14 +109,14 @@ public class ProductController {
             @PathVariable UUID id,
             @Valid @RequestBody SavePhotobookPagePricingRequest request) {
         return ResponseEntity.ok(
-                ApiResponse.success(photobookPagePricingService.save(id, request), "Page pricing updated"));
+                ApiResponse.success(photobookPagePricingService.save(id, request), "Đã cập nhật bảng giá theo trang."));
     }
 
     @PostMapping
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
     public ResponseEntity<ApiResponse<ProductResponse>> create(@Valid @RequestBody CreateProductRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(productService.create(request), "Product created"));
+                .body(ApiResponse.success(productService.create(request), "Đã tạo sản phẩm."));
     }
 
     @PutMapping("/{id}")
@@ -124,7 +124,7 @@ public class ProductController {
     public ResponseEntity<ApiResponse<ProductResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProductRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(productService.update(id, request), "Product updated"));
+        return ResponseEntity.ok(ApiResponse.success(productService.update(id, request), "Đã cập nhật sản phẩm."));
     }
 
     @DeleteMapping("/{id}")

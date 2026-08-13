@@ -74,7 +74,7 @@ public class PromotionServiceImpl implements PromotionService {
         validateDefinition(request.type(), request.discountValue(), request.startAt(), request.endAt());
         String code = normalizeCode(request.code());
         if (promotionRepository.existsByCodeIgnoreCase(code)) {
-            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Promotion code already exists");
+            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Mã khuyến mãi này đã tồn tại.");
         }
         Promotion promotion = new Promotion();
         applyDefinition(promotion, request.name(), code, request.description(), request.type(),
@@ -87,7 +87,7 @@ public class PromotionServiceImpl implements PromotionService {
         try {
             return toResponse(promotionRepository.saveAndFlush(promotion));
         } catch (DataIntegrityViolationException exception) {
-            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Promotion code already exists");
+            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Mã khuyến mãi này đã tồn tại.");
         }
     }
 
@@ -96,12 +96,12 @@ public class PromotionServiceImpl implements PromotionService {
     public PromotionResponse update(UUID id, UpdatePromotionRequest request) {
         Promotion promotion = getWithScopes(id);
         if (promotion.getStatus() == PromotionStatus.ACTIVE || usageRepository.existsByPromotionId(id)) {
-            throw new AppException(ErrorCode.PROMOTION_NOT_EDITABLE, "Deactivate the unused promotion before editing its rules");
+            throw new AppException(ErrorCode.PROMOTION_NOT_EDITABLE, "Hãy tắt chương trình khuyến mãi chưa ai dùng trước khi sửa điều kiện của nó.");
         }
         validateDefinition(request.type(), request.discountValue(), request.startAt(), request.endAt());
         String code = normalizeCode(request.code());
         if (promotionRepository.existsByCodeIgnoreCaseAndIdNot(code, id)) {
-            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Promotion code already exists");
+            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Mã khuyến mãi này đã tồn tại.");
         }
         applyDefinition(promotion, request.name(), code, request.description(), request.type(),
                 request.discountValue(), request.maxDiscountAmount(), request.minOrderAmount(),
@@ -110,7 +110,7 @@ public class PromotionServiceImpl implements PromotionService {
         try {
             return toResponse(promotionRepository.saveAndFlush(promotion));
         } catch (DataIntegrityViolationException exception) {
-            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Promotion code already exists");
+            throw new AppException(ErrorCode.PROMOTION_CODE_ALREADY_EXISTS, "Mã khuyến mãi này đã tồn tại.");
         }
     }
 
@@ -119,12 +119,12 @@ public class PromotionServiceImpl implements PromotionService {
     public PromotionResponse updateStatus(UUID id, PromotionStatus status) {
         Promotion promotion = getWithScopes(id);
         if (status != PromotionStatus.ACTIVE && status != PromotionStatus.INACTIVE) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Promotion status can only be changed to ACTIVE or INACTIVE");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Chỉ chuyển chương trình khuyến mãi sang trạng thái đang chạy hoặc tạm dừng.");
         }
         if (status == PromotionStatus.ACTIVE) {
             validateDefinition(promotion.getType(), promotion.getDiscountValue(), promotion.getStartAt(), promotion.getEndAt());
             if (!Instant.now().isBefore(promotion.getEndAt())) {
-                throw new AppException(ErrorCode.PROMOTION_EXPIRED, "Promotion has already ended");
+                throw new AppException(ErrorCode.PROMOTION_EXPIRED, "Chương trình khuyến mãi đã kết thúc.");
             }
         }
         promotion.setStatus(status);
@@ -152,7 +152,7 @@ public class PromotionServiceImpl implements PromotionService {
     @Transactional(readOnly = true)
     public PageResponse<PromotionResponse> getAll(String code, PromotionStatus status, LocalDate effectiveFrom, LocalDate effectiveTo, int page, int size) {
         if (effectiveFrom != null && effectiveTo != null && effectiveFrom.isAfter(effectiveTo)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Effective-from date must not be after effective-to date");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Ngày bắt đầu áp dụng không được sau ngày kết thúc.");
         }
         Instant from = effectiveFrom == null ? null : effectiveFrom.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
         Instant toExclusive = effectiveTo == null ? null : effectiveTo.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
@@ -166,7 +166,7 @@ public class PromotionServiceImpl implements PromotionService {
     @Transactional(readOnly = true)
     public PageResponse<PromotionUsageResponse> getUsages(UUID promotionId, int page, int size) {
         if (!promotionRepository.existsById(promotionId)) {
-            throw new AppException(ErrorCode.PROMOTION_NOT_FOUND, "Promotion not found");
+            throw new AppException(ErrorCode.PROMOTION_NOT_FOUND, "Không tìm thấy chương trình khuyến mãi.");
         }
         Page<PromotionUsage> usages = usageRepository.findAllByPromotionId(promotionId, pageRequest(page, size));
         return new PageResponse<>(usages.getContent().stream().map(this::toUsageResponse).toList(),
@@ -179,7 +179,7 @@ public class PromotionServiceImpl implements PromotionService {
     public PromotionCalculationResponse previewCart(UUID userId, String couponCode) {
         Cart cart = cartRepository.findByUserId(userId)
                 .filter(current -> !current.getItems().isEmpty())
-                .orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY, "Cart is empty"));
+                .orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY, "Giỏ hàng đang trống."));
         BigDecimal subtotal = BigDecimal.ZERO;
         List<PromotionLine> lines = new java.util.ArrayList<>();
         for (CartItem item : cart.getItems()) {
@@ -198,7 +198,7 @@ public class PromotionServiceImpl implements PromotionService {
         ensureUserLimit(promotion, userId);
         if (promotion.getUsageLimit() > 0
                 && promotion.getReservedCount() + promotion.getUsedCount() >= promotion.getUsageLimit()) {
-            throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_REACHED, "Promotion quota has been exhausted");
+            throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_REACHED, "Mã khuyến mãi đã hết lượt sử dụng.");
         }
         return calculate(promotion, money(subtotal), lines, null);
     }
@@ -218,14 +218,14 @@ public class PromotionServiceImpl implements PromotionService {
 
         if (promotionRepository.reserveQuota(promotion.getId(), now) != 1) {
             throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_REACHED,
-                    "Promotion is no longer active or its quota has been exhausted");
+                    "Mã khuyến mãi đã ngừng áp dụng hoặc đã hết lượt.");
         }
         ensureUserLimit(promotion, userId);
 
         PromotionUsage usage = new PromotionUsage();
         usage.setPromotion(promotion);
         usage.setUser(userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Authenticated user was not found")));
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy tài khoản của phiên đăng nhập này.")));
         usage.setOrder(order);
         usage.setCouponCode(promotion.getCode());
         usage.setEligibleSubtotal(calculation.eligibleSubtotal());
@@ -242,14 +242,14 @@ public class PromotionServiceImpl implements PromotionService {
         PromotionUsage usage = usageRepository.findByOrderIdForUpdate(order.getId()).orElse(null);
         if (usage == null || usage.getStatus() == PromotionUsageStatus.CONSUMED) return;
         if (usage.getStatus() != PromotionUsageStatus.RESERVED) {
-            throw new AppException(ErrorCode.PROMOTION_RESERVATION_EXPIRED, "Promotion reservation is no longer available");
+            throw new AppException(ErrorCode.PROMOTION_RESERVATION_EXPIRED, "Lượt giữ mã khuyến mãi không còn hiệu lực.");
         }
         Instant now = Instant.now();
         if (!now.isBefore(usage.getExpiresAt())) {
-            throw new AppException(ErrorCode.PROMOTION_RESERVATION_EXPIRED, "Promotion reservation has expired");
+            throw new AppException(ErrorCode.PROMOTION_RESERVATION_EXPIRED, "Lượt giữ mã khuyến mãi đã hết hạn.");
         }
         if (promotionRepository.consumeReservedQuota(usage.getPromotion().getId()) != 1) {
-            throw new AppException(ErrorCode.INTERNAL_ERROR, "Promotion quota counters are inconsistent");
+            throw new AppException(ErrorCode.INTERNAL_ERROR, "Số lượt của mã khuyến mãi đang bị lệch.");
         }
         usage.setStatus(PromotionUsageStatus.CONSUMED);
         usage.setConsumedAt(now);
@@ -300,7 +300,7 @@ public class PromotionServiceImpl implements PromotionService {
                 promotion.getId(), userId, ACTIVE_USAGE_STATUSES);
         if (usages >= promotion.getPerUserLimit()) {
             throw new AppException(ErrorCode.PROMOTION_USER_LIMIT_REACHED,
-                    "User promotion usage limit has been reached");
+                    "Bạn đã dùng hết số lượt cho phép của mã này.");
         }
     }
 
@@ -313,11 +313,11 @@ public class PromotionServiceImpl implements PromotionService {
         eligibleSubtotal = money(eligibleSubtotal);
         if (eligibleSubtotal.signum() <= 0) {
             throw new AppException(ErrorCode.PROMOTION_NOT_APPLICABLE,
-                    "Promotion does not apply to any cart item");
+                    "Mã khuyến mãi không áp dụng cho sản phẩm nào trong giỏ.");
         }
         if (eligibleSubtotal.compareTo(promotion.getMinOrderAmount()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET,
-                    "Eligible subtotal does not meet the promotion minimum");
+                    "Giá trị hàng đủ điều kiện chưa đạt mức tối thiểu của mã.");
         }
         BigDecimal discount = switch (promotion.getType()) {
             case PERCENTAGE -> eligibleSubtotal.multiply(promotion.getDiscountValue())
@@ -345,12 +345,12 @@ public class PromotionServiceImpl implements PromotionService {
 
     private Promotion activePromotion(String couponCode, Instant now) {
         Promotion promotion = promotionRepository.findByCodeIgnoreCase(normalizeCode(couponCode))
-                .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND, "Promotion not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND, "Không tìm thấy chương trình khuyến mãi."));
         if (promotion.getStatus() != PromotionStatus.ACTIVE) {
-            throw new AppException(ErrorCode.PROMOTION_NOT_ACTIVE, "Promotion is not active");
+            throw new AppException(ErrorCode.PROMOTION_NOT_ACTIVE, "Mã khuyến mãi hiện không được áp dụng.");
         }
         if (now.isBefore(promotion.getStartAt()) || !now.isBefore(promotion.getEndAt())) {
-            throw new AppException(ErrorCode.PROMOTION_EXPIRED, "Promotion is outside its active period");
+            throw new AppException(ErrorCode.PROMOTION_EXPIRED, "Mã khuyến mãi không nằm trong thời gian áp dụng.");
         }
         return promotion;
     }
@@ -362,17 +362,17 @@ public class PromotionServiceImpl implements PromotionService {
         Set<String> uniqueScopes = new HashSet<>();
         for (PromotionScopeRequest request : requests) {
             if (!uniqueScopes.add(request.type() + ":" + request.targetId())) {
-                throw new AppException(ErrorCode.INVALID_REQUEST, "Duplicate promotion scope");
+                throw new AppException(ErrorCode.INVALID_REQUEST, "Phạm vi áp dụng bị trùng.");
             }
             PromotionScope scope = new PromotionScope();
             scope.setScopeType(request.type());
             switch (request.type()) {
                 case CATEGORY -> scope.setCategory(categoryRepository.findById(request.targetId())
-                        .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Category scope not found")));
+                        .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Không tìm thấy danh mục trong phạm vi áp dụng.")));
                 case PRODUCT -> scope.setProduct(productRepository.findById(request.targetId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product scope not found")));
+                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm trong phạm vi áp dụng.")));
                 case VARIANT -> scope.setProductVariant(productVariantRepository.findById(request.targetId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND, "Variant scope not found")));
+                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND, "Không tìm thấy phiên bản sản phẩm trong phạm vi áp dụng.")));
             }
             promotion.addScope(scope);
         }
@@ -398,17 +398,17 @@ public class PromotionServiceImpl implements PromotionService {
     private void validateDefinition(PromotionType type, BigDecimal discountValue,
                                     Instant startAt, Instant endAt) {
         if (!endAt.isAfter(startAt)) {
-            throw new AppException(ErrorCode.INVALID_PROMOTION_PERIOD, "Promotion end time must be after start time");
+            throw new AppException(ErrorCode.INVALID_PROMOTION_PERIOD, "Thời điểm kết thúc phải sau thời điểm bắt đầu.");
         }
         if (discountValue.signum() <= 0
                 || (type == PromotionType.PERCENTAGE && discountValue.compareTo(BigDecimal.valueOf(100)) > 0)) {
-            throw new AppException(ErrorCode.INVALID_PROMOTION_VALUE, "Promotion discount value is invalid");
+            throw new AppException(ErrorCode.INVALID_PROMOTION_VALUE, "Mức giảm giá không hợp lệ.");
         }
     }
 
     private Promotion getWithScopes(UUID id) {
         return promotionRepository.findWithScopesById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND, "Promotion not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND, "Không tìm thấy chương trình khuyến mãi."));
     }
 
     private PromotionResponse toResponse(Promotion promotion) {
@@ -459,7 +459,7 @@ public class PromotionServiceImpl implements PromotionService {
 
     private void requireCounterUpdate(int updated) {
         if (updated != 1) {
-            throw new AppException(ErrorCode.INTERNAL_ERROR, "Promotion quota counters are inconsistent");
+            throw new AppException(ErrorCode.INTERNAL_ERROR, "Số lượt của mã khuyến mãi đang bị lệch.");
         }
     }
 

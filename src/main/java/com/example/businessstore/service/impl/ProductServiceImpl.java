@@ -138,7 +138,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse findPublishedById(UUID id) {
         Product product = productRepository.findById(id)
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         return toResponse(product);
     }
 
@@ -146,7 +146,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductResponse findPublishedBySlug(String slug) {
         Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         return toResponse(product);
     }
 
@@ -247,16 +247,16 @@ public class ProductServiceImpl implements ProductService {
         if (isNegative(value.minPrice()) || isNegative(value.maxPrice())
                 || isNegative(value.widthCm()) || isNegative(value.heightCm())) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
-                    "Price and dimensions must not be negative");
+                    "Giá và kích thước không được là số âm.");
         }
         if (value.minPrice() != null && value.maxPrice() != null
                 && value.minPrice().compareTo(value.maxPrice()) > 0) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
-                    "minPrice must be less than or equal to maxPrice");
+                    "Giá thấp nhất phải nhỏ hơn hoặc bằng giá cao nhất.");
         }
         if (isZero(value.widthCm()) || isZero(value.heightCm())) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
-                    "Dimensions must be greater than zero");
+                    "Kích thước phải lớn hơn 0.");
         }
         return value;
     }
@@ -271,18 +271,18 @@ public class ProductServiceImpl implements ProductService {
 
     private Category getCategory(UUID id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Không tìm thấy danh mục."));
     }
 
     private Product getProduct(UUID id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
     }
 
     private String generateUniqueSlug(String name, UUID currentProductId) {
         String baseSlug = SlugUtils.toSlug(name);
         if (baseSlug.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_NAME, "Product name must contain letters or numbers");
+            throw new AppException(ErrorCode.INVALID_PRODUCT_NAME, "Tên sản phẩm phải có chữ hoặc số.");
         }
         String slug = baseSlug;
         int suffix = 2;
@@ -311,7 +311,7 @@ public class ProductServiceImpl implements ProductService {
     private void validateManagementPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
         if (isNegative(minPrice) || isNegative(maxPrice)
                 || minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER, "Management price range is invalid");
+            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER, "Khoảng giá lọc không hợp lệ.");
         }
     }
 }

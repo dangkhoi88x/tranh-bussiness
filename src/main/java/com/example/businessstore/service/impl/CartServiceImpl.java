@@ -114,7 +114,7 @@ public class CartServiceImpl implements CartService {
     private Cart getOrCreateCart(UUID userId) {
         return cartRepository.findByUserId(userId).orElseGet(() -> {
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Authenticated user was not found"));
+                    .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy tài khoản của phiên đăng nhập này."));
             Cart cart = new Cart();
             cart.setUser(user);
             return cartRepository.save(cart);
@@ -124,14 +124,14 @@ public class CartServiceImpl implements CartService {
     private Product getPurchasableProduct(UUID productId) {
         return productRepository.findById(productId)
                 .filter(product -> product.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Product is not available for purchase"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này hiện không bán."));
     }
 
     private ProductFrameOption getAvailableFrameOption(UUID productId, UUID optionId) {
         ProductFrameOption option = productFrameOptionRepository.findByIdAndProductId(optionId, productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Product frame option not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Không tìm thấy lựa chọn khung của sản phẩm."));
         if (!option.isAvailable() || option.getFrame().getStatus() != FrameStatus.ACTIVE) {
-            throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Product frame option is not available");
+            throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Lựa chọn khung này hiện không dùng được.");
         }
         return option;
     }
@@ -161,11 +161,11 @@ public class CartServiceImpl implements CartService {
     private PhotobookDesign resolveDesign(UUID userId, Product product, Integer pageCount, UUID designId) {
         if (designId == null) return null;
         PhotobookDesign design = photobookDesignRepository.findByIdAndUserId(designId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_DESIGN_NOT_FOUND, "Photobook design not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_DESIGN_NOT_FOUND, "Không tìm thấy thiết kế photobook."));
         if (!design.getProductSlug().equals(product.getSlug())
                 || pageCount == null || design.getPageCount() != pageCount) {
             throw new AppException(ErrorCode.PHOTOBOOK_DESIGN_MISMATCH,
-                    "Design does not match the selected product or page count");
+                    "Thiết kế không khớp với sản phẩm hoặc số trang đã chọn.");
         }
         return design;
     }
@@ -178,13 +178,13 @@ public class CartServiceImpl implements CartService {
         if (requested == null || requested.isBlank()) return null;
         if (!product.isPagePriced() || pageCount == null) {
             throw new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_ALLOWED,
-                    "This product is not sold with photobook templates");
+                    "Sản phẩm này không bán kèm mẫu photobook.");
         }
         // Lọc theo active: chủ đề đã ẩn khỏi thư viện thì khách không chọn mới được nữa, dù cuốn
         // đã đặt theo nó trước đó vẫn dựng bình thường.
         return photobookTemplateRepository.findByCodeAndActiveTrue(requested)
                 .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_FOUND,
-                        "Unknown photobook template: " + requested))
+                        "Không tìm thấy mẫu photobook: " + requested))
                 .getCode();
     }
 
@@ -209,15 +209,15 @@ public class CartServiceImpl implements CartService {
     private Integer validatePageCount(Product product, ProductVariant variant, Integer requested) {
         if (!product.isPagePriced()) {
             if (requested != null) {
-                throw new AppException(ErrorCode.INVALID_PHOTOBOOK_PAGE_COUNT, "This product is not sold by page count");
+                throw new AppException(ErrorCode.INVALID_PHOTOBOOK_PAGE_COUNT, "Sản phẩm này không bán theo số trang.");
             }
             return null;
         }
         if (variant == null) {
-            throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Select a photobook size before adding it to cart");
+            throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Hãy chọn khổ photobook trước khi thêm vào giỏ.");
         }
         if (requested == null) {
-            throw new AppException(ErrorCode.PHOTOBOOK_PAGE_COUNT_REQUIRED, "Select a page count for this photobook");
+            throw new AppException(ErrorCode.PHOTOBOOK_PAGE_COUNT_REQUIRED, "Hãy chọn số trang cho cuốn photobook này.");
         }
         // Ném nếu số trang không bán được; giá trả về ở đây bỏ đi, toResponse tính lại khi đọc giỏ.
         PhotobookPricing.priceAt(product, pageTiersOf(variant), requested);
@@ -242,13 +242,13 @@ public class CartServiceImpl implements CartService {
 
     private CartItem getOwnedItem(UUID userId, UUID itemId) {
         return cartItemRepository.findByIdAndCartUserId(itemId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.CART_ITEM_NOT_FOUND, "Cart item not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CART_ITEM_NOT_FOUND, "Không tìm thấy sản phẩm này trong giỏ hàng."));
     }
 
     private void validateStock(Product product, ProductVariant variant, int quantity) {
         int availableStock = variant == null ? product.getStockQuantity() : variant.getStockQuantity();
         if (quantity > availableStock) {
-            throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Requested quantity exceeds available stock");
+            throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
         }
     }
 
@@ -290,12 +290,12 @@ public class CartServiceImpl implements CartService {
     private ProductVariant getSelectedVariant(Product product, UUID variantId) {
         boolean hasVariants = productVariantRepository.existsByProductId(product.getId());
         if (variantId == null) {
-            if (hasVariants) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Select a product variant before adding this product to cart");
+            if (hasVariants) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Hãy chọn phiên bản sản phẩm trước khi thêm vào giỏ.");
             return null;
         }
         return productVariantRepository.findByIdAndProductId(variantId, product.getId())
                 .filter(variant -> variant.isAvailable() && variant.getStockQuantity() > 0)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Product variant is not available"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Phiên bản sản phẩm này hiện không bán."));
     }
 
     private void validateFrameCompatibility(ProductFrameOption option, ProductVariant variant) {
@@ -304,7 +304,7 @@ public class CartServiceImpl implements CartService {
                 && (option.getMaxWidthCm() == null || variant.getWidthCm().compareTo(option.getMaxWidthCm()) <= 0)
                 && (option.getMinHeightCm() == null || variant.getHeightCm().compareTo(option.getMinHeightCm()) >= 0)
                 && (option.getMaxHeightCm() == null || variant.getHeightCm().compareTo(option.getMaxHeightCm()) <= 0);
-        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Frame is not compatible with the selected variant");
+        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Khung này không lắp được cho phiên bản đã chọn.");
     }
 
     private ProductVariantResponse toVariantResponse(ProductVariant variant) {

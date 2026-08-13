@@ -49,7 +49,7 @@ public class PhotobookTemplateController {
     public ResponseEntity<ApiResponse<PhotobookTemplateResponse>> create(
             @Valid @RequestBody SavePhotobookTemplateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(photobookTemplateService.create(request), "Photobook template created"));
+                .body(ApiResponse.success(photobookTemplateService.create(request), "Đã tạo mẫu photobook."));
     }
 
     @PutMapping("/{id}")
@@ -57,6 +57,6 @@ public class PhotobookTemplateController {
     public ResponseEntity<ApiResponse<PhotobookTemplateResponse>> update(
             @PathVariable UUID id, @Valid @RequestBody SavePhotobookTemplateRequest request) {
         return ResponseEntity.ok(
-                ApiResponse.success(photobookTemplateService.update(id, request), "Photobook template updated"));
+                ApiResponse.success(photobookTemplateService.update(id, request), "Đã cập nhật mẫu photobook."));
     }
 }

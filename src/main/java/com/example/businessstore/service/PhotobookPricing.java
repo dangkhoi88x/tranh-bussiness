@@ -52,17 +52,17 @@ public final class PhotobookPricing {
      */
     public static BigDecimal priceAt(Product product, List<PhotobookPageTier> tiers, int pageCount) {
         if (!product.isPagePriced() || tiers.isEmpty()) {
-            throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Product is not sold by page count");
+            throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này không bán theo số trang.");
         }
         if (!selectablePageCounts(product, tiers).contains(pageCount)) {
             throw new AppException(ErrorCode.INVALID_PHOTOBOOK_PAGE_COUNT,
-                    "Page count " + pageCount + " is not available for this photobook");
+                    "Cuốn photobook này không có mức " + pageCount + " trang.");
         }
         PhotobookPageTier anchor = tiers.stream()
                 .filter(tier -> tier.getPageCount() <= pageCount)
                 .max(Comparator.comparingInt(PhotobookPageTier::getPageCount))
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_PHOTOBOOK_PAGE_COUNT,
-                        "Page count " + pageCount + " is below the smallest listed size"));
+                        "Số trang " + pageCount + " thấp hơn mức nhỏ nhất đang niêm yết."));
 
         int steps = (pageCount - anchor.getPageCount()) / product.getPageStep();
         return anchor.getPrice().add(product.getPricePerStep().multiply(BigDecimal.valueOf(steps)));

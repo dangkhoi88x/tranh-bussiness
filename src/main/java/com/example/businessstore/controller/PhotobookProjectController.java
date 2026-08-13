@@ -59,14 +59,14 @@ public class PhotobookProjectController {
     public ResponseEntity<ApiResponse<PhotobookProjectResponse>> addPhoto(
             @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @RequestPart("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success(
-                photobookProjectService.addPhoto(userId(jwt), id, file), "Photo uploaded"));
+                photobookProjectService.addPhoto(userId(jwt), id, file), "Đã tải ảnh lên."));
     }
 
     @DeleteMapping("/mine/{id}/photos/{photoId}")
     public ResponseEntity<ApiResponse<PhotobookProjectResponse>> removePhoto(
             @AuthenticationPrincipal Jwt jwt, @PathVariable UUID id, @PathVariable UUID photoId) {
         return ResponseEntity.ok(ApiResponse.success(
-                photobookProjectService.removePhoto(userId(jwt), id, photoId), "Photo removed"));
+                photobookProjectService.removePhoto(userId(jwt), id, photoId), "Đã xoá ảnh."));
     }
 
     @PostMapping("/mine/{id}/submit")
@@ -75,7 +75,7 @@ public class PhotobookProjectController {
             @Valid @RequestBody SubmitPhotobookPhotosRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 photobookProjectService.submit(userId(jwt), id, request.customerNote()),
-                "Photos submitted to the studio"));
+                "Đã gửi ảnh cho xưởng."));
     }
 
     /** Khách duyệt bản mềm mới nhất, hoặc yêu cầu sửa kèm ghi chú. */
@@ -102,7 +102,7 @@ public class PhotobookProjectController {
             @Valid @RequestBody ChangeSpreadLayoutRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 photobookArrangementService.changeSpreadLayout(userId(jwt), id, spreadId, request.layoutCode()),
-                "Spread layout updated"));
+                "Đã đổi bố cục trang đôi."));
     }
 
     @PutMapping("/mine/{id}/slots/{slotId}/photo")
@@ -111,7 +111,7 @@ public class PhotobookProjectController {
             @RequestBody AssignSlotPhotoRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 photobookArrangementService.assignPhoto(userId(jwt), id, slotId, request.photoId()),
-                "Slot updated"));
+                "Đã cập nhật ô ảnh."));
     }
 
     /* ── Phía xưởng ── */
@@ -138,7 +138,7 @@ public class PhotobookProjectController {
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "staffNote", required = false) String staffNote) {
         return ResponseEntity.ok(ApiResponse.success(
-                photobookProjectService.uploadProof(id, file, staffNote), "Proof sent to the customer"));
+                photobookProjectService.uploadProof(id, file, staffNote), "Đã gửi bản mềm cho khách."));
     }
 
     private UUID userId(Jwt jwt) {

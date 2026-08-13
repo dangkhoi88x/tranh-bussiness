@@ -83,8 +83,8 @@ public class OrderServiceImpl implements OrderService {
     @Override @Transactional
     public OrderResponse checkout(UUID userId, CheckoutOrderRequest request) {
         Cart cart = cartRepository.findByUserId(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY, "Cart is empty"));
-        if (cart.getItems().isEmpty()) throw new AppException(ErrorCode.CART_EMPTY, "Cart is empty");
+                .orElseThrow(() -> new AppException(ErrorCode.CART_EMPTY, "Giỏ hàng đang trống."));
+        if (cart.getItems().isEmpty()) throw new AppException(ErrorCode.CART_EMPTY, "Giỏ hàng đang trống.");
 
         Order order = new Order();
         order.setOrderCode(generateOrderCode());
@@ -100,12 +100,12 @@ public class OrderServiceImpl implements OrderService {
         List<PromotionLine> promotionLines = new ArrayList<>();
         for (CartItem cartItem : cart.getItems()) {
             Product product = productRepository.findById(cartItem.getProduct().getId())
-                    .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
-            if (product.getStatus() != ProductStatus.PUBLISHED) throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Product is not available");
+                    .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
+            if (product.getStatus() != ProductStatus.PUBLISHED) throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này hiện không bán.");
             ProductVariant variant = lockSelectedVariant(product, cartItem.getProductVariant());
-            Product lockedProduct = variant == null ? productRepository.findByIdForUpdate(product.getId()).orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found")) : product;
+            Product lockedProduct = variant == null ? productRepository.findByIdForUpdate(product.getId()).orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm.")) : product;
             int stock = variant == null ? lockedProduct.getStockQuantity() : variant.getStockQuantity();
-            if (cartItem.getQuantity() > stock) throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Requested quantity exceeds available stock");
+            if (cartItem.getQuantity() > stock) throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
             ProductFrameOption option = cartItem.getProductFrameOption();
             validateFrameCompatibility(option, variant);
             BigDecimal adjustment = option == null ? BigDecimal.ZERO : option.getPriceAdjustment();
@@ -155,8 +155,8 @@ public class OrderServiceImpl implements OrderService {
 
     @Override @Transactional
     public OrderResponse createFromCustomRequest(UUID userId, UUID shippingAddressId, CustomOrderRequest request) {
-        if (!request.getUser().getId().equals(userId)) throw new AppException(ErrorCode.FORBIDDEN, "Custom request does not belong to the authenticated user");
-        if (request.getQuotedPrice() == null) throw new AppException(ErrorCode.INVALID_CUSTOM_ORDER_STATUS, "A quoted price is required before creating an order");
+        if (!request.getUser().getId().equals(userId)) throw new AppException(ErrorCode.FORBIDDEN, "Yêu cầu đặt riêng này không thuộc về bạn.");
+        if (request.getQuotedPrice() == null) throw new AppException(ErrorCode.INVALID_CUSTOM_ORDER_STATUS, "Cần có giá báo trước khi tạo đơn hàng.");
         ShippingAddress address = shippingAddressService.getOwned(userId, shippingAddressId);
         Order order = new Order();
         order.setOrderCode(generateOrderCode());
@@ -179,7 +179,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override @Transactional(readOnly = true) public PageResponse<OrderResponse> getMine(UUID userId, int page, int size) { return toPage(orderRepository.findByUserId(userId, pageRequest(page, size)), page); }
-    @Override @Transactional(readOnly = true) public OrderResponse getMineById(UUID userId, UUID orderId) { return toResponse(orderRepository.findByIdAndUserId(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"))); }
+    @Override @Transactional(readOnly = true) public OrderResponse getMineById(UUID userId, UUID orderId) { return toResponse(orderRepository.findByIdAndUserId(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng."))); }
     @Override @Transactional(readOnly = true) public PageResponse<OrderResponse> getAll(String orderCode, OrderStatus status, String customer, LocalDate createdFrom, LocalDate createdTo, int page, int size) {
         validateDateRange(createdFrom, createdTo);
         return toPage(orderRepository.searchForManagement(clean(orderCode), status, clean(customer), startOfDay(createdFrom), startOfNextDay(createdTo), pageRequest(page, size)), page);
@@ -189,9 +189,9 @@ public class OrderServiceImpl implements OrderService {
     @Override @Transactional
     public OrderResponse updateStatus(UUID changedBy, UUID orderId, OrderStatus status, String note) {
         Order order = getOrderForUpdate(orderId);
-        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.DELIVERY_FAILED) throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Completed, failed, or cancelled orders cannot be changed");
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.DELIVERY_FAILED) throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Đơn đã hoàn tất, giao thất bại hoặc đã huỷ thì không đổi được nữa.");
         if (status == OrderStatus.CANCELLED) return cancelOrder(order, changedBy, note);
-        if (!allowed(order.getStatus(), status)) throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Invalid order status transition");
+        if (!allowed(order.getStatus(), status)) throw new AppException(ErrorCode.INVALID_ORDER_STATUS, "Không thể chuyển đơn hàng sang trạng thái này.");
         if (status == OrderStatus.CONFIRMED && order.getPromotionId() != null) {
             promotionService.consume(order);
             note = appendNote(note, "Coupon " + order.getPromotionCode() + " consumed");
@@ -202,11 +202,11 @@ public class OrderServiceImpl implements OrderService {
     }
     @Override @Transactional
     public OrderResponse cancel(UUID userId, UUID orderId) {
-        Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"));
+        Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng."));
         return cancelOrder(order, userId, "Order cancelled by customer");
     }
     private OrderResponse cancelOrder(Order order, UUID changedBy, String note) {
-        if (!CANCELLABLE.contains(order.getStatus())) throw new AppException(ErrorCode.ORDER_CANNOT_BE_CANCELLED, "Orders can no longer be cancelled after shipping starts");
+        if (!CANCELLABLE.contains(order.getStatus())) throw new AppException(ErrorCode.ORDER_CANNOT_BE_CANCELLED, "Đơn đã bắt đầu giao thì không huỷ được nữa.");
         restoreStock(order);
         cancelPendingPayment(order);
         if (order.getPromotionId() != null) {
@@ -218,9 +218,9 @@ public class OrderServiceImpl implements OrderService {
     }
     private boolean allowed(OrderStatus current, OrderStatus next) { return current == OrderStatus.PENDING && next == OrderStatus.CONFIRMED; }
     private void changeStatus(Order order, OrderStatus next, UUID changedBy, String note) { OrderStatus from = order.getStatus(); order.setStatus(next); orderStatusHistoryService.record(order, from, next, changedBy, note); }
-    private Order getOrder(UUID id) { return orderRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
-    private Order getOrderForUpdate(UUID id) { return orderRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found")); }
-    private void validateDateRange(LocalDate from, LocalDate to) { if (from != null && to != null && from.isAfter(to)) throw new AppException(ErrorCode.INVALID_REQUEST, "Created-from date must not be after created-to date"); }
+    private Order getOrder(UUID id) { return orderRepository.findById(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng.")); }
+    private Order getOrderForUpdate(UUID id) { return orderRepository.findByIdForUpdate(id).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng.")); }
+    private void validateDateRange(LocalDate from, LocalDate to) { if (from != null && to != null && from.isAfter(to)) throw new AppException(ErrorCode.INVALID_REQUEST, "Ngày tạo từ không được sau ngày tạo đến."); }
     private Instant startOfDay(LocalDate date) { return date == null ? EARLIEST_MANAGEMENT_DATE : date.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
     private Instant startOfNextDay(LocalDate date) { return date == null ? LATEST_MANAGEMENT_DATE : date.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant(); }
     private String clean(String value) { return value == null || value.isBlank() ? null : value.trim(); }
@@ -293,19 +293,19 @@ public class OrderServiceImpl implements OrderService {
     }
     private ProductVariant lockSelectedVariant(Product product, ProductVariant selected) {
         if (selected == null) {
-            if (productVariantRepository.existsByProductId(product.getId())) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Product variant is required");
+            if (productVariantRepository.existsByProductId(product.getId())) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Vui lòng chọn phiên bản sản phẩm.");
             return null;
         }
         return productVariantRepository.findByIdForUpdate(selected.getId())
                 .filter(variant -> variant.getProduct().getId().equals(product.getId()) && variant.isAvailable())
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Product variant is not available"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Phiên bản sản phẩm này hiện không bán."));
     }
     private void validateFrameCompatibility(ProductFrameOption option, ProductVariant variant) {
         if (option == null) return;
-        if (!option.isAvailable() || option.getFrame().getStatus() != com.example.businessstore.constant.FrameStatus.ACTIVE) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Frame is not available");
+        if (!option.isAvailable() || option.getFrame().getStatus() != com.example.businessstore.constant.FrameStatus.ACTIVE) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Khung này hiện không dùng được.");
         if (variant == null) return;
         boolean compatible = (option.getMinWidthCm() == null || variant.getWidthCm().compareTo(option.getMinWidthCm()) >= 0) && (option.getMaxWidthCm() == null || variant.getWidthCm().compareTo(option.getMaxWidthCm()) <= 0) && (option.getMinHeightCm() == null || variant.getHeightCm().compareTo(option.getMinHeightCm()) >= 0) && (option.getMaxHeightCm() == null || variant.getHeightCm().compareTo(option.getMaxHeightCm()) <= 0);
-        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Frame is not compatible with product variant");
+        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Khung này không lắp được cho phiên bản sản phẩm đã chọn.");
     }
     private String formatAddress(ShippingAddress address) { return String.join(", ", address.getAddressLine(), address.getWard(), address.getDistrict(), address.getProvince()); }
     private String generateOrderCode() { String base = "ART-" + LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).format(DateTimeFormatter.BASIC_ISO_DATE) + "-"; String code; do { code = base + UUID.randomUUID().toString().substring(0, 8).toUpperCase(); } while (orderRepository.existsByOrderCode(code)); return code; }

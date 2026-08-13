@@ -34,9 +34,9 @@ public class PhotobookServiceImpl implements PhotobookService {
     public PhotobookPricingResponse getPublishedPricing(UUID productId) {
         Product product = productRepository.findById(productId)
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         if (!product.isPagePriced()) {
-            throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Product is not sold by page count");
+            throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này không bán theo số trang.");
         }
 
         List<ProductVariant> variants = productVariantRepository.findAllByProductIdIn(List.of(product.getId()));

@@ -50,26 +50,26 @@ public class WishlistServiceImpl implements WishlistService {
         Product product = productRepository.findById(request.productId())
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE,
-                        "Product is not available for wishlist"));
+                        "Sản phẩm này không lưu vào danh sách yêu thích được."));
         ProductVariant variant = selectedVariant(product.getId(), request.productVariantId());
         Optional<WishlistItem> existing = findExisting(userId, product.getId(), variant == null ? null : variant.getId());
         if (existing.isPresent()) return toResponse(existing.get());
 
         if (!userRepository.existsById(userId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Authenticated user was not found");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy tài khoản của phiên đăng nhập này.");
         }
         wishlistItemRepository.insertIfAbsent(UUID.randomUUID(), userId, product.getId(),
                 variant == null ? null : variant.getId());
         return toResponse(findExisting(userId, product.getId(), variant == null ? null : variant.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.INTERNAL_ERROR,
-                        "Wishlist item could not be created")));
+                        "Không thêm được vào danh sách yêu thích.")));
     }
 
     @Override
     @Transactional
     public void remove(UUID userId, UUID itemId) {
         WishlistItem item = wishlistItemRepository.findByIdAndUserId(itemId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.WISHLIST_ITEM_NOT_FOUND, "Wishlist item not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.WISHLIST_ITEM_NOT_FOUND, "Không tìm thấy mục trong danh sách yêu thích."));
         wishlistItemRepository.delete(item);
     }
 
@@ -78,7 +78,7 @@ public class WishlistServiceImpl implements WishlistService {
         return productVariantRepository.findByIdAndProductId(variantId, productId)
                 .filter(ProductVariant::isAvailable)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE,
-                        "Product variant is not available for wishlist"));
+                        "Phiên bản sản phẩm này không lưu vào danh sách yêu thích được."));
     }
 
     private Optional<WishlistItem> findExisting(UUID userId, UUID productId, UUID variantId) {

@@ -30,7 +30,7 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
     @Override
     public GoogleProfile authenticate(String authorizationCode, String redirectUri) {
         if (!googleOAuthProperties.isConfigured()) {
-            throw new AppException(ErrorCode.GOOGLE_OAUTH_NOT_CONFIGURED, "Google OAuth is not configured");
+            throw new AppException(ErrorCode.GOOGLE_OAUTH_NOT_CONFIGURED, "Đăng nhập bằng Google chưa được cấu hình.");
         }
         try {
             GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
@@ -47,16 +47,16 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                     .build()
                     .verify(tokenResponse.getIdToken());
             if (idToken == null || !Boolean.TRUE.equals(idToken.getPayload().getEmailVerified())) {
-                throw new AppException(ErrorCode.INVALID_GOOGLE_ID_TOKEN, "Google account email is not verified");
+                throw new AppException(ErrorCode.INVALID_GOOGLE_ID_TOKEN, "Email của tài khoản Google này chưa được xác minh.");
             }
             GoogleIdToken.Payload profile = idToken.getPayload();
             return new GoogleProfile(profile.getEmail(), (String) profile.get("given_name"), (String) profile.get("family_name"));
         } catch (GeneralSecurityException exception) {
             log.warn("Google ID token validation failed", exception);
-            throw new AppException(ErrorCode.INVALID_GOOGLE_ID_TOKEN, "Google ID token is invalid");
+            throw new AppException(ErrorCode.INVALID_GOOGLE_ID_TOKEN, "Thông tin xác thực từ Google không hợp lệ.");
         } catch (IOException exception) {
             log.warn("Google authorization code exchange failed", exception);
-            throw new AppException(ErrorCode.GOOGLE_AUTHENTICATION_FAILED, "Could not complete Google authentication");
+            throw new AppException(ErrorCode.GOOGLE_AUTHENTICATION_FAILED, "Không hoàn tất được đăng nhập bằng Google.");
         }
     }
 }

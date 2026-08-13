@@ -1,9 +1,11 @@
 package com.example.businessstore.service.impl;
 
 import com.example.businessstore.dto.response.AuthResponse;
+import com.example.businessstore.dto.request.ChangePasswordRequest;
 import com.example.businessstore.dto.request.LoginRequest;
 import com.example.businessstore.dto.request.GoogleOAuthCodeRequest;
 import com.example.businessstore.dto.request.RegisterRequest;
+import com.example.businessstore.dto.request.UpdateProfileRequest;
 import com.example.businessstore.dto.response.UserResponse;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.constant.RoleName;
@@ -51,7 +53,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     public AuthSession register(RegisterRequest request) {
         String email = normalizeEmail(request.email());
         if (userRepository.existsByEmail(email)) {
-            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS, "An account already uses this email");
+            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS, "Email này đã có người dùng.");
         }
 
         User user = new User();
@@ -73,7 +75,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     UsernamePasswordAuthenticationToken.unauthenticated(normalizeEmail(request.email()), request.password()));
             return issueSession((User) authentication.getPrincipal());
         } catch (AuthenticationException exception) {
-            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Invalid email or password");
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Email hoặc mật khẩu không đúng.");
         }
     }
 
@@ -111,13 +113,42 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional(readOnly = true)
     public UserResponse currentUser(UUID userId) {
         User user = userRepository.findWithRolesById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy người dùng."));
         return UserResponse.from(user);
+    }
+
+    @Transactional
+    public UserResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = userRepository.findWithRolesById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy người dùng."));
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        String phone = request.phone() == null ? "" : request.phone().trim();
+        user.setPhone(phone.isEmpty() ? null : phone);
+        return UserResponse.from(user);
+    }
+
+    @Transactional
+    public AuthSession changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = userRepository.findWithRolesById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy người dùng."));
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Mật khẩu hiện tại không đúng.");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Mật khẩu mới phải khác mật khẩu hiện tại.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        // Thu hồi trước rồi mới cấp phiên mới, nếu không refresh token vừa tạo cũng bị xoá
+        // theo. Access token của thiết bị khác vẫn sống tới khi hết hạn (mặc định 15 phút).
+        tokenStore.revokeAllRefreshTokens(userId);
+        return issueSession(user);
     }
 
     private AuthSession issueSession(User user) {
         if (!user.isEnabled()) {
-            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Account is disabled");
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS, "Tài khoản đã bị khoá.");
         }
         String accessToken = jwtService.createAccessToken(user);
         String refreshToken = refreshTokenService.create(user);

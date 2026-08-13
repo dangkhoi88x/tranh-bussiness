@@ -45,7 +45,7 @@ public class PhotobookSharePreviewServiceImpl implements PhotobookSharePreviewSe
         Set<String> referencedImageIds = payloadValidator.imageIdsIn(metadata.get("spreads"));
         Set<String> uploadedImageIds = payloadValidator.uploadedImageIds(images);
         if (!referencedImageIds.equals(uploadedImageIds)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Preview images must match the photos placed in spreads");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Ảnh xem trước phải khớp với ảnh đã đặt trong các trang đôi.");
         }
 
         PhotobookSharePreview preview = new PhotobookSharePreview();
@@ -86,10 +86,10 @@ public class PhotobookSharePreviewServiceImpl implements PhotobookSharePreviewSe
     @Transactional(readOnly = true)
     public SharePreviewResponse getByToken(String token) {
         PhotobookSharePreview preview = repository.findByToken(token)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Preview not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không tìm thấy bản xem trước."));
 
         if (!preview.getExpiresAt().isAfter(Instant.now())) {
-            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Preview has expired");
+            throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Bản xem trước đã hết hạn.");
         }
         return toResponse(preview);
     }

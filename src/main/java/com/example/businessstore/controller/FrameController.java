@@ -63,7 +63,7 @@ public class FrameController {
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_FRAMES)
     public ResponseEntity<ApiResponse<FrameResponse>> create(@Valid @RequestBody CreateFrameRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(frameService.create(request), "Frame created"));
+                .body(ApiResponse.success(frameService.create(request), "Đã tạo khung tranh."));
     }
 
     @PutMapping("/{id}")
@@ -71,7 +71,7 @@ public class FrameController {
     public ResponseEntity<ApiResponse<FrameResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateFrameRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(frameService.update(id, request), "Frame updated"));
+        return ResponseEntity.ok(ApiResponse.success(frameService.update(id, request), "Đã cập nhật khung tranh."));
     }
 
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -79,7 +79,7 @@ public class FrameController {
     public ResponseEntity<ApiResponse<FrameResponse>> uploadImage(
             @PathVariable UUID id,
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
-        return ResponseEntity.ok(ApiResponse.success(frameService.uploadImage(id, file), "Frame image uploaded"));
+        return ResponseEntity.ok(ApiResponse.success(frameService.uploadImage(id, file), "Đã tải lên ảnh khung tranh."));
     }
 
     @DeleteMapping("/{id}/image")

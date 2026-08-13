@@ -34,7 +34,7 @@ public class CategoryController {
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_CATEGORIES)
     public ResponseEntity<ApiResponse<CategoryResponse>> create(@Valid @RequestBody CreateCategoryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(categoryService.create(request), "Category created"));
+                .body(ApiResponse.success(categoryService.create(request), "Đã tạo danh mục."));
     }
 
     @GetMapping
@@ -57,7 +57,7 @@ public class CategoryController {
     public ResponseEntity<ApiResponse<CategoryResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateCategoryRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(categoryService.update(id, request), "Category updated"));
+        return ResponseEntity.ok(ApiResponse.success(categoryService.update(id, request), "Đã cập nhật danh mục."));
     }
 
     @DeleteMapping("/{id}")

@@ -100,12 +100,12 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
             String publicId = stringResult(result, "public_id");
             String secureUrl = stringResult(result, "secure_url");
             if (publicId == null || secureUrl == null) {
-                throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Cloudinary did not return proof details");
+                throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Không nhận được thông tin tệp bản mềm từ dịch vụ lưu trữ ảnh.");
             }
             return new UploadedMedia(publicId, secureUrl, pageCount(result));
         } catch (IOException exception) {
             log.warn("Cloudinary proof upload failed", exception);
-            throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Could not upload proof");
+            throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Không tải lên được bản mềm.");
         }
     }
 
@@ -148,12 +148,12 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
             String publicId = stringResult(result, "public_id");
             String secureUrl = stringResult(result, "secure_url");
             if (publicId == null || secureUrl == null) {
-                throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Cloudinary did not return image details");
+                throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Không nhận được thông tin ảnh từ dịch vụ lưu trữ ảnh.");
             }
             return new UploadedMedia(publicId, secureUrl);
         } catch (IOException exception) {
             log.warn("Cloudinary image upload failed", exception);
-            throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Could not upload image");
+            throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Không tải lên được ảnh.");
         }
     }
 
@@ -187,11 +187,11 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
                     "invalidate", true));
             String status = stringResult(result, "result");
             if (status != null && !"ok".equals(status) && !"not found".equals(status)) {
-                throw new AppException(ErrorCode.MEDIA_DELETE_FAILED, "Could not delete image");
+                throw new AppException(ErrorCode.MEDIA_DELETE_FAILED, "Không xoá được ảnh.");
             }
         } catch (IOException exception) {
             log.warn("Cloudinary image deletion failed for publicId={}", publicId, exception);
-            throw new AppException(ErrorCode.MEDIA_DELETE_FAILED, "Could not delete image");
+            throw new AppException(ErrorCode.MEDIA_DELETE_FAILED, "Không xoá được ảnh.");
         }
     }
 
@@ -201,10 +201,10 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
      */
     private void validateProof(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Proof file is required");
+            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Vui lòng chọn tệp bản mềm.");
         }
         if (file.getSize() > mediaProperties.maxProofSizeBytes()) {
-            throw new AppException(ErrorCode.IMAGE_FILE_TOO_LARGE, "Proof exceeds the allowed size");
+            throw new AppException(ErrorCode.IMAGE_FILE_TOO_LARGE, "Bản mềm vượt quá dung lượng cho phép.");
         }
         String contentType = file.getContentType();
         boolean pdf = PDF_CONTENT_TYPE.equalsIgnoreCase(contentType) && hasPdfSignature(file);
@@ -212,7 +212,7 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
                 && SUPPORTED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))
                 && hasImageSignature(file);
         if (!pdf && !image) {
-            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Only PDF, JPEG, PNG, and WebP proofs are allowed");
+            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Bản mềm chỉ nhận định dạng PDF, JPEG, PNG hoặc WebP.");
         }
     }
 
@@ -229,14 +229,14 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
 
     private void validateImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Image file is required");
+            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Vui lòng chọn tệp ảnh.");
         }
         if (file.getSize() > mediaProperties.maxImageSizeBytes()) {
-            throw new AppException(ErrorCode.IMAGE_FILE_TOO_LARGE, "Image exceeds the allowed size");
+            throw new AppException(ErrorCode.IMAGE_FILE_TOO_LARGE, "Ảnh vượt quá dung lượng cho phép.");
         }
         String contentType = file.getContentType();
         if (contentType == null || !SUPPORTED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT)) || !hasImageSignature(file)) {
-            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Only JPEG, PNG, and WebP images are allowed");
+            throw new AppException(ErrorCode.INVALID_IMAGE_FILE, "Ảnh chỉ nhận định dạng JPEG, PNG hoặc WebP.");
         }
     }
 
@@ -273,7 +273,7 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
 
     private void requireConfigured() {
         if (!cloudinaryProperties.isConfigured()) {
-            throw new AppException(ErrorCode.MEDIA_PROVIDER_NOT_CONFIGURED, "Cloudinary is not configured");
+            throw new AppException(ErrorCode.MEDIA_PROVIDER_NOT_CONFIGURED, "Dịch vụ lưu trữ ảnh chưa được cấu hình.");
         }
     }
 

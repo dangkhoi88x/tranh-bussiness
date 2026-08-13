@@ -30,6 +30,6 @@ public class ApiAccessDeniedHandler implements AccessDeniedHandler {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         ApiError error = new ApiError(ErrorCode.FORBIDDEN.value(), request.getRequestURI(), Map.of());
-        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(error, "You do not have permission"));
+        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(error, "Bạn không có quyền thực hiện thao tác này."));
     }
 }

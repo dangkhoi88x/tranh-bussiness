@@ -53,10 +53,10 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         Shipment shipment = lockedShipment(orderId);
         requireInTransit(order, shipment, ErrorCode.ORDER_NOT_READY_FOR_COMPLETION);
         Payment payment = paymentRepository.findFirstByOrderIdForUpdate(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.PAYMENT_NOT_FOUND, "Payment not found for order"));
+                .orElseThrow(() -> new AppException(ErrorCode.PAYMENT_NOT_FOUND, "Đơn hàng này chưa có thanh toán nào."));
         if (payment.getMethod() != PaymentMethod.COD || payment.getStatus() != PaymentStatus.PENDING) {
             throw new AppException(ErrorCode.PAYMENT_CANNOT_BE_COMPLETED,
-                    "A pending COD payment is required before completing delivery");
+                    "Đơn phải có khoản COD đang chờ thu thì mới hoàn tất giao hàng được.");
         }
 
         Instant now = Instant.now();
@@ -102,12 +102,12 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
 
     private Order lockedOrder(UUID orderId) {
         return orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Order not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng."));
     }
 
     private Shipment lockedShipment(UUID orderId) {
         return shipmentRepository.findByOrderIdForUpdate(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.SHIPMENT_NOT_FOUND, "Shipment not found for order"));
+                .orElseThrow(() -> new AppException(ErrorCode.SHIPMENT_NOT_FOUND, "Đơn hàng này chưa có vận đơn."));
     }
 
     private void requireInTransit(Order order, Shipment shipment, ErrorCode errorCode) {
@@ -118,7 +118,7 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
 
     private void createPendingRefund(UUID changedBy, Order order, Payment payment, String reason) {
         if (paymentRefundRepository.existsByPaymentId(payment.getId())) {
-            throw new AppException(ErrorCode.REFUND_ALREADY_EXISTS, "A refund already exists for this payment");
+            throw new AppException(ErrorCode.REFUND_ALREADY_EXISTS, "Khoản thanh toán này đã có yêu cầu hoàn tiền.");
         }
         PaymentRefund refund = new PaymentRefund();
         refund.setPayment(payment);
@@ -128,7 +128,7 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         refund.setReason(reason.trim());
         refund.setIdempotencyKey("DELIVERY_FAILED:" + payment.getId());
         refund.setRequestedBy(userRepository.findById(changedBy)
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Changed-by user was not found")));
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy người thực hiện thay đổi.")));
         paymentRefundRepository.save(refund);
     }
 
@@ -137,7 +137,7 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
             if (item.getProductVariantId() != null) {
                 ProductVariant variant = productVariantRepository.findByIdForUpdate(item.getProductVariantId())
                         .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND,
-                                "Variant no longer exists for order item"));
+                                "Phiên bản sản phẩm trong đơn hàng này không còn tồn tại."));
                 variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
             } else {
                 productRepository.findByIdForUpdate(item.getProductId())

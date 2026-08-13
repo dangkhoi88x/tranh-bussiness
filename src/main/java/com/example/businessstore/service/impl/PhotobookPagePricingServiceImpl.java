@@ -77,7 +77,7 @@ public class PhotobookPagePricingServiceImpl implements PhotobookPagePricingServ
 
     private Product requireProduct(UUID productId) {
         return productRepository.findById(productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
     }
 
     private static List<SavePhotobookPagePricingRequest.VariantTiers> safeVariants(SavePhotobookPagePricingRequest request) {

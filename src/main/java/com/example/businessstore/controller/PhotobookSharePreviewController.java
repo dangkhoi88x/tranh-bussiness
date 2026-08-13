@@ -30,7 +30,7 @@ public class PhotobookSharePreviewController {
             @RequestPart(value = "images", required = false) List<MultipartFile> images) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(ApiResponse.success(sharePreviewService.create(metadataJson, images), "Share preview created"));
+                .body(ApiResponse.success(sharePreviewService.create(metadataJson, images), "Đã tạo liên kết xem trước."));
     }
 
     @GetMapping("/{token}")

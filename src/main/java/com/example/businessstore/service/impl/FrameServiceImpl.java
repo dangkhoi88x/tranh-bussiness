@@ -37,7 +37,7 @@ public class FrameServiceImpl implements FrameService {
     public FrameResponse create(CreateFrameRequest request) {
         String name = normalizeRequired(request.name());
         if (frameRepository.existsByNameIgnoreCase(name)) {
-            throw new AppException(ErrorCode.FRAME_NAME_ALREADY_EXISTS, "A frame already uses this name");
+            throw new AppException(ErrorCode.FRAME_NAME_ALREADY_EXISTS, "Đã có khung tranh dùng tên này.");
         }
         Frame frame = new Frame();
         frame.setName(name);
@@ -64,7 +64,7 @@ public class FrameServiceImpl implements FrameService {
     public FrameResponse findActiveById(UUID id) {
         Frame frame = frameRepository.findById(id)
                 .filter(item -> item.getStatus() == FrameStatus.ACTIVE)
-                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Frame not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Không tìm thấy khung tranh."));
         return frameMapper.toResponse(frame);
     }
 
@@ -72,7 +72,7 @@ public class FrameServiceImpl implements FrameService {
     @Transactional(readOnly = true)
     public FrameResponse findActiveBySlug(String slug) {
         Frame frame = frameRepository.findBySlugAndStatus(slug, FrameStatus.ACTIVE)
-                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Frame not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Không tìm thấy khung tranh."));
         return frameMapper.toResponse(frame);
     }
 
@@ -97,7 +97,7 @@ public class FrameServiceImpl implements FrameService {
         if (request.name() != null) {
             String name = normalizeRequired(request.name());
             if (frameRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
-                throw new AppException(ErrorCode.FRAME_NAME_ALREADY_EXISTS, "A frame already uses this name");
+                throw new AppException(ErrorCode.FRAME_NAME_ALREADY_EXISTS, "Đã có khung tranh dùng tên này.");
             }
             frame.setName(name);
             frame.setSlug(generateUniqueSlug(name, id));
@@ -146,7 +146,7 @@ public class FrameServiceImpl implements FrameService {
     public void delete(UUID id) {
         Frame frame = getFrame(id);
         if (productFrameOptionRepository.existsByFrameId(id)) {
-            throw new AppException(ErrorCode.FRAME_IN_USE, "Remove this frame from products before deleting it");
+            throw new AppException(ErrorCode.FRAME_IN_USE, "Hãy gỡ khung này khỏi các sản phẩm trước khi xoá.");
         }
         frameRepository.delete(frame);
         mediaTransactionSynchronizer.deleteAfterCommit(frame.getImagePublicId());
@@ -154,13 +154,13 @@ public class FrameServiceImpl implements FrameService {
 
     private Frame getFrame(UUID id) {
         return frameRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Frame not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Không tìm thấy khung tranh."));
     }
 
     private String generateUniqueSlug(String name, UUID currentId) {
         String baseSlug = SlugUtils.toSlug(name);
         if (baseSlug.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_FRAME_NAME, "Frame name must contain letters or numbers");
+            throw new AppException(ErrorCode.INVALID_FRAME_NAME, "Tên khung phải có chữ hoặc số.");
         }
         String slug = baseSlug;
         int suffix = 2;

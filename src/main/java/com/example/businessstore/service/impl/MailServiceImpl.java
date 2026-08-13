@@ -1,12 +1,11 @@
 package com.example.businessstore.service.impl;
 
 import com.example.businessstore.configuration.MailProperties;
-import com.example.businessstore.exception.AppException;
-import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.service.MailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.MailException;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -15,8 +14,15 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Locale;
 
+/**
+ * Mọi phương thức gửi thư đều chạy trên mailExecutor, nên người gọi không bao giờ phải chờ
+ * SMTP. Đổi lại, không ai bắt được lỗi gửi thư nữa: thất bại chỉ được ghi log, đúng như
+ * cách các luồng nghiệp vụ vẫn đối xử với nó từ trước (gửi thư không bao giờ được phép
+ * làm hỏng việc tạo tài khoản hay xác nhận đơn hàng).
+ */
 @Slf4j
 @Service
+@Async("mailExecutor")
 @RequiredArgsConstructor
 public class MailServiceImpl implements MailService {
 
@@ -25,8 +31,10 @@ public class MailServiceImpl implements MailService {
 
     @Override
     public void sendPasswordResetEmail(String recipient, String resetUrl) {
-        send(recipient, "Reset your Business Store password",
-                "Use this link to set a new password. It expires shortly:\n" + resetUrl,
+        send(recipient, "Đặt lại mật khẩu Business Store",
+                "Mở liên kết dưới đây để đặt mật khẩu mới. Liên kết chỉ dùng được một lần "
+                        + "và sẽ hết hạn sau ít phút:\n" + resetUrl
+                        + "\n\nNếu bạn không yêu cầu đổi mật khẩu, hãy bỏ qua email này.",
                 "password-reset");
     }
 
@@ -88,8 +96,8 @@ public class MailServiceImpl implements MailService {
         try {
             mailSender.send(message);
         } catch (MailException exception) {
-            log.warn("Could not send {} email", kind, exception);
-            throw new AppException(ErrorCode.EMAIL_DELIVERY_FAILED, "Could not send " + kind + " email");
+            // Ném tiếp cũng vô nghĩa vì đang ở thread nền, không người gọi nào bắt được.
+            log.error("Could not send {} email to {}", kind, recipient, exception);
         }
     }
 }

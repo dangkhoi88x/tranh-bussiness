@@ -43,7 +43,7 @@ class PhotobookLayoutEngine {
     PhotobookLayout requireLayout(String code) {
         return layoutRepository.findByCodeAndActiveTrue(code)
                 .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_LAYOUT_NOT_FOUND,
-                        "Unknown or inactive layout: " + code));
+                        "Không tìm thấy bố cục đang dùng được: " + code));
     }
 
     List<PhotobookSlotDef> slotDefsOf(PhotobookLayout layout) {
@@ -52,7 +52,7 @@ class PhotobookLayoutEngine {
             });
         } catch (JacksonException exception) {
             throw new AppException(ErrorCode.PHOTOBOOK_LAYOUT_NOT_FOUND,
-                    "Corrupt slot data for layout " + layout.getCode());
+                    "Dữ liệu ô ảnh của bố cục " + layout.getCode() + " bị hỏng.");
         }
     }
 
@@ -132,14 +132,14 @@ class PhotobookLayoutEngine {
         if (template == null) {
             template = templateRepository.findByDefaultTemplateTrue()
                     .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_LAYOUT_NOT_FOUND,
-                            "No default photobook template is configured"));
+                            "Chưa cấu hình mẫu photobook mặc định."));
         }
         try {
             return objectMapper.readValue(template.getLayoutCodes(), new TypeReference<List<String>>() {
             });
         } catch (JacksonException exception) {
             throw new AppException(ErrorCode.PHOTOBOOK_LAYOUT_NOT_FOUND,
-                    "Corrupt layout_codes for template " + template.getCode());
+                    "Danh sách bố cục của mẫu " + template.getCode() + " bị hỏng.");
         }
     }
 }

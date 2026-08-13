@@ -45,7 +45,7 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
         PhotobookProject project = owned(userId, projectId);
         if (!spreadRepository.existsByPhotobookProjectId(projectId)) {
             throw new AppException(ErrorCode.PHOTOBOOK_ARRANGEMENT_NOT_READY,
-                    "Submit your photos first so the studio can lay out the book");
+                    "Hãy gửi ảnh trước để xưởng dàn trang cho bạn.");
         }
         return toArrangement(project);
     }
@@ -55,7 +55,7 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
     public PhotobookArrangementResponse changeSpreadLayout(UUID userId, UUID projectId, UUID spreadId, String layoutCode) {
         PhotobookSpread spread = spreadRepository
                 .findByIdAndPhotobookProjectIdAndPhotobookProjectUserId(spreadId, projectId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_SPREAD_NOT_FOUND, "Spread not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_SPREAD_NOT_FOUND, "Không tìm thấy trang đôi."));
         requireArrangementEditable(spread.getPhotobookProject());
         PhotobookLayout newLayout = layoutEngine.requireLayout(layoutCode);
 
@@ -84,7 +84,7 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
 
         PhotobookSpreadSlot targetSlot = spreadSlotRepository
                 .findByIdAndPhotobookSpreadPhotobookProjectIdAndPhotobookSpreadPhotobookProjectUserId(slotId, projectId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_SLOT_NOT_FOUND, "Slot not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_SLOT_NOT_FOUND, "Không tìm thấy ô ảnh."));
 
         if (photoId == null) {
             targetSlot.setPhoto(null);
@@ -96,7 +96,7 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
                 .filter(item -> item.getId().equals(photoId))
                 .findFirst()
                 .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PHOTO_NOT_IN_PROJECT,
-                        "Photo does not belong to this photobook"));
+                        "Ảnh này không thuộc cuốn photobook đang mở."));
 
         if (targetSlot.getPhoto() != null && targetSlot.getPhoto().getId().equals(photoId)) {
             return toArrangement(project);
@@ -129,14 +129,14 @@ public class PhotobookArrangementServiceImpl implements PhotobookArrangementServ
 
     private PhotobookProject owned(UUID userId, UUID projectId) {
         return projectRepository.findByIdAndUserId(projectId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Photobook project not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_PROJECT_NOT_FOUND, "Không tìm thấy cuốn photobook."));
     }
 
     /** Bản sắp xếp chỉ sửa được khi khách đã chốt ảnh nhưng xưởng chưa gửi bản mềm. */
     private void requireArrangementEditable(PhotobookProject project) {
         if (project.getStatus() != PhotobookProjectStatus.PHOTOS_SUBMITTED) {
             throw new AppException(ErrorCode.PHOTOBOOK_ARRANGEMENT_LOCKED,
-                    "The draft arrangement can only be changed while the studio hasn't sent a proof yet");
+                    "Chỉ sửa được bản dàn trang nháp khi xưởng chưa gửi bản mềm.");
         }
     }
 
