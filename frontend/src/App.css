@@ -63,6 +63,12 @@
 .danger-button:hover:not(:disabled) { background: #8e2b27; transform: translateY(-1px); }
 .danger-button:disabled { cursor: wait; opacity: .65; }
 .primary-button:disabled, .secondary-button:disabled { cursor: wait; opacity: .65; }
+.auth-divider { display: flex; align-items: center; gap: 14px; margin: 22px 0 18px; color: #9c938d; font-size: .78rem; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: #e4dad0; }
+.google-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px 17px; border: 1px solid #ded4ca; border-radius: 10px; color: #302722; background: #fffefa; font-size: .9rem; font-weight: 750; cursor: pointer; transition: background .2s, border-color .2s; }
+.google-button:hover { border-color: #c3b5a8; background: #fbf6ef; }
+.forgot-link { justify-self: end; margin: -6px 0 0; padding: 0; border: 0; color: #8b392f; background: transparent; font-size: .8rem; font-weight: 750; cursor: pointer; }
+.forgot-link:hover { text-decoration: underline; }
 .switch-copy { margin: 26px 0 0; color: #827771; font-size: .86rem; text-align: center; }
 .switch-copy button { margin-left: 7px; padding: 0; border: 0; color: #8b392f; background: transparent; font-weight: 800; cursor: pointer; }
 

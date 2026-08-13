@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   clearAccessToken,
   login,
+  loginWithGoogle,
   loadAccessToken,
   logout,
   persistAccessToken,
@@ -10,6 +11,12 @@ import {
 } from '../api/auth'
 import { apiRequest, refreshSessionOnce } from '../api/http'
 import { mergeGuestCart } from '../api/guestCart'
+import {
+  changePassword,
+  updateProfile,
+  type CurrentUser,
+  type ProfileInput,
+} from '../api/account'
 
 type LoginInput = { email: string; password: string }
 type RegisterInput = LoginInput & { firstName: string; lastName: string; phone?: string }
@@ -27,7 +34,10 @@ type AuthContextValue = {
   isLoading: boolean
   signIn: (input: LoginInput) => Promise<AuthSession>
   signUp: (input: RegisterInput) => Promise<AuthSession>
+  signInWithGoogle: (code: string, redirectUri: string) => Promise<AuthSession>
   signOut: () => Promise<void>
+  saveProfile: (input: ProfileInput) => Promise<CurrentUser>
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>
   hasPermission: (permission: string) => boolean
 }
 
@@ -134,6 +144,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return syncCurrentUser(nextSession).catch(() => nextSession)
   }, [syncCurrentUser])
 
+  const saveProfile = useCallback(async (input: ProfileInput) => {
+    const user = await updateProfile(input)
+    // Tên hiển thị nằm trong session, nên phải cập nhật ngay thay vì đợi lần đồng bộ sau.
+    setSession((current) => current ? { ...current, firstName: user.firstName, lastName: user.lastName } : current)
+    return user
+  }, [])
+
+  const updatePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const nextSession = await changePassword(currentPassword, newPassword)
+    // Máy chủ vừa thu hồi mọi phiên cũ và cấp phiên mới cho thiết bị này; giữ lại access
+    // token mới thì người dùng mới không bị đăng xuất ngay sau khi đổi mật khẩu.
+    persistAccessToken(nextSession.accessToken)
+    setSession(nextSession)
+  }, [])
+
+  const signInWithGoogle = useCallback(async (code: string, redirectUri: string) => {
+    const nextSession = await loginWithGoogle(code, redirectUri)
+    persistAccessToken(nextSession.accessToken)
+    await mergeGuestCart()
+    setSession(nextSession)
+    return syncCurrentUser(nextSession).catch(() => nextSession)
+  }, [syncCurrentUser])
+
   const signOut = useCallback(async () => {
     try {
       if (session) await logout(session.accessToken)
@@ -147,9 +180,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     signIn,
     signUp,
+    signInWithGoogle,
     signOut,
+    saveProfile,
+    updatePassword,
     hasPermission: (permission) => Boolean(session?.authorities.includes(permission)),
-  }), [isLoading, session, signIn, signOut, signUp])
+  }), [isLoading, saveProfile, session, signIn, signInWithGoogle, signOut, signUp, updatePassword])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

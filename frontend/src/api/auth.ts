@@ -50,7 +50,12 @@ function authoritiesFromAccessToken(accessToken: string): string[] {
   }
 }
 
-async function requestSession(path: string, body?: Credentials | Registration): Promise<AuthSession> {
+type GoogleAuthorizationCode = { code: string; redirectUri: string }
+
+async function requestSession(
+  path: string,
+  body?: Credentials | Registration | GoogleAuthorizationCode,
+): Promise<AuthSession> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -76,6 +81,43 @@ export function register(registration: Registration): Promise<AuthSession> {
 
 export function refreshSession(): Promise<AuthSession> {
   return requestSession('/auth/refresh')
+}
+
+/**
+ * Máy chủ đổi authorization code lấy hồ sơ Google, tạo tài khoản nếu email chưa có, rồi
+ * cấp phiên như đăng nhập thường. redirectUri phải trùng đúng cái đã dùng để xin code —
+ * Google từ chối nếu lệch.
+ */
+export function loginWithGoogle(code: string, redirectUri: string): Promise<AuthSession> {
+  return requestSession('/auth/google', { code, redirectUri })
+}
+
+/** Dùng lại ở api/account.ts để dựng phiên từ AuthResponse mà không tạo vòng import. */
+export { toSession as sessionFromAuthResponse }
+
+// Hai endpoint dưới đây công khai và không trả về phiên đăng nhập, nên dùng fetch trực
+// tiếp giống requestSession thay vì apiRequest: http.ts đã import từ file này.
+async function postAuthCommand(path: string, body: unknown, fallbackMessage: string): Promise<void> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    throw new Error(getApiMessage(await parseJsonSafe(response), fallbackMessage))
+  }
+}
+
+export function requestPasswordReset(email: string): Promise<void> {
+  return postAuthCommand('/auth/password/forgot', { email }, 'Không thể gửi liên kết đặt lại mật khẩu.')
+}
+
+export function resetPassword(token: string, newPassword: string): Promise<void> {
+  // Endpoint này công khai nên 401 chỉ có một nghĩa: token hỏng, hết hạn hoặc đã dùng.
+  // API đã trả câu tiếng Việt cho đúng trường hợp đó, không chép lại ở đây nữa.
+  return postAuthCommand('/auth/password/reset', { token, newPassword }, 'Không thể đặt lại mật khẩu.')
 }
 
 export async function logout(accessToken: string): Promise<void> {
