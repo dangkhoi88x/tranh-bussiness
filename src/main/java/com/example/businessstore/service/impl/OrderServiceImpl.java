@@ -101,10 +101,16 @@ public class OrderServiceImpl implements OrderService {
             Product product = productRepository.findById(cartItem.getProduct().getId())
                     .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
             if (product.getStatus() != ProductStatus.PUBLISHED) throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này hiện không bán.");
-            ProductVariant variant = lockSelectedVariant(product, cartItem.getProductVariant());
-            Product lockedProduct = variant == null ? productRepository.findByIdForUpdate(product.getId()).orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm.")) : product;
-            int stock = variant == null ? lockedProduct.getStockQuantity() : variant.getStockQuantity();
-            if (cartItem.getQuantity() > stock) throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
+            ProductVariant variant = requireSellableVariant(product, cartItem.getProductVariant());
+            Product lockedProduct = product;
+            // Trừ kho ngay tại đây bằng UPDATE có điều kiện: vừa là kiểm tra còn hàng vừa là thao
+            // tác trừ, nên hai phiên mua cùng lúc không thể cùng thấy số cũ rồi cùng bán mất cái
+            // cuối. Đọc ra kiểm rồi mới trừ (kể cả có SELECT ... FOR UPDATE) không chặn được, vì
+            // entity đã nằm sẵn trong persistence context nên Hibernate trả lại số tồn kho cũ.
+            int updated = variant == null
+                    ? productRepository.decreaseStock(lockedProduct.getId(), cartItem.getQuantity())
+                    : productVariantRepository.decreaseStock(variant.getId(), cartItem.getQuantity());
+            if (updated == 0) throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
             ProductFrameOption option = cartItem.getProductFrameOption();
             validateFrameCompatibility(option, variant);
             BigDecimal adjustment = option == null ? BigDecimal.ZERO : option.getPriceAdjustment();
@@ -125,7 +131,6 @@ public class OrderServiceImpl implements OrderService {
             promotionLines.add(new PromotionLine(lockedProduct.getCategory().getId(), lockedProduct.getId(),
                     variant == null ? null : variant.getId(),
                     basePrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()))));
-            if (variant == null) lockedProduct.setStockQuantity(stock - cartItem.getQuantity()); else variant.setStockQuantity(stock - cartItem.getQuantity());
         }
         order.setSubtotalAmount(subtotal);
         order.setTotalAmount(subtotal);
@@ -260,12 +265,14 @@ public class OrderServiceImpl implements OrderService {
         orderStatusHistoryService.recordSystem(order, from, OrderStatus.CANCELLED,
                 "Order cancelled because coupon " + order.getPromotionCode() + " reservation expired");
     }
+    /** Hoàn kho cũng đi bằng UPDATE atomic, cùng lý do với decreaseStock ở checkout. */
     private void restoreStock(Order order) {
         order.getItems().forEach(item -> {
-            if (item.getProductVariantId() != null) productVariantRepository.findByIdForUpdate(item.getProductVariantId())
-                    .ifPresent(variant -> variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity()));
-            else productRepository.findByIdForUpdate(item.getProductId())
-                    .ifPresent(product -> product.setStockQuantity(product.getStockQuantity() + item.getQuantity()));
+            if (item.getProductVariantId() != null) {
+                productVariantRepository.increaseStock(item.getProductVariantId(), item.getQuantity());
+            } else {
+                productRepository.increaseStock(item.getProductId(), item.getQuantity());
+            }
         });
     }
     private void cancelPendingPayment(Order order) {
@@ -285,12 +292,13 @@ public class OrderServiceImpl implements OrderService {
     private String appendNote(String note, String addition) {
         return note == null || note.isBlank() ? addition : note.trim() + "; " + addition;
     }
-    private ProductVariant lockSelectedVariant(Product product, ProductVariant selected) {
+    /** Chỉ xác thực variant thuộc đúng sản phẩm và còn bán; giữ chỗ tồn kho là việc của decreaseStock. */
+    private ProductVariant requireSellableVariant(Product product, ProductVariant selected) {
         if (selected == null) {
             if (productVariantRepository.existsByProductId(product.getId())) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Vui lòng chọn phiên bản sản phẩm.");
             return null;
         }
-        return productVariantRepository.findByIdForUpdate(selected.getId())
+        return productVariantRepository.findById(selected.getId())
                 .filter(variant -> variant.getProduct().getId().equals(product.getId()) && variant.isAvailable())
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Phiên bản sản phẩm này hiện không bán."));
     }

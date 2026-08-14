@@ -132,7 +132,8 @@ class OrderServiceImplTest {
         when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
         when(shippingAddressService.getOwned(userId, addressId)).thenReturn(address);
         when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
-        when(productRepository.findByIdForUpdate(product.getId())).thenReturn(Optional.of(product));
+        // Giữ chỗ tồn kho giờ là một câu UPDATE có điều kiện: trả 1 nghĩa là còn hàng và đã trừ.
+        when(productRepository.decreaseStock(product.getId(), 1)).thenReturn(1);
         when(productVariantRepository.existsByProductId(product.getId())).thenReturn(false);
         when(orderRepository.existsByOrderCode(any())).thenReturn(false);
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> { Order saved = invocation.getArgument(0); saved.setId(orderId); return saved; });

@@ -136,6 +136,38 @@ class BusinessStoreApplicationTests {
     }
 
     @Test
+    void atomicStockDecrement_letsOnlyOneCheckoutTakeTheLastUnit() {
+        String suffix = Long.toString(System.nanoTime());
+        Category category = new Category();
+        category.setName("Race category " + suffix); category.setSlug("race-category-" + suffix);
+        Category savedCategory = categoryRepository.saveAndFlush(category);
+        Product product = savePublishedProduct(savedCategory, "Race product " + suffix, "race-product-" + suffix,
+                new BigDecimal("100000"));
+        product.setStockQuantity(1);
+        Product saved = productRepository.saveAndFlush(product);
+
+        TransactionTemplate transactions = new TransactionTemplate(transactionManager);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                start.await();
+                return transactions.execute(status -> productRepository.decreaseStock(saved.getId(), 1));
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return transactions.execute(status -> productRepository.decreaseStock(saved.getId(), 1));
+            });
+            start.countDown();
+            // Đúng một bên được trừ; bên kia thấy 0 dòng đổi được và checkout sẽ báo hết hàng.
+            assertThat(first.get() + second.get()).isEqualTo(1);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+
+        assertThat(productRepository.findById(saved.getId()).orElseThrow().getStockQuantity()).isZero();
+    }
+
+    @Test
     void wishlistPartialUniqueIndex_blocksDuplicateGenericProductForOneUser() {
         User user = new User();
         user.setEmail("wishlist-" + System.nanoTime() + "@example.com"); user.setPasswordHash("hash");
