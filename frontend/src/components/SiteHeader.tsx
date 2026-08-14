@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useNotificationsBadge } from '../contexts/NotificationContext';
 
 const NAV = [
@@ -21,10 +21,26 @@ const Caret = () => (
  */
 export function SiteHeader({ cartCount = 0, onMenu }: { cartCount?: number; onMenu?: () => void }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
   const { unreadCount } = useNotificationsBadge();
+
+  // Từ ≤880px CSS giấu [data-nav] và chỉ chừa nút menu, nên nếu nút không mở được gì thì
+  // trên điện thoại header mất sạch đường dẫn. Header tự giữ trạng thái đóng/mở: cả hai nơi
+  // dựng nó (StoreShell, HomePage) đều không truyền onMenu, và prop giữ lại làm chỗ override.
+  const toggleNav = onMenu ?? (() => setNavOpen((open) => !open));
+
+  useEffect(() => { setNavOpen(false); }, [location.pathname]);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setNavOpen(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [navOpen]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -69,7 +85,8 @@ export function SiteHeader({ cartCount = 0, onMenu }: { cartCount?: number; onMe
         ))}
       </nav>
 
-      <button type="button" data-nav-menu="" aria-label="Menu" onClick={onMenu} style={{
+      <button type="button" data-nav-menu="" aria-label="Menu" aria-expanded={navOpen}
+        aria-controls="header-nav-drawer" onClick={toggleNav} style={{
         display: 'none', placeItems: 'center', appearance: 'none', width: 44, height: 44, marginLeft: 'auto',
         border: '2px solid var(--color-text)', background: 'var(--color-bg)', color: 'var(--color-text)', cursor: 'pointer',
       }}>
@@ -112,6 +129,31 @@ export function SiteHeader({ cartCount = 0, onMenu }: { cartCount?: number; onMe
         <button type="submit" className="btn btn-primary">Tìm</button>
         <button type="button" className="btn btn-secondary" aria-label="Đóng tìm kiếm" onClick={() => setSearchOpen(false)}>Đóng</button>
       </form>}
+      {navOpen && (
+        // Gồm cả mục secondary (CSS giấu từ ≤1180px) và CTA đặt in (giấu từ ≤560px): ở khổ máy
+        // mở được drawer này thì đó là chỗ duy nhất còn thấy chúng.
+        <nav id="header-nav-drawer" aria-label="Điều hướng" style={{
+          position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0,
+          display: 'flex', flexDirection: 'column',
+          padding: 'var(--space-3) var(--space-8) var(--space-4)',
+          borderBottom: '2px solid var(--color-text)', background: 'var(--color-bg)',
+          boxShadow: 'var(--shadow-md)',
+        }}>
+          {NAV.map((n) => (
+            <a key={n.label} href={n.href} onClick={() => setNavOpen(false)} style={{
+              display: 'flex', alignItems: 'center', height: 44, color: 'var(--color-text)',
+              fontSize: 15, fontWeight: 500, textDecoration: 'none',
+              borderBottom: '1px solid var(--color-neutral-200)',
+            }}>{n.label}</a>
+          ))}
+          <a href="/dat-in" onClick={() => setNavOpen(false)} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', height: 44,
+            marginTop: 'var(--space-3)', background: 'var(--color-accent)', color: 'var(--color-bg)',
+            fontSize: 13, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase',
+            textDecoration: 'none',
+          }}>Đặt in ngay</a>
+        </nav>
+      )}
     </header>
   );
 }
