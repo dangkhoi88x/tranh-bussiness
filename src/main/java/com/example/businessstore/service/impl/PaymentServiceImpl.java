@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Set;
 import java.util.UUID;
 
 @Service @RequiredArgsConstructor
@@ -31,6 +32,9 @@ public class PaymentServiceImpl implements PaymentService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final Instant EARLIEST_MANAGEMENT_DATE = Instant.EPOCH;
     private static final Instant LATEST_MANAGEMENT_DATE = Instant.parse("9999-12-31T23:59:59.999999Z");
+    private static final Set<OrderStatus> PAYABLE_ORDER_STATUSES = Set.of(
+            OrderStatus.PENDING,
+            OrderStatus.CONFIRMED);
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryService orderStatusHistoryService;
@@ -38,7 +42,10 @@ public class PaymentServiceImpl implements PaymentService {
     @Override @Transactional
     public PaymentResponse create(UUID userId, UUID orderId, CreatePaymentRequest request) {
         Order order = orderRepository.findByIdAndUserIdForUpdate(orderId, userId).orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND, "Không tìm thấy đơn hàng."));
-        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.DELIVERED) throw new AppException(ErrorCode.ORDER_NOT_PAYABLE, "Đơn hàng này chưa thanh toán được.");
+        if (!PAYABLE_ORDER_STATUSES.contains(order.getStatus())) {
+            throw new AppException(ErrorCode.ORDER_NOT_PAYABLE,
+                    "Chỉ tạo thanh toán cho đơn đang chờ xác nhận hoặc đã xác nhận nhưng chưa giao.");
+        }
         if (paymentRepository.existsByOrderIdAndStatus(orderId, PaymentStatus.PENDING)) throw new AppException(ErrorCode.PAYMENT_ALREADY_EXISTS, "Đơn hàng này đã có một khoản thanh toán đang chờ.");
         if (request.method() != PaymentMethod.COD) throw new AppException(ErrorCode.PAYMENT_METHOD_NOT_SUPPORTED, "Hiện chỉ hỗ trợ thanh toán khi nhận hàng (COD).");
         Payment payment = new Payment(); payment.setOrder(order); payment.setAmount(order.getTotalAmount()); payment.setMethod(request.method()); payment.setStatus(PaymentStatus.PENDING); payment.setTransactionCode(nextCode());
