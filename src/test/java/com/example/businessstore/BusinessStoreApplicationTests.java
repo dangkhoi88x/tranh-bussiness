@@ -7,9 +7,12 @@ import com.example.businessstore.constant.ProductCatalogSort;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.constant.ProductStockLevel;
 import com.example.businessstore.constant.NotificationType;
+import com.example.businessstore.constant.PermissionName;
 import com.example.businessstore.constant.PromotionStatus;
 import com.example.businessstore.constant.PromotionType;
 import com.example.businessstore.dto.request.ProductCatalogFilter;
+import com.example.businessstore.dto.request.UpdateRolePermissionsRequest;
+import com.example.businessstore.service.UserManagementService;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.OrderItem;
@@ -49,6 +52,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -78,6 +82,7 @@ class BusinessStoreApplicationTests {
     @Autowired NotificationRepository notificationRepository;
     @Autowired WishlistItemRepository wishlistItemRepository;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired UserManagementService userManagementService;
 
     @Test
     void contextLoads() {
@@ -288,6 +293,26 @@ class BusinessStoreApplicationTests {
             assertThat(item.material()).isEqualTo("Canvas");
             assertThat(item.stockQuantity()).isZero();
         });
+    }
+
+    @Test
+    void updateStaffPermissionsSupportsRemovingKeepingAndReAddingInSuccessiveCalls() {
+        // Repro cho lỗi: clear() toàn bộ collection rồi insert lại kể cả những quyền không
+        // đổi khiến Hibernate delete+insert cùng khoá (role_id, permission_id) trong một
+        // flush, gây ObjectOptimisticLockingFailureException / unique constraint violation.
+        userManagementService.updateStaffPermissions(new UpdateRolePermissionsRequest(Set.of(
+                PermissionName.CATEGORY_MANAGE, PermissionName.PRODUCT_MANAGE, PermissionName.ORDER_MANAGE)));
+
+        var afterFirst = userManagementService.getRoles().stream()
+                .filter(role -> role.name().equals("STAFF")).findFirst().orElseThrow();
+        assertThat(afterFirst.permissions()).containsExactlyInAnyOrder("CATEGORY_MANAGE", "PRODUCT_MANAGE", "ORDER_MANAGE");
+
+        userManagementService.updateStaffPermissions(new UpdateRolePermissionsRequest(Set.of(
+                PermissionName.CATEGORY_MANAGE, PermissionName.PRODUCT_MANAGE, PermissionName.PROMOTION_MANAGE)));
+
+        var afterSecond = userManagementService.getRoles().stream()
+                .filter(role -> role.name().equals("STAFF")).findFirst().orElseThrow();
+        assertThat(afterSecond.permissions()).containsExactlyInAnyOrder("CATEGORY_MANAGE", "PRODUCT_MANAGE", "PROMOTION_MANAGE");
     }
 
     private Product savePublishedProduct(Category category, String name, String slug, BigDecimal price) {
