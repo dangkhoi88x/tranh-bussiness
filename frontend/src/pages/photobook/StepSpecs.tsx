@@ -8,7 +8,7 @@ import { FINISHES } from './draft';
 import { chipGrid, chipStyle, optionRow, stepBtnStyle } from './styles';
 
 export function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex, setPageIndex, pageOptions, selected,
-  finish, setFinish, qty, setQty, price, photos, photoCount, setPhotoCount, suggestion,
+  finish, setFinish, qty, setQty, price, photos, slotCapacity, photoCount, setPhotoCount, suggestion,
   templates, templateId, setTemplateId, spreadsHaveImages, onApplyTemplate, onNext,
 }: {
   product: Product; pricing: PhotobookPricing;
@@ -17,7 +17,7 @@ export function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex
   pageOptions: { pageCount: number; price: number }[]; selected: { pageCount: number; price: number } | null;
   finish: string; setFinish: (f: string) => void;
   qty: number; setQty: (fn: number | ((q: number) => number)) => void;
-  price: number; photos: { min: number; max: number } | null;
+  price: number; photos: { min: number; max: number } | null; slotCapacity: number | null;
   photoCount: string; setPhotoCount: (v: string) => void;
   suggestion: number | null; templates: PhotobookTemplate[];
   templateId: string; setTemplateId: (id: string) => void;
@@ -129,7 +129,18 @@ export function StepSpecs({ product, pricing, size, sizeId, setSizeId, pageIndex
                   onClick={() => setPageIndex((i: number) => Math.min(pageOptions.length - 1, i + 1))}
                   style={stepBtnStyle(pageIndex >= pageOptions.length - 1)}>+</button>
               </div>
-              {photos && <span style={{ ...STORE_LABEL_STYLE, letterSpacing: '.1em' }}>Cần {photos.min}–{photos.max} hình</span>}
+              {/* Hai con số cho hai cách làm khác nhau, để riêng vì trộn vào nhau là bảo khách
+                  gom 60–80 tấm rồi mở trình thiết kế ra chỉ thấy 31 ô trống. */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                {slotCapacity !== null && (
+                  <span style={{ ...STORE_LABEL_STYLE, letterSpacing: '.1em' }}>Tự thiết kế: {slotCapacity} ô ảnh</span>
+                )}
+                {photos && (
+                  <span style={{ fontSize: 11, letterSpacing: '.06em', color: 'var(--color-neutral-700)' }}>
+                    Gửi xưởng bố cục: {photos.min}–{photos.max} ảnh
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <div data-option-row="" style={optionRow}>

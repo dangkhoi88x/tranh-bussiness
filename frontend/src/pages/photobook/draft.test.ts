@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { clamp, draftImages, hydrateDraftSpreads, makeSpreads, pickNewerDraft } from './draft';
-import type { PhotobookTemplate } from '../../data/photobookTemplates';
+import { clamp, draftImages, hydrateDraftSpreads, makeSpreads, pickNewerDraft, slotCapacityOf, suggestPageCountForTemplate } from './draft';
+import { PHOTOBOOK_TEMPLATES, type PhotobookTemplate } from '../../data/photobookTemplates';
+import { layoutByCode } from '../../data/spreadLayouts';
 import type { StoredPhotobookDraft } from '../../data/photobookDraft';
 
 const template = {
@@ -9,6 +10,50 @@ const template = {
   spreadColors: ['#ffffff', '#f5f5f5'],
   presetCaptions: [{ spreadIndex: 1, text: 'Chuyện của chúng mình', fontSize: 24, color: '#1a1a1a', align: 'center', fontFamily: 'Lora' }],
 } as unknown as PhotobookTemplate;
+
+describe('slotCapacityOf', () => {
+  it('cộng số ô theo đúng chu kỳ bố cục mà makeSpreads dùng', () => {
+    const twoSlotCycle = { layoutCycle: ['DOI_CAN', 'BON_O'] } as unknown as PhotobookTemplate;
+
+    // 20 trang = 10 trang đôi = DOI_CAN(2) và BON_O(4) xen kẽ, mỗi loại 5 lần.
+    expect(slotCapacityOf(twoSlotCycle, 20)).toBe(5 * 2 + 5 * 4);
+    expect(slotCapacityOf(twoSlotCycle, 4)).toBe(2 + 4);
+    expect(slotCapacityOf(twoSlotCycle, 0)).toBe(0);
+  });
+
+  it('khớp với số ô đếm được từ chính các trang đôi makeSpreads dựng ra', () => {
+    for (const tpl of PHOTOBOOK_TEMPLATES) {
+      const built = makeSpreads(10, [], tpl)
+        .reduce((total, spread) => total + layoutByCode(spread.layoutCode).slots.length, 0);
+
+      expect(slotCapacityOf(tpl, 20)).toBe(built);
+    }
+  });
+
+  it('không chủ đề nào thưa ô đến mức cuốn 20 trang không đủ chỗ đặt ảnh', () => {
+    // Từng có chủ đề chỉ 15 ô cho 10 trang đôi (1,5 tấm mỗi trang đôi) trong khi trang sản phẩm
+    // bảo khách chuẩn bị 60–80 tấm. Chặn ở 25 để không ai vô tình seed lại một chu kỳ thưa như vậy.
+    for (const tpl of PHOTOBOOK_TEMPLATES) {
+      expect(slotCapacityOf(tpl, 20), `chủ đề ${tpl.id} quá thưa ô`).toBeGreaterThanOrEqual(25);
+    }
+  });
+});
+
+describe('suggestPageCountForTemplate', () => {
+  const options = [{ pageCount: 20, price: 0 }, { pageCount: 40, price: 0 }];
+  const tpl = { layoutCycle: ['BON_O'] } as unknown as PhotobookTemplate;
+
+  it('gợi ý mức trang đầu tiên đủ ô cho số ảnh khách có', () => {
+    // BON_O = 4 ô: 20 trang → 40 ô, 40 trang → 80 ô.
+    expect(suggestPageCountForTemplate(30, options, tpl)).toBe(20);
+    expect(suggestPageCountForTemplate(60, options, tpl)).toBe(40);
+  });
+
+  it('trả về mức lớn nhất khi không mức nào chứa đủ, và null khi chưa nhập', () => {
+    expect(suggestPageCountForTemplate(500, options, tpl)).toBe(40);
+    expect(suggestPageCountForTemplate(0, options, tpl)).toBeNull();
+  });
+});
 
 describe('makeSpreads', () => {
   it('lặp vòng bố cục và màu nền của mẫu', () => {

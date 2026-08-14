@@ -4,7 +4,6 @@ import { ApiRequestError, apiRequest } from '../api/http';
 import {
   fetchPhotobookPricing,
   photoRangeFor,
-  suggestPageCount,
   type PhotobookPricing,
   type PhotobookSize,
 } from '../api/photobook';
@@ -34,7 +33,7 @@ import { PhotobookProgressBar } from './photobook/PhotobookProgressBar';
 import { StepArrange } from './photobook/StepArrange';
 import { StepReview } from './photobook/StepReview';
 import { StepSpecs } from './photobook/StepSpecs';
-import { AutoFillResult, CATALOG_HREF, DraftCaption, DraftSlot, DraftSpread, FINISHES, HISTORY_LIMIT, STEPS, SpreadHistory, clamp, cloneSpread, draftImages, emptyDraftSlot, hydrateDraftSpreads, makeSpreads, newCaption, newImageId, pickNewerDraft, variantSnapshot } from './photobook/draft';
+import { AutoFillResult, CATALOG_HREF, DraftCaption, DraftSlot, DraftSpread, FINISHES, HISTORY_LIMIT, STEPS, SpreadHistory, clamp, cloneSpread, draftImages, emptyDraftSlot, hydrateDraftSpreads, makeSpreads, newCaption, newImageId, pickNewerDraft, slotCapacityOf, suggestPageCountForTemplate, variantSnapshot } from './photobook/draft';
 
 
 export function PhotobookDetailPage() {
@@ -204,14 +203,16 @@ export function PhotobookDetailPage() {
   const photos = selected ? photoRangeFor(selected.pageCount) : null;
   const numSpreads = selected ? selected.pageCount / 2 : 0;
 
+  const template = templateById(templates, templateId);
+  // Số ô ảnh của đúng chủ đề đang chọn — thứ khách thật sự lấp đầy ở bước sau.
+  const slotCapacity = selected ? slotCapacityOf(template, selected.pageCount) : null;
+
   const suggestion = useMemo(() => {
     const wanted = Number(photoCount);
     if (!Number.isFinite(wanted) || wanted <= 0 || !selected) return null;
-    const suggested = suggestPageCount(wanted, pageOptions);
+    const suggested = suggestPageCountForTemplate(wanted, pageOptions, template);
     return suggested === null || suggested === selected.pageCount ? null : suggested;
-  }, [photoCount, pageOptions, selected]);
-
-  const template = templateById(templates, templateId);
+  }, [photoCount, pageOptions, selected, template]);
 
   const applyTemplateToSpreads = useCallback((tpl: PhotobookTemplate) => {
     setSpreads((prev) => {
@@ -657,7 +658,7 @@ export function PhotobookDetailPage() {
           product={product} pricing={pricing} size={size} sizeId={sizeId} setSizeId={setSizeId}
           pageIndex={pageIndex} setPageIndex={setPageIndex} pageOptions={pageOptions} selected={selected}
           finish={finish} setFinish={setFinish} qty={qty} setQty={setQty}
-          price={price} photos={photos} photoCount={photoCount} setPhotoCount={setPhotoCount}
+          price={price} photos={photos} slotCapacity={slotCapacity} photoCount={photoCount} setPhotoCount={setPhotoCount}
           suggestion={suggestion} templates={templates} templateId={templateId} setTemplateId={setTemplateId}
           spreadsHaveImages={spreads.some((s) => s.slots.some((sl) => sl.file !== null))}
           onApplyTemplate={() => applyTemplateToSpreads(template)}

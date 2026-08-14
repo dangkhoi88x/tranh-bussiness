@@ -39,11 +39,11 @@ export const PHOTOBOOK_TEMPLATES: PhotobookTemplate[] = [
     defaultCaptionColor: '#8b4513',
     spreadColors: ['#fdf8f4', '#fef0f0', '#fdf8f4', '#ffffff'],
     layoutCycle: [
-      'TRAN_DOI', 'VIEN_LON', 'DOI_CAN', 'KHOI_MAU',
-      'MOT_LON_MOT_NHO', 'KHUNG_DOI', 'BA_TAM', 'PANORAMA',
-      'DOI_CAN', 'VIEN_LON', 'BON_O', 'TRAN_DOI',
-      'BA_NGANG', 'KHOI_MAU', 'DOC_NGANG', 'VIEN_LON',
-      'MOT_HAI', 'KHUNG_DOI', 'TRAN_DOI', 'VIEN_LON',
+      'TRAN_DOI', 'DOI_CAN', 'BON_O', 'VIEN_LON',
+      'SAU_O', 'MOT_LON_MOT_NHO', 'BA_TAM', 'GHEP_HINH',
+      'KHUNG_DOI', 'NAM_O', 'PANORAMA', 'BA_NGANG',
+      'KHOI_MAU', 'BON_O', 'DOI_CAN', 'GHEP_HINH',
+      'VIEN_LON', 'SAU_O', 'MOT_HAI', 'TRAN_DOI',
     ],
     presetCaptions: [
       { spreadIndex: 0, text: 'Ngày cưới', fontSize: 6, fontFamily: 'Great Vibes', color: '#8b4513', align: 'center' },
@@ -93,11 +93,11 @@ export const PHOTOBOOK_TEMPLATES: PhotobookTemplate[] = [
     defaultCaptionColor: '#1a365d',
     spreadColors: ['#f0f4f8', '#fefce8', '#f0f4f8', '#ffffff'],
     layoutCycle: [
-      'VIEN_LON', 'DOI_CAN', 'MOT_LON_MOT_NHO', 'KHOI_MAU',
-      'BA_TAM', 'TRAN_DOI', 'BON_O', 'PANORAMA',
-      'KHUNG_DOI', 'DOC_NGANG', 'BA_NGANG', 'VIEN_LON',
-      'MOT_HAI', 'DOI_CAN', 'TRAN_DOI', 'KHOI_MAU',
-      'NAM_O', 'VIEN_LON', 'GHEP_HINH', 'TRAN_DOI',
+      'VIEN_LON', 'DOI_CAN', 'BON_O', 'BA_TAM',
+      'NAM_O', 'TRAN_DOI', 'GHEP_HINH', 'KHUNG_DOI',
+      'SAU_O', 'DOC_NGANG', 'BA_NGANG', 'VIEN_LON',
+      'BON_O', 'KHOI_MAU', 'PANORAMA', 'NAM_O',
+      'MOT_HAI', 'GHEP_HINH', 'DOI_CAN', 'VIEN_LON',
     ],
     presetCaptions: [
       { spreadIndex: 0, text: 'Ngày tốt nghiệp', fontSize: 6, fontFamily: 'Playfair Display', color: '#1a365d', align: 'center' },
