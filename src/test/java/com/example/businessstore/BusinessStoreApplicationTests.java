@@ -24,6 +24,7 @@ import com.example.businessstore.entity.User;
 import com.example.businessstore.entity.WishlistItem;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.OrderRepository;
+import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.NotificationRepository;
 import com.example.businessstore.repository.PromotionRepository;
@@ -77,6 +78,7 @@ class BusinessStoreApplicationTests {
     @Autowired ProductVariantRepository productVariantRepository;
     @Autowired OrderRepository orderRepository;
     @Autowired PaymentRepository paymentRepository;
+    @Autowired PaymentRefundRepository paymentRefundRepository;
     @Autowired DashboardService dashboardService;
     @Autowired ProductService productService;
     @Autowired NotificationRepository notificationRepository;
@@ -99,6 +101,8 @@ class BusinessStoreApplicationTests {
                 Instant.parse("9999-12-31T23:59:59.999999Z"), page).getContent()).isNotNull();
         assertThat(orderRepository.searchForManagement(null, null, null, Instant.EPOCH,
                 Instant.parse("9999-12-31T23:59:59.999999Z"), page).getContent()).isNotNull();
+        assertThat(paymentRefundRepository.searchForManagement(null, null, page).getContent()).isNotNull();
+        assertThat(paymentRefundRepository.searchForManagement(null, "no-match", page).getContent()).isEmpty();
     }
 
     @Test
