@@ -4,6 +4,6 @@ public interface GoogleOAuthService {
 
     GoogleProfile authenticate(String authorizationCode, String redirectUri);
 
-    record GoogleProfile(String email, String givenName, String familyName) {
+    record GoogleProfile(String subject, String email, String givenName, String familyName) {
     }
 }

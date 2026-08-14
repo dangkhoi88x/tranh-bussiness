@@ -40,6 +40,9 @@ public class User extends BaseEntity implements UserDetails {
     @Column(length = 30)
     private String phone;
 
+    @Column(name = "google_subject", unique = true, length = 255)
+    private String googleSubject;
+
     @Column(nullable = false)
     private boolean enabled = true;
 

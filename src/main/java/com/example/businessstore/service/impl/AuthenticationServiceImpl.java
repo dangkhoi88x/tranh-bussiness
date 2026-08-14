@@ -82,11 +82,19 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional
     public AuthSession loginWithGoogle(GoogleOAuthCodeRequest request) {
         GoogleOAuthService.GoogleProfile profile = googleOAuthService.authenticate(request.code(), request.redirectUri());
-        User user = userRepository.findByEmail(normalizeEmail(profile.email())).orElse(null);
-        if (user == null) {
-            user = createGoogleUser(profile);
-            publishUserRegistered(user);
+        User linkedGoogleUser = userRepository.findByGoogleSubject(profile.subject()).orElse(null);
+        if (linkedGoogleUser != null) {
+            return issueSession(linkedGoogleUser);
         }
+
+        String email = normalizeEmail(profile.email());
+        if (userRepository.existsByEmail(email)) {
+            throw new AppException(ErrorCode.ACCOUNT_LINK_REQUIRED,
+                    "Email này đã được đăng ký bằng mật khẩu. Vui lòng đăng nhập bằng mật khẩu hoặc đặt lại mật khẩu.");
+        }
+
+        User user = createGoogleUser(profile);
+        publishUserRegistered(user);
         return issueSession(user);
     }
 
@@ -161,6 +169,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setFirstName(normalizeName(profile.givenName(), "Google"));
         user.setLastName(normalizeName(profile.familyName(), "User"));
+        user.setGoogleSubject(profile.subject());
         user.addRole(roleService.createRole(RoleName.CUSTOMER));
         return userRepository.save(user);
     }

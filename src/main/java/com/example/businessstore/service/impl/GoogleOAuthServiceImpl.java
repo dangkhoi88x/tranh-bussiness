@@ -50,7 +50,8 @@ public class GoogleOAuthServiceImpl implements GoogleOAuthService {
                 throw new AppException(ErrorCode.INVALID_GOOGLE_ID_TOKEN, "Email của tài khoản Google này chưa được xác minh.");
             }
             GoogleIdToken.Payload profile = idToken.getPayload();
-            return new GoogleProfile(profile.getEmail(), (String) profile.get("given_name"), (String) profile.get("family_name"));
+            return new GoogleProfile(profile.getSubject(), profile.getEmail(),
+                    (String) profile.get("given_name"), (String) profile.get("family_name"));
         } catch (GeneralSecurityException exception) {
             log.warn("Google ID token validation failed", exception);
             throw new AppException(ErrorCode.INVALID_GOOGLE_ID_TOKEN, "Thông tin xác thực từ Google không hợp lệ.");
