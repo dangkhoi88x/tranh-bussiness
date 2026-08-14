@@ -29,6 +29,7 @@ import com.example.businessstore.repository.PromotionRepository;
 import com.example.businessstore.repository.PromotionUsageRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.service.PromotionLine;
+import com.example.businessstore.service.LinePricingService;
 import com.example.businessstore.service.PromotionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,6 +65,7 @@ public class PromotionServiceImpl implements PromotionService {
     private final ProductVariantRepository productVariantRepository;
     private final UserRepository userRepository;
     private final CartRepository cartRepository;
+    private final LinePricingService linePricingService;
 
     @Value("${app.promotion.reservation-ttl:PT30M}")
     private Duration reservationTtl;
@@ -184,7 +186,8 @@ public class PromotionServiceImpl implements PromotionService {
         List<PromotionLine> lines = new java.util.ArrayList<>();
         for (CartItem item : cart.getItems()) {
             ProductVariant variant = item.getProductVariant();
-            BigDecimal basePrice = variant == null ? item.getProduct().getPrice() : variant.getPrice();
+            BigDecimal basePrice = linePricingService.basePrice(
+                    item.getProduct(), variant, item.getPageCount());
             BigDecimal framePrice = item.getProductFrameOption() == null
                     ? BigDecimal.ZERO
                     : item.getProductFrameOption().getPriceAdjustment();

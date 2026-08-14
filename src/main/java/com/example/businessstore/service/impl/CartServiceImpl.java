@@ -11,7 +11,6 @@ import com.example.businessstore.dto.response.ProductVariantResponse;
 import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
 import com.example.businessstore.entity.PhotobookDesign;
-import com.example.businessstore.entity.PhotobookPageTier;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ProductVariant;
@@ -22,14 +21,13 @@ import com.example.businessstore.mapper.ProductFrameOptionMapper;
 import com.example.businessstore.repository.CartItemRepository;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.PhotobookDesignRepository;
-import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.PhotobookTemplateRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.CartService;
-import com.example.businessstore.service.PhotobookPricing;
+import com.example.businessstore.service.LinePricingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,7 +47,7 @@ public class CartServiceImpl implements CartService {
     private final ProductFrameOptionRepository productFrameOptionRepository;
     private final ProductFrameOptionMapper productFrameOptionMapper;
     private final ProductVariantRepository productVariantRepository;
-    private final PhotobookPageTierRepository photobookPageTierRepository;
+    private final LinePricingService linePricingService;
     private final PhotobookDesignRepository photobookDesignRepository;
     private final PhotobookTemplateRepository photobookTemplateRepository;
 
@@ -220,24 +218,13 @@ public class CartServiceImpl implements CartService {
             throw new AppException(ErrorCode.PHOTOBOOK_PAGE_COUNT_REQUIRED, "Hãy chọn số trang cho cuốn photobook này.");
         }
         // Ném nếu số trang không bán được; giá trả về ở đây bỏ đi, toResponse tính lại khi đọc giỏ.
-        PhotobookPricing.priceAt(product, pageTiersOf(variant), requested);
+        linePricingService.basePrice(product, variant, requested);
         return requested;
-    }
-
-    private List<PhotobookPageTier> pageTiersOf(ProductVariant variant) {
-        return photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId());
     }
 
     /** Giá một cuốn/bức trước phụ thu khung: theo số trang với photobook, theo variant với hàng thường. */
     private BigDecimal basePriceOf(CartItem item) {
-        ProductVariant variant = item.getProductVariant();
-        if (variant == null) {
-            return item.getProduct().getPrice();
-        }
-        if (item.getProduct().isPagePriced() && item.getPageCount() != null) {
-            return PhotobookPricing.priceAt(item.getProduct(), pageTiersOf(variant), item.getPageCount());
-        }
-        return variant.getPrice();
+        return linePricingService.basePrice(item.getProduct(), item.getProductVariant(), item.getPageCount());
     }
 
     private CartItem getOwnedItem(UUID userId, UUID itemId) {

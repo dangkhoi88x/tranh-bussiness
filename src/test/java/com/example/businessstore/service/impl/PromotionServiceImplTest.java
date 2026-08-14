@@ -9,6 +9,7 @@ import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Order;
+import com.example.businessstore.entity.PhotobookPageTier;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ProductVariant;
@@ -20,11 +21,13 @@ import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.repository.PromotionRepository;
 import com.example.businessstore.repository.PromotionUsageRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.service.PromotionLine;
+import com.example.businessstore.service.LinePricingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,10 +60,13 @@ class PromotionServiceImplTest {
     @Mock private ProductVariantRepository productVariantRepository;
     @Mock private UserRepository userRepository;
     @Mock private CartRepository cartRepository;
+    @Mock private PhotobookPageTierRepository photobookPageTierRepository;
     @InjectMocks private PromotionServiceImpl promotionService;
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(promotionService, "linePricingService",
+                new LinePricingService(photobookPageTierRepository));
         ReflectionTestUtils.setField(promotionService, "reservationTtl", Duration.ofMinutes(30));
     }
 
@@ -92,6 +98,53 @@ class PromotionServiceImplTest {
         assertThat(result.eligibleSubtotal()).isEqualByComparingTo("2000.00");
         assertThat(result.discountAmount()).isEqualByComparingTo("200.00");
         assertThat(result.totalAmount()).isEqualByComparingTo("2200.00");
+    }
+
+    @Test
+    void previewCart_usesPhotobookPagePriceInsteadOfVariantBasePrice() {
+        UUID userId = UUID.randomUUID();
+        Category category = new Category();
+        category.setId(UUID.randomUUID());
+        Product product = new Product();
+        product.setId(UUID.randomUUID());
+        product.setCategory(category);
+        product.setMinPages(20);
+        product.setMaxPages(150);
+        product.setPageStep(2);
+        product.setPricePerStep(new BigDecimal("40000"));
+
+        ProductVariant variant = new ProductVariant();
+        variant.setId(UUID.randomUUID());
+        variant.setProduct(product);
+        variant.setPrice(new BigDecimal("1000000"));
+        PhotobookPageTier tier = new PhotobookPageTier();
+        tier.setProductVariant(variant);
+        tier.setPageCount(30);
+        tier.setPrice(new BigDecimal("1400000"));
+
+        CartItem item = new CartItem();
+        item.setProduct(product);
+        item.setProductVariant(variant);
+        item.setPageCount(30);
+        item.setQuantity(2);
+        Cart cart = new Cart();
+        cart.getItems().add(item);
+
+        Promotion promotion = activePromotion(PromotionType.PERCENTAGE, new BigDecimal("10"));
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId()))
+                .thenReturn(List.of(tier));
+        when(promotionRepository.findByCodeIgnoreCase("VARIANT10")).thenReturn(Optional.of(promotion));
+        when(usageRepository.countByPromotionIdAndUserIdAndStatusIn(
+                promotion.getId(), userId, Set.of(PromotionUsageStatus.RESERVED, PromotionUsageStatus.CONSUMED)))
+                .thenReturn(0L);
+
+        PromotionCalculationResponse result = promotionService.previewCart(userId, "variant10");
+
+        assertThat(result.subtotalAmount()).isEqualByComparingTo("2800000.00");
+        assertThat(result.eligibleSubtotal()).isEqualByComparingTo("2800000.00");
+        assertThat(result.discountAmount()).isEqualByComparingTo("280000.00");
+        assertThat(result.totalAmount()).isEqualByComparingTo("2520000.00");
     }
 
     @Test

@@ -32,10 +32,9 @@ import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.ShipmentRepository;
-import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
-import com.example.businessstore.service.PhotobookPricing;
+import com.example.businessstore.service.LinePricingService;
 import com.example.businessstore.service.PhotobookProjectService;
 import com.example.businessstore.service.OrderService;
 import com.example.businessstore.service.OrderStatusHistoryService;
@@ -70,7 +69,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
-    private final PhotobookPageTierRepository photobookPageTierRepository;
+    private final LinePricingService linePricingService;
     private final PhotobookProjectService photobookProjectService;
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
@@ -109,14 +108,9 @@ public class OrderServiceImpl implements OrderService {
             ProductFrameOption option = cartItem.getProductFrameOption();
             validateFrameCompatibility(option, variant);
             BigDecimal adjustment = option == null ? BigDecimal.ZERO : option.getPriceAdjustment();
-            // Giá tính lại từ đầu ở đây (không tin giỏ hàng), nên photobook phải dùng đúng
-            // PhotobookPricing như CartServiceImpl — lệch một trong hai là khách trả sai tiền.
-            BigDecimal basePrice = variant == null ? lockedProduct.getPrice()
-                    : lockedProduct.isPagePriced() && cartItem.getPageCount() != null
-                    ? PhotobookPricing.priceAt(lockedProduct,
-                    photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId()),
-                    cartItem.getPageCount())
-                    : variant.getPrice();
+            // Luôn tính lại từ nguồn giá chung; không tin giá từng được hiển thị trong giỏ.
+            BigDecimal basePrice = linePricingService.basePrice(
+                    lockedProduct, variant, cartItem.getPageCount());
             BigDecimal unitPrice = basePrice.add(adjustment);
             OrderItem item = new OrderItem();
             item.setProductId(lockedProduct.getId()); item.setProductName(lockedProduct.getName()); item.setProductSlug(lockedProduct.getSlug());
