@@ -106,7 +106,25 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
         } catch (IOException exception) {
             log.warn("Cloudinary proof upload failed", exception);
             throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Không tải lên được bản mềm.");
+        } catch (AppException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw rejectedByProvider(exception, "bản mềm",
+                    "Dịch vụ lưu trữ không đọc được tệp bản mềm này. Hãy xuất lại file rồi thử lần nữa.");
         }
+    }
+
+    /**
+     * Chữ ký byte ở validateProof/validateImage chỉ soi được vài byte đầu, nên một tệp đúng
+     * magic number mà hỏng cấu trúc bên trong vẫn lọt xuống tới đây và bị Cloudinary từ chối.
+     * Cloudinary ném RuntimeException trần cho mọi phản hồi khác 200, còn lỗi mạng/timeout thì
+     * ném IOException — nên nhánh này là "gửi được tới nơi nhưng bị từ chối nội dung", trả 422
+     * thay vì để lọt ra ngoài thành 500 vô nghĩa. Lý do thật của Cloudinary (có thể là hết quota
+     * hay sai khoá chứ không phải tệp hỏng) được log lại để còn lần ra khi có sự cố.
+     */
+    private AppException rejectedByProvider(RuntimeException exception, String subject, String message) {
+        log.warn("Cloudinary rejected the uploaded {}: {}", subject, exception.getMessage(), exception);
+        return new AppException(ErrorCode.MEDIA_FILE_REJECTED, message);
     }
 
     /** Cloudinary trả "pages" cho PDF; ảnh đơn không có trường này. */
@@ -154,6 +172,11 @@ public class CloudinaryMediaStorageService implements MediaStorageService {
         } catch (IOException exception) {
             log.warn("Cloudinary image upload failed", exception);
             throw new AppException(ErrorCode.MEDIA_UPLOAD_FAILED, "Không tải lên được ảnh.");
+        } catch (AppException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw rejectedByProvider(exception, "ảnh",
+                    "Dịch vụ lưu trữ không đọc được tệp ảnh này. Hãy chọn ảnh khác hoặc xuất lại file.");
         }
     }
 
