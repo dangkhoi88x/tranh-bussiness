@@ -560,7 +560,7 @@ function ProductForm({
               Giá gốc
               <input
                 type="number"
-                min="1"
+                min="0"
                 step="1000"
                 value={form.price}
                 onChange={(event) => change("price", event.target.value)}

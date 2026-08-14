@@ -554,7 +554,7 @@ function PromotionForm({
               type="number"
               min="0.01"
               max={form.type === "PERCENTAGE" ? 100 : undefined}
-              step={form.type === "PERCENTAGE" ? 1 : 1000}
+              step="any"
               value={form.discountValue}
               onChange={(event) => change("discountValue", event.target.value)}
               required
@@ -565,7 +565,7 @@ function PromotionForm({
             <input
               type="number"
               min="0.01"
-              step="1000"
+              step="any"
               value={form.maxDiscountAmount}
               onChange={(event) =>
                 change("maxDiscountAmount", event.target.value)
