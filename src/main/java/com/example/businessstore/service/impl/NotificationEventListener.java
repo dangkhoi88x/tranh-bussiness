@@ -25,62 +25,72 @@ public class NotificationEventListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onUserRegistered(UserRegisteredEvent event) {
-        boolean created = notificationService.createIfAbsent(
-                event.userId(), NotificationType.WELCOME,
-                "Chào mừng bạn đến với Business Store",
-                "Chào " + event.firstName() + ", tài khoản của bạn đã sẵn sàng để khám phá các tác phẩm nghệ thuật.",
-                "/", "WELCOME:" + event.userId());
-        if (created) {
-            sendWelcomeEmail(event);
-        }
+        runSafely("welcome notification", event.userId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.WELCOME,
+                    "Chào mừng bạn đến với Business Store",
+                    "Chào " + event.firstName() + ", tài khoản của bạn đã sẵn sàng để khám phá các tác phẩm nghệ thuật.",
+                    "/", "WELCOME:" + event.userId());
+            if (created) sendWelcomeEmail(event);
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderConfirmed(OrderConfirmedEvent event) {
-        boolean created = notificationService.createIfAbsent(
-                event.userId(), NotificationType.ORDER_CONFIRMED,
-                "Đơn hàng " + event.orderCode() + " đã được xác nhận",
-                "Đơn hàng " + event.orderCode() + " đã được xác nhận và sẽ được chuẩn bị để giao cho bạn.",
-                "/don-hang-cua-toi/" + event.orderId(), "ORDER_CONFIRMED:" + event.orderId());
-        if (created) {
-            sendOrderConfirmedEmail(event);
-        }
+        runSafely("order-confirmed notification", event.orderId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.ORDER_CONFIRMED,
+                    "Đơn hàng " + event.orderCode() + " đã được xác nhận",
+                    "Đơn hàng " + event.orderCode() + " đã được xác nhận và sẽ được chuẩn bị để giao cho bạn.",
+                    "/don-hang-cua-toi/" + event.orderId(), "ORDER_CONFIRMED:" + event.orderId());
+            if (created) sendOrderConfirmedEmail(event);
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderPlaced(OrderPlacedEvent event) {
-        boolean created = notificationService.createIfAbsent(
-                event.userId(), NotificationType.ORDER_PLACED,
-                "Đã nhận đơn hàng " + event.orderCode(),
-                "Đơn hàng " + event.orderCode() + " đã được tiếp nhận và đang chờ xưởng xác nhận.",
-                "/don-hang-cua-toi/" + event.orderId(), "ORDER_PLACED:" + event.orderId());
-        if (created) {
-            sendOrderPlacedEmail(event);
-        }
-        adminOrderNotificationPublisher.publish(event);
+        runSafely("order-placed notification", event.orderId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.ORDER_PLACED,
+                    "Đã nhận đơn hàng " + event.orderCode(),
+                    "Đơn hàng " + event.orderCode() + " đã được tiếp nhận và đang chờ xưởng xác nhận.",
+                    "/don-hang-cua-toi/" + event.orderId(), "ORDER_PLACED:" + event.orderId());
+            if (created) sendOrderPlacedEmail(event);
+        });
+        runSafely("admin new-order notification", event.orderId(),
+                () -> adminOrderNotificationPublisher.publish(event));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderShipped(OrderShippedEvent event) {
-        boolean created = notificationService.createIfAbsent(
-                event.userId(), NotificationType.ORDER_SHIPPED,
-                "Đơn hàng " + event.orderCode() + " đang được giao",
-                "Đơn hàng đã được bàn giao cho " + event.carrier() + ". Mã vận đơn: " + event.trackingCode() + ".",
-                "/don-hang-cua-toi/" + event.orderId(), "ORDER_SHIPPED:" + event.orderId());
-        if (created) {
-            sendOrderShippedEmail(event);
-        }
+        runSafely("order-shipped notification", event.orderId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.ORDER_SHIPPED,
+                    "Đơn hàng " + event.orderCode() + " đang được giao",
+                    "Đơn hàng đã được bàn giao cho " + event.carrier() + ". Mã vận đơn: " + event.trackingCode() + ".",
+                    "/don-hang-cua-toi/" + event.orderId(), "ORDER_SHIPPED:" + event.orderId());
+            if (created) sendOrderShippedEmail(event);
+        });
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCustomOrderQuoted(CustomOrderQuotedEvent event) {
-        boolean created = notificationService.createIfAbsent(
-                event.userId(), NotificationType.CUSTOM_ORDER_QUOTED,
-                "Đã có báo giá cho yêu cầu " + event.requestCode(),
-                "Xưởng đã hoàn tất báo giá. Vui lòng xem và phản hồi yêu cầu in của bạn.",
-                "/dat-in", "CUSTOM_ORDER_QUOTED:" + event.requestId());
-        if (created) {
-            sendCustomOrderQuoteEmail(event);
+        runSafely("custom-order quote notification", event.requestId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.CUSTOM_ORDER_QUOTED,
+                    "Đã có báo giá cho yêu cầu " + event.requestCode(),
+                    "Xưởng đã hoàn tất báo giá. Vui lòng xem và phản hồi yêu cầu in của bạn.",
+                    "/dat-in", "CUSTOM_ORDER_QUOTED:" + event.requestId());
+            if (created) sendCustomOrderQuoteEmail(event);
+        });
+    }
+
+    /** Side effects chạy AFTER_COMMIT không được biến một nghiệp vụ đã lưu thành API thất bại. */
+    private void runSafely(String action, Object aggregateId, Runnable operation) {
+        try {
+            operation.run();
+        } catch (RuntimeException exception) {
+            log.warn("Could not complete {} for {} after commit", action, aggregateId, exception);
         }
     }
 

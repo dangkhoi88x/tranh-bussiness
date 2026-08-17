@@ -29,6 +29,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             "userRoles.role.rolePermissions",
             "userRoles.role.rolePermissions.permission"
     })
+    Optional<User> findByGoogleSubject(String googleSubject);
+
+    @EntityGraph(attributePaths = {
+            "userRoles",
+            "userRoles.role",
+            "userRoles.role.rolePermissions",
+            "userRoles.role.rolePermissions.permission"
+    })
     @Query("select u from User u where u.id = :id")
     Optional<User> findWithRolesById(@Param("id") UUID id);
 

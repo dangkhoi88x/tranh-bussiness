@@ -460,6 +460,224 @@ export function PaymentsSearchPage() {
           </>
         )}
       </Panel>
+      <RefundsPanel />
     </>
+  );
+}
+
+type Refund = {
+  id: string;
+  orderId: string;
+  orderCode: string;
+  paymentId: string;
+  transactionCode: string;
+  amount: number;
+  status: "PENDING" | "SUCCESS" | "FAILED";
+  reason: string;
+  providerRefundId: string | null;
+  failureMessage: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+/**
+ * Hoàn tiền sinh ra tự động ở trạng thái PENDING khi giao thất bại một đơn đã thu COD, và
+ * khách nhìn thấy ngay "Đang xử lý hoàn tiền" ở đơn của mình. Không có bảng này thì không ai
+ * trong xưởng biết còn khoản nào phải trả, nên mặc định lọc đúng nhóm PENDING.
+ */
+function RefundsPanel() {
+  const [page, setPage] = useState(1);
+  const [status, setStatus] = useState("PENDING");
+  const [message, setMessage] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const query = useMemo(() => {
+    const value = new URLSearchParams({ page: String(page), size: "20" });
+    if (status) value.set("status", status);
+    return value.toString();
+  }, [status, page]);
+  const { data, loading, error, reload } = usePagedRequest<Refund>(
+    `/payment-refunds?${query}`,
+  );
+
+  async function settle(
+    refund: Refund,
+    next: "SUCCESS" | "FAILED",
+    reference: string,
+    failureMessage: string,
+  ) {
+    try {
+      await apiRequest(`/payment-refunds/${refund.id}/settle`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: next,
+          providerRefundId: reference || null,
+          failureMessage: failureMessage || null,
+        }),
+      });
+      setMessage(
+        next === "SUCCESS"
+          ? `Đã ghi nhận hoàn tiền cho ${refund.orderCode}.`
+          : `Đã ghi nhận hoàn tiền thất bại cho ${refund.orderCode}.`,
+      );
+      setOpenId(null);
+      void reload();
+    } catch (settleError) {
+      setMessage(errorText(settleError));
+    }
+  }
+
+  return (
+    <Panel>
+      <Header
+        title="Hoàn tiền"
+        description="Khoản phải trả lại khách khi giao thất bại đơn đã thu COD. Chuyển tiền xong thì chốt lại ở đây để khách thấy đúng trạng thái."
+      />
+      {(message || error) && <p className="catalog-message">{message || error}</p>}
+      <form
+        className="operations-filters"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setPage(1);
+        }}
+      >
+        <label>
+          Trạng thái
+          <select
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="PENDING">Chờ hoàn</option>
+            <option value="SUCCESS">Đã hoàn</option>
+            <option value="FAILED">Hoàn thất bại</option>
+            <option value="">Tất cả</option>
+          </select>
+        </label>
+      </form>
+      {loading ? (
+        <p className="table-loading">Đang tải khoản hoàn tiền…</p>
+      ) : (
+        <>
+          <DataTable>
+            <thead>
+              <tr>
+                <th>Đơn hàng</th>
+                <th>Số tiền</th>
+                <th>Lý do</th>
+                <th>Trạng thái</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data?.items.map((refund) => (
+                <tr key={refund.id}>
+                  <td>
+                    <strong>{refund.orderCode}</strong>
+                    <small>{dateTime.format(new Date(refund.createdAt))}</small>
+                  </td>
+                  <td>{money.format(refund.amount)}</td>
+                  <td>
+                    {refund.reason}
+                    {refund.failureMessage && <small>{refund.failureMessage}</small>}
+                    {refund.providerRefundId && <small>Mã CK: {refund.providerRefundId}</small>}
+                  </td>
+                  <td>
+                    <span className={stateClass(refund.status)}>{refund.status}</span>
+                  </td>
+                  <td className="table-actions">
+                    {refund.status === "PENDING" ? (
+                      openId === refund.id ? (
+                        <SettleRefundForm
+                          refund={refund}
+                          onCancel={() => setOpenId(null)}
+                          onSettle={settle}
+                        />
+                      ) : (
+                        <button onClick={() => setOpenId(refund.id)}>Chốt khoản này</button>
+                      )
+                    ) : (
+                      refund.completedAt && (
+                        <small>{dateTime.format(new Date(refund.completedAt))}</small>
+                      )
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+          {data?.items.length === 0 && (
+            <p className="empty-state">Không có khoản hoàn tiền nào.</p>
+          )}
+          <Pagination data={data} onPage={setPage} />
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function SettleRefundForm({
+  refund,
+  onCancel,
+  onSettle,
+}: {
+  refund: Refund;
+  onCancel: () => void;
+  onSettle: (
+    refund: Refund,
+    next: "SUCCESS" | "FAILED",
+    reference: string,
+    failureMessage: string,
+  ) => Promise<void>;
+}) {
+  const [reference, setReference] = useState("");
+  const [failureMessage, setFailureMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function run(next: "SUCCESS" | "FAILED") {
+    setBusy(true);
+    try {
+      await onSettle(refund, next, reference.trim(), failureMessage.trim());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="refund-settle">
+      <label>
+        Mã chuyển khoản (tuỳ chọn)
+        <input
+          value={reference}
+          placeholder="VD: FT2608140001"
+          maxLength={120}
+          onChange={(event) => setReference(event.target.value)}
+        />
+      </label>
+      <label>
+        Lý do nếu thất bại
+        <input
+          value={failureMessage}
+          placeholder="VD: sai số tài khoản"
+          maxLength={1000}
+          onChange={(event) => setFailureMessage(event.target.value)}
+        />
+      </label>
+      <button disabled={busy} onClick={() => void run("SUCCESS")}>
+        Đã hoàn tiền
+      </button>
+      <button
+        disabled={busy || !failureMessage.trim()}
+        title={!failureMessage.trim() ? "Cần ghi lý do trước" : undefined}
+        onClick={() => void run("FAILED")}
+      >
+        Hoàn thất bại
+      </button>
+      <button type="button" disabled={busy} onClick={onCancel}>
+        Huỷ
+      </button>
+    </div>
   );
 }

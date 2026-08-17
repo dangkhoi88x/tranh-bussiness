@@ -39,19 +39,17 @@ export function fetchPhotobookPricing(productId: string): Promise<PhotobookPrici
 }
 
 /**
- * Khoảng ảnh cần gửi cho một cuốn. Bảng giá của xưởng ghi 20 trang → 60–80 hình và
- * 30 trang → 90–120 hình, tức 3–4 ảnh mỗi trang.
+ * Khoảng ảnh cần gửi khi để XƯỞNG tự bố cục. Bảng giá của xưởng ghi 20 trang → 60–80 hình và
+ * 30 trang → 90–120 hình, tức 3–4 ảnh mỗi trang: khách gửi cả bộ để xưởng chọn lọc, nên số này
+ * lớn hơn số ảnh thật sự lên trang. Trùng khớp có chủ đích với PhotobookProjectServiceImpl —
+ * đây chính là ngưỡng backend chặn ở submit(), sửa một bên phải sửa cả hai.
+ *
+ * KHÁCH TỰ THIẾT KẾ thì dùng slotCapacityOf() bên pages/photobook/draft.ts: lúc đó khách tự đặt
+ * từng tấm vào từng ô nên chỉ cần đúng số ô của chủ đề, không phải khoảng này.
  */
 export const PHOTOS_PER_PAGE_MIN = 3;
 export const PHOTOS_PER_PAGE_MAX = 4;
 
 export function photoRangeFor(pageCount: number): { min: number; max: number } {
   return { min: pageCount * PHOTOS_PER_PAGE_MIN, max: pageCount * PHOTOS_PER_PAGE_MAX };
-}
-
-/** Số trang gợi ý cho một số lượng ảnh, làm tròn lên mức bán được gần nhất. */
-export function suggestPageCount(photoCount: number, options: PhotobookPageOption[]): number | null {
-  if (photoCount <= 0 || options.length === 0) return null;
-  const enough = options.find((option) => photoRangeFor(option.pageCount).max >= photoCount);
-  return (enough ?? options[options.length - 1]).pageCount;
 }

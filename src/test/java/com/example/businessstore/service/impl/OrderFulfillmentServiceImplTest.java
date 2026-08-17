@@ -87,12 +87,11 @@ class OrderFulfillmentServiceImplTest {
         order.getItems().add(item);
         Shipment shipment = inTransitShipment(order);
         Payment payment = pendingCod(order);
-        ProductVariant variant = new ProductVariant();
-        variant.setStockQuantity(3);
         when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(shipment));
         when(paymentRepository.findFirstByOrderIdForUpdate(orderId)).thenReturn(Optional.of(payment));
-        when(productVariantRepository.findByIdForUpdate(variantId)).thenReturn(Optional.of(variant));
+        // Hoàn kho là UPDATE atomic; 1 dòng đổi được nghĩa là variant còn tồn tại.
+        when(productVariantRepository.increaseStock(variantId, 2)).thenReturn(1);
 
         fulfillmentService.failDelivery(staffId, orderId,
                 new DeliveryFailureRequest("Khách không nhận hàng", true));
@@ -100,7 +99,7 @@ class OrderFulfillmentServiceImplTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERY_FAILED);
         assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELIVERY_FAILED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
-        assertThat(variant.getStockQuantity()).isEqualTo(5);
+        verify(productVariantRepository).increaseStock(variantId, 2);
         verify(promotionService).release(order);
         verify(orderStatusHistoryService).record(order, OrderStatus.SHIPPING, OrderStatus.DELIVERY_FAILED, staffId,
                 "Shipment delivery failed: Khách không nhận hàng; Pending COD payment cancelled; Inventory restocked; Coupon SAVE10 released");

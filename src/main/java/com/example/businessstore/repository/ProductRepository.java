@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.domain.Specification;
@@ -31,6 +32,24 @@ public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpec
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select product from Product product where product.id = :id")
     Optional<Product> findByIdForUpdate(UUID id);
+
+    /**
+     * Trừ kho ngay trong một câu UPDATE có điều kiện, trả về số dòng đổi được: 0 nghĩa là không
+     * đủ hàng. Đọc tồn kho ra rồi mới trừ thì không an toàn kể cả khi đã SELECT ... FOR UPDATE,
+     * vì entity thường đã nằm sẵn trong persistence context từ trước — Hibernate lấy lại bản
+     * trong bộ nhớ chứ không đọc lại giá trị mới, nên hai phiên cùng thấy tồn kho cũ.
+     * Cùng khuôn với PromotionRepository.reserveQuota.
+     */
+    @Modifying
+    @Query("""
+            update Product product set product.stockQuantity = product.stockQuantity - :quantity
+            where product.id = :id and product.stockQuantity >= :quantity
+            """)
+    int decreaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
+
+    @Modifying
+    @Query("update Product product set product.stockQuantity = product.stockQuantity + :quantity where product.id = :id")
+    int increaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
 
     Page<Product> findAllByStatusOrderByCreatedAtDesc(ProductStatus status, Pageable pageable);
 

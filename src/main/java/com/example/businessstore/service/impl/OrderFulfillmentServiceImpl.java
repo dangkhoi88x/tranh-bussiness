@@ -132,16 +132,16 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         paymentRefundRepository.save(refund);
     }
 
+    /** Hoàn kho bằng UPDATE atomic, cùng lý do với decreaseStock ở OrderServiceImpl.checkout. */
     private void restoreStock(Order order) {
         for (OrderItem item : order.getItems()) {
             if (item.getProductVariantId() != null) {
-                ProductVariant variant = productVariantRepository.findByIdForUpdate(item.getProductVariantId())
-                        .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND,
-                                "Phiên bản sản phẩm trong đơn hàng này không còn tồn tại."));
-                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+                if (productVariantRepository.increaseStock(item.getProductVariantId(), item.getQuantity()) == 0) {
+                    throw new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND,
+                            "Phiên bản sản phẩm trong đơn hàng này không còn tồn tại.");
+                }
             } else {
-                productRepository.findByIdForUpdate(item.getProductId())
-                        .ifPresent(product -> product.setStockQuantity(product.getStockQuantity() + item.getQuantity()));
+                productRepository.increaseStock(item.getProductId(), item.getQuantity());
             }
         }
     }

@@ -41,14 +41,23 @@ function OrderStatusCard({ order, onSaved, onError }: { order: Order; onSaved: (
 
 function ShipmentCard({ order, shipment, onSaved, onError }: { order: Order; shipment: Shipment | null; onSaved: () => void; onError: (message: string) => void }) {
   if (!shipment) return <CreateShipmentCard order={order} onSaved={onSaved} onError={onError} />
-  return <ExistingShipmentCard shipment={shipment} onSaved={onSaved} onError={onError} />
+  return <ExistingShipmentCard order={order} shipment={shipment} onSaved={onSaved} onError={onError} />
 }
 
-function ExistingShipmentCard({ shipment, onSaved, onError }: { shipment: Shipment; onSaved: () => void; onError: (message: string) => void }) {
+// DELIVERED và DELIVERY_FAILED không đi qua PUT /shipments/{id}/status — ShipmentServiceImpl.allowed()
+// chỉ cho READY -> IN_TRANSIT/CANCELLED. Hoàn tất hoặc báo giao thất bại phải gọi hai endpoint
+// nguyên tử riêng (/orders/{id}/fulfillment/complete, /fulfillment/delivery-failed) vì chúng còn
+// đổi Payment COD và Order cùng lúc, không chỉ mỗi Shipment.
+function ExistingShipmentCard({ order, shipment, onSaved, onError }: { order: Order; shipment: Shipment; onSaved: () => void; onError: (message: string) => void }) {
   const nextStatuses: Record<ShipmentStatus, ShipmentStatus[]> = { READY: ['IN_TRANSIT', 'CANCELLED'], IN_TRANSIT: ['DELIVERED', 'DELIVERY_FAILED'], DELIVERY_FAILED: ['IN_TRANSIT'], DELIVERED: [], CANCELLED: [] }
-  const choices = nextStatuses[shipment.status]; const [status, setStatus] = useState<ShipmentStatus>(choices[0] ?? shipment.status); const [failureReason, setFailureReason] = useState(''); const [busy, setBusy] = useState(false)
-  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); try { await apiRequest(`/shipments/${shipment.id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, failureReason: status === 'DELIVERY_FAILED' ? failureReason || null : null }) }); onSaved() } catch (error) { onError(errorText(error)) } finally { setBusy(false) } }
-  return <Panel><div className="panel-heading"><div><h3>Vận chuyển</h3><p>{shipment.carrier} · {shipment.trackingCode}</p></div><span className={stateClass(shipment.status)}>{shipment.status}</span></div><div className="detail-copy">Phí vận chuyển: <strong>{money.format(shipment.shippingFee)}</strong>{shipment.failureReason && <><br />Lý do lỗi: {shipment.failureReason}</>}</div>{choices.length > 0 && <form className="admin-form side-form" onSubmit={(event) => void submit(event)}><label>Trạng thái shipment<select value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>{choices.map((item) => <option key={item}>{item}</option>)}</select></label>{status === 'DELIVERY_FAILED' && <label>Lý do giao thất bại<textarea rows={2} value={failureReason} onChange={(event) => setFailureReason(event.target.value)} required /></label>}<button className="primary-button compact" disabled={busy}>{busy ? 'Đang cập nhật…' : 'Cập nhật vận chuyển'}</button></form>}</Panel>
+  const choices = nextStatuses[shipment.status]; const [status, setStatus] = useState<ShipmentStatus>(choices[0] ?? shipment.status); const [note, setNote] = useState(''); const [failureReason, setFailureReason] = useState(''); const [restockConfirmed, setRestockConfirmed] = useState(false); const [busy, setBusy] = useState(false)
+  async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); try {
+    if (status === 'DELIVERED') await apiRequest(`/orders/${order.id}/fulfillment/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: note || null }) })
+    else if (status === 'DELIVERY_FAILED') await apiRequest(`/orders/${order.id}/fulfillment/delivery-failed`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ failureReason, restockConfirmed }) })
+    else await apiRequest(`/shipments/${shipment.id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, failureReason: null }) })
+    onSaved()
+  } catch (error) { onError(errorText(error)) } finally { setBusy(false) } }
+  return <Panel><div className="panel-heading"><div><h3>Vận chuyển</h3><p>{shipment.carrier} · {shipment.trackingCode}</p></div><span className={stateClass(shipment.status)}>{shipment.status}</span></div><div className="detail-copy">Phí vận chuyển: <strong>{money.format(shipment.shippingFee)}</strong>{shipment.failureReason && <><br />Lý do lỗi: {shipment.failureReason}</>}</div>{choices.length > 0 && <form className="admin-form side-form" onSubmit={(event) => void submit(event)}><label>Trạng thái shipment<select value={status} onChange={(event) => setStatus(event.target.value as ShipmentStatus)}>{choices.map((item) => <option key={item}>{item}</option>)}</select></label>{status === 'DELIVERED' && <label>Ghi chú <small>(tuỳ chọn)</small><textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} /></label>}{status === 'DELIVERY_FAILED' && <><label>Lý do giao thất bại<textarea rows={2} value={failureReason} onChange={(event) => setFailureReason(event.target.value)} required /></label><label className="check-label"><input type="checkbox" checked={restockConfirmed} onChange={(event) => setRestockConfirmed(event.target.checked)} required /> Đã nhận lại hàng hoàn về kho</label></>}<button className="primary-button compact" disabled={busy}>{busy ? 'Đang cập nhật…' : 'Cập nhật vận chuyển'}</button></form>}</Panel>
 }
 
 function CreateShipmentCard({ order, onSaved, onError }: { order: Order; onSaved: () => void; onError: (message: string) => void }) {

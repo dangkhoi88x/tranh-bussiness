@@ -66,6 +66,35 @@ export function pickNewerDraft(
 }
 
 
+/**
+ * Số ô ảnh thật sự có trong một cuốn khi khách tự thiết kế: đi đúng chu kỳ bố cục mà
+ * makeSpreads() dùng, nên luôn khớp với thứ khách đếm được ở bước sắp xếp.
+ *
+ * Đây là con số khác hẳn photoRangeFor(): bên đó là lượng ảnh gửi cho xưởng tự bố cục, khách
+ * cố tình gửi dư để xưởng chọn lọc. Còn ở đây khách tự đặt từng tấm vào từng ô, nên chỉ nhét
+ * vừa đúng số ô. Trộn hai con số vào nhau là bảo khách chuẩn bị 60–80 tấm cho chỗ chứa 31 tấm.
+ */
+export function slotCapacityOf(template: PhotobookTemplate, pageCount: number): number {
+  const cycle = template.layoutCycle;
+  if (cycle.length === 0 || pageCount <= 0) return 0;
+  let total = 0;
+  for (let i = 0; i < pageCount / 2; i++) {
+    total += layoutByCode(cycle[i % cycle.length]).slots.length;
+  }
+  return total;
+}
+
+/** Số trang nhỏ nhất đủ ô cho ngần này ảnh; hết cỡ thì trả về mức lớn nhất bán được. */
+export function suggestPageCountForTemplate(
+  photoCount: number,
+  options: PhotobookSize['pageOptions'],
+  template: PhotobookTemplate,
+): number | null {
+  if (photoCount <= 0 || options.length === 0) return null;
+  const enough = options.find((option) => slotCapacityOf(template, option.pageCount) >= photoCount);
+  return (enough ?? options[options.length - 1]).pageCount;
+}
+
 export function makeSpreads(count: number, prev: DraftSpread[], template: PhotobookTemplate): DraftSpread[] {
   const cycle = template.layoutCycle;
   const colors = template.spreadColors;

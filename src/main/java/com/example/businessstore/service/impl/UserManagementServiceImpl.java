@@ -15,7 +15,6 @@ import com.example.businessstore.entity.User;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.PermissionRepository;
-import com.example.businessstore.repository.RolePermissionRepository;
 import com.example.businessstore.repository.RoleRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.service.TokenStore;
@@ -44,7 +43,6 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
-    private final RolePermissionRepository rolePermissionRepository;
     private final TokenStore tokenStore;
 
     @Override
@@ -112,15 +110,18 @@ public class UserManagementServiceImpl implements UserManagementService {
         if (request.permissions().stream().anyMatch(permission -> !permissionsByName.containsKey(permission.name()))) {
             throw new AppException(ErrorCode.INVALID_REQUEST, "Có quyền không tồn tại.");
         }
-        rolePermissionRepository.deleteByRole(staff);
-        rolePermissionRepository.flush();
-        staff.getRolePermissions().clear();
-        request.permissions().forEach(permissionName -> {
-            RolePermission assignment = new RolePermission();
-            assignment.setRole(staff);
-            assignment.setPermission(permissionsByName.get(permissionName.name()));
-            staff.getRolePermissions().add(assignment);
-        });
+        Set<String> targetNames = request.permissions().stream().map(Enum::name).collect(Collectors.toSet());
+        staff.getRolePermissions().removeIf(assignment -> !targetNames.contains(assignment.getPermission().getName()));
+        Set<String> keptNames = staff.getRolePermissions().stream()
+                .map(assignment -> assignment.getPermission().getName()).collect(Collectors.toSet());
+        request.permissions().stream()
+                .filter(permissionName -> !keptNames.contains(permissionName.name()))
+                .forEach(permissionName -> {
+                    RolePermission assignment = new RolePermission();
+                    assignment.setRole(staff);
+                    assignment.setPermission(permissionsByName.get(permissionName.name()));
+                    staff.getRolePermissions().add(assignment);
+                });
         staff.setPermissionsCustomized(true);
         return ManagedRoleResponse.from(roleRepository.saveAndFlush(staff));
     }
