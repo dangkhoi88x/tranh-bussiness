@@ -91,6 +91,18 @@ public class ProductSelectionPricingService {
         return requestedPageCount;
     }
 
+    /**
+     * Giá một dòng trước phụ thu khung, tự nạp bảng giá theo trang khi cần. Mọi nơi tính lại
+     * giá — giỏ hàng, checkout, xem trước khuyến mãi — phải gọi vào đây; lệch một chỗ là khách
+     * thấy một giá còn trả một giá khác.
+     */
+    public BigDecimal basePrice(Product product, ProductVariant variant, Integer pageCount) {
+        List<PhotobookPageTier> pageTiers = product.isPagePriced() && variant != null
+                ? pageTiersOf(variant)
+                : List.of();
+        return basePrice(product, variant, product.isPagePriced() ? pageCount : null, pageTiers);
+    }
+
     private BigDecimal basePrice(
             Product product,
             ProductVariant variant,

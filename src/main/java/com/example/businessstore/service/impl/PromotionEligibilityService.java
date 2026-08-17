@@ -15,6 +15,7 @@ import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.PromotionRepository;
 import com.example.businessstore.repository.PromotionUsageRepository;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import com.example.businessstore.service.PromotionLine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class PromotionEligibilityService {
     private final PromotionRepository promotionRepository;
     private final PromotionUsageRepository usageRepository;
     private final CartRepository cartRepository;
+    private final ProductSelectionPricingService selectionPricingService;
 
     @Transactional(readOnly = true)
     public PromotionCalculationResponse previewCart(UUID userId, String couponCode) {
@@ -48,7 +50,11 @@ public class PromotionEligibilityService {
         List<PromotionLine> lines = new java.util.ArrayList<>();
         for (CartItem item : cart.getItems()) {
             ProductVariant variant = item.getProductVariant();
-            BigDecimal basePrice = variant == null ? item.getProduct().getPrice() : variant.getPrice();
+            // Phải đi qua đúng nguồn giá của giỏ và checkout. Lấy thẳng variant.getPrice() sẽ
+            // bỏ qua giá theo số trang, nên photobook được xem trước mức giảm trên một mức giá
+            // không phải mức khách thực trả.
+            BigDecimal basePrice = selectionPricingService.basePrice(
+                    item.getProduct(), variant, item.getPageCount());
             BigDecimal framePrice = item.getProductFrameOption() == null
                     ? BigDecimal.ZERO
                     : item.getProductFrameOption().getPriceAdjustment();

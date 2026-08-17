@@ -103,9 +103,18 @@ public class OrderServiceImpl implements OrderService {
             if (product.getStatus() != ProductStatus.PUBLISHED) throw new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này hiện không bán.");
             ProductVariant variant = lockSelectedVariant(product, cartItem.getProductVariant());
             Product lockedProduct = variant == null ? productRepository.findByIdForUpdate(product.getId()).orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm.")) : product;
-            int stock = variant == null ? lockedProduct.getStockQuantity() : variant.getStockQuantity();
             ProductFrameOption option = cartItem.getProductFrameOption();
-            selectionPricingService.requireAvailableStock(lockedProduct, variant, cartItem.getQuantity());
+            // Trừ kho bằng một câu UPDATE có điều kiện: vừa kiểm còn hàng vừa trừ trong cùng
+            // một thao tác, nên hai phiên thanh toán cùng lúc không thể cùng thấy số cũ rồi
+            // cùng bán mất cái cuối. Đọc ra kiểm rồi mới trừ không chặn được kể cả khi đã
+            // SELECT ... FOR UPDATE, vì entity nằm sẵn trong persistence context nên Hibernate
+            // trả lại số tồn kho cũ đã nạp trước đó.
+            int decreased = variant == null
+                    ? productRepository.decreaseStock(lockedProduct.getId(), cartItem.getQuantity())
+                    : productVariantRepository.decreaseStock(variant.getId(), cartItem.getQuantity());
+            if (decreased == 0) {
+                throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
+            }
             selectionPricingService.validateFrameCompatibility(option, variant);
             ProductSelectionPricingService.SelectionQuote quote = selectionPricingService
                     .quote(lockedProduct, variant, option, cartItem.getPageCount());
@@ -122,7 +131,6 @@ public class OrderServiceImpl implements OrderService {
             promotionLines.add(new PromotionLine(lockedProduct.getCategory().getId(), lockedProduct.getId(),
                     variant == null ? null : variant.getId(),
                     quote.basePrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()))));
-            if (variant == null) lockedProduct.setStockQuantity(stock - cartItem.getQuantity()); else variant.setStockQuantity(stock - cartItem.getQuantity());
         }
         order.setSubtotalAmount(subtotal);
         order.setTotalAmount(subtotal);
@@ -257,12 +265,14 @@ public class OrderServiceImpl implements OrderService {
         orderStatusHistoryService.recordSystem(order, from, OrderStatus.CANCELLED,
                 "Order cancelled because coupon " + order.getPromotionCode() + " reservation expired");
     }
+    /** Hoàn kho cũng đi bằng UPDATE atomic, cùng lý do với decreaseStock ở checkout. */
     private void restoreStock(Order order) {
         order.getItems().forEach(item -> {
-            if (item.getProductVariantId() != null) productVariantRepository.findByIdForUpdate(item.getProductVariantId())
-                    .ifPresent(variant -> variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity()));
-            else productRepository.findByIdForUpdate(item.getProductId())
-                    .ifPresent(product -> product.setStockQuantity(product.getStockQuantity() + item.getQuantity()));
+            if (item.getProductVariantId() != null) {
+                productVariantRepository.increaseStock(item.getProductVariantId(), item.getQuantity());
+            } else {
+                productRepository.increaseStock(item.getProductId(), item.getQuantity());
+            }
         });
     }
     private void cancelPendingPayment(Order order) {

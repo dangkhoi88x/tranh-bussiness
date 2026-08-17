@@ -48,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceImplTest {
@@ -134,6 +135,8 @@ class OrderServiceImplTest {
         when(shippingAddressService.getOwned(userId, addressId)).thenReturn(address);
         when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
         when(productRepository.findByIdForUpdate(product.getId())).thenReturn(Optional.of(product));
+        // Giữ chỗ tồn kho giờ là một câu UPDATE có điều kiện: trả 1 nghĩa là còn hàng và đã trừ.
+        when(productRepository.decreaseStock(product.getId(), 1)).thenReturn(1);
         when(productVariantRepository.existsByProductId(product.getId())).thenReturn(false);
         when(orderRepository.existsByOrderCode(any())).thenReturn(false);
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> { Order saved = invocation.getArgument(0); saved.setId(orderId); return saved; });
@@ -144,6 +147,37 @@ class OrderServiceImplTest {
         verify(eventPublisher).publishEvent(event.capture());
         assertThat(event.getValue().orderId()).isEqualTo(orderId);
         assertThat(event.getValue().totalAmount()).isEqualByComparingTo("250000");
+    }
+
+    @Test
+    void checkout_reservesStockWithTheConditionalUpdateAndFailsWhenItTakesNothing() {
+        UUID userId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
+        Category category = new Category(); category.setId(UUID.randomUUID());
+        Product product = new Product();
+        product.setId(UUID.randomUUID()); product.setName("Tranh sen"); product.setSlug("tranh-sen");
+        product.setPrice(new BigDecimal("250000")); product.setStatus(com.example.businessstore.constant.ProductStatus.PUBLISHED);
+        product.setStockQuantity(1); product.setCategory(category);
+        Cart cart = new Cart();
+        CartItem cartItem = new CartItem(); cartItem.setCart(cart); cartItem.setProduct(product); cartItem.setQuantity(1); cart.getItems().add(cartItem);
+        ShippingAddress address = new ShippingAddress(); address.setRecipientName("Customer"); address.setPhone("0900000000"); address.setProvince("HCM"); address.setDistrict("Q1"); address.setWard("Ben Nghe"); address.setAddressLine("1 Nguyen Hue");
+
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(shippingAddressService.getOwned(userId, addressId)).thenReturn(address);
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(product.getId())).thenReturn(Optional.of(product));
+        // 0 dòng bị ảnh hưởng = người khác vừa lấy mất cái cuối giữa lúc mình đang thanh toán.
+        when(productRepository.decreaseStock(product.getId(), 1)).thenReturn(0);
+
+        assertThatThrownBy(() -> orderService.checkout(userId, new CheckoutOrderRequest(addressId, null)))
+                .isInstanceOf(AppException.class)
+                .extracting(cause -> ((AppException) cause).getErrorCode())
+                .isEqualTo(ErrorCode.INSUFFICIENT_PRODUCT_STOCK);
+
+        // Đọc tồn kho rồi mới trừ là bán quá hàng khi hai phiên chạy song song; bài này chốt
+        // rằng checkout thật sự đi qua câu UPDATE có điều kiện chứ không tự tính lại số mới.
+        verify(productRepository).decreaseStock(product.getId(), 1);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 
     @Test
