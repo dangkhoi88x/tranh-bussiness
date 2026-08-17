@@ -1,0 +1,28 @@
+C4Component
+title Thành phần — OrderServiceImpl và checkout
+
+Container(frontend, "business-store-frontend", "React", "Khách checkout")
+ContainerDb(postgres, "PostgreSQL", "PostgreSQL", "Cart, Product, Order, Payment, Promotion")
+ContainerDb(redis, "Redis", "Redis", "Pub/sub thông báo đơn")
+
+Container_Boundary(api, "business-store") {
+  Component(controller, "OrderController", "Spring MVC", "POST /api/v1/orders/checkout")
+  Component(order, "OrderServiceImpl", "Spring Service", "Tạo đơn, kiểm kho, giữ mã giảm giá")
+  Component(promotion, "PromotionServiceImpl", "Spring Service", "Reserve/consume/release promotion")
+  Component(photobook, "PhotobookProjectServiceImpl", "Spring Service", "Mở dự án photobook từ OrderItem")
+  Component(history, "OrderStatusHistoryServiceImpl", "Spring Service", "Ghi lịch sử trạng thái")
+  Component(listener, "NotificationEventListener", "Spring event", "Tạo notification và phát thông báo admin")
+  Component(publisher, "AdminOrderNotificationPublisher", "Spring Data Redis", "Publish admin order notification")
+}
+
+Rel(frontend, controller, "Checkout giỏ hàng", "JSON/HTTPS")
+Rel(controller, order, "Gọi checkout", "in-process")
+Rel(order, postgres, "Khóa tồn kho, ghi Order và xóa Cart", "JPA/JDBC transaction")
+Rel(order, promotion, "Reserve coupon khi có couponCode", "in-process")
+Rel(promotion, postgres, "Ghi PromotionUsage / promotion state", "JPA/JDBC")
+Rel(order, photobook, "Mở project cho OrderItem photobook", "in-process")
+Rel(photobook, postgres, "Ghi PhotobookProject", "JPA/JDBC")
+Rel(order, history, "Ghi lịch sử reservation", "in-process")
+Rel(order, listener, "Phát OrderPlacedEvent sau commit", "Spring event")
+Rel(listener, publisher, "Thông báo admin", "in-process")
+Rel(publisher, redis, "Publish channel", "Redis pub/sub")

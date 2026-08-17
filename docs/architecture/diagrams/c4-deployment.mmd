@@ -1,0 +1,26 @@
+C4Deployment
+title Triển khai local được xác minh — Business Store
+
+Deployment_Node(browser, "Máy phát triển", "Trình duyệt", "Browser local") {
+  Container(browserApp, "Storefront đang chạy", "Browser", "Mở từ Vite hoặc Nginx")
+}
+
+Deployment_Node(host, "Máy phát triển", "Docker Desktop / local process", "Môi trường local") {
+  Deployment_Node(frontendNode, "Frontend image hoặc Vite", "Node 22 / Nginx 1.27", "Dockerfile frontend có reverse proxy tùy chọn") {
+    Container(frontend, "business-store-frontend", "React 19, Vite", "SPA/storefront")
+  }
+  Deployment_Node(apiNode, "Backend local hoặc image", "Java 21", "Dockerfile backend") {
+    Container(api, "business-store", "Spring Boot", "REST API và SSE")
+  }
+  Deployment_Node(compose, "docker-compose.yml", "Docker Compose", "Chỉ khai báo hạ tầng local") {
+    ContainerDb(postgres, "postgres", "PostgreSQL 17", "Volume postgres_data")
+    ContainerDb(redis, "redis", "Redis 7.4", "Volume redis_data")
+    Container(mailpit, "mailpit", "Mailpit", "SMTP 1025 và UI 8025")
+  }
+}
+
+Rel(browserApp, frontend, "Tải SPA", "HTTP/HTTPS")
+Rel(frontend, api, "Gọi /api/v1; proxy khi API_UPSTREAM được đặt", "JSON/HTTPS")
+Rel(api, postgres, "Đọc/ghi; migration Flyway", "JDBC")
+Rel(api, redis, "Token, rate limit, pub/sub", "Redis")
+Rel(api, mailpit, "Gửi mail ở dev/test", "SMTP")

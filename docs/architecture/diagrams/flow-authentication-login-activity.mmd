@@ -1,0 +1,12 @@
+flowchart TD
+    start([Khách gửi POST /api/v1/auth/login]) --> limit{AuthRateLimitInterceptor\ncho phép?}
+    limit -- Không --> tooMany[Trả lỗi giới hạn tốc độ]
+    limit -- Có --> auth[AuthenticationManager xác thực\nemail/mật khẩu]
+    auth --> valid{Thông tin hợp lệ?}
+    valid -- Không --> denied[Trả INVALID_CREDENTIALS]
+    valid -- Có --> enabled{User được kích hoạt?}
+    enabled -- Không --> denied2[Trả INVALID_CREDENTIALS]
+    enabled -- Có --> issue[JwtServiceImpl tạo access + refresh JWT]
+    issue --> store[RedisTokenStore lưu refresh JTI có TTL]
+    store --> response[Trả accessToken và Set-Cookie refresh_token]
+    response --> finish([Kết thúc])

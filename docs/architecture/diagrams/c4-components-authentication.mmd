@@ -1,0 +1,28 @@
+C4Component
+title Thành phần — AuthenticationServiceImpl
+
+Container(frontend, "business-store-frontend", "React", "Gửi yêu cầu xác thực")
+ContainerDb(postgres, "PostgreSQL", "PostgreSQL", "User, Role, Permission")
+ContainerDb(redis, "Redis", "Redis", "Refresh/access/reset token và rate-limit")
+System_Ext(google, "Google OAuth", "OAuth 2.0")
+System_Ext(smtp, "SMTP / Mailpit", "Email")
+
+Container_Boundary(api, "business-store") {
+  Component(controller, "AuthenticationController", "Spring MVC", "Các endpoint /api/v1/auth")
+  Component(auth, "AuthenticationServiceImpl", "Spring Service", "Đăng ký, login, refresh, logout")
+  Component(googleService, "GoogleOAuthServiceImpl", "Google API Client", "Đổi code và xác minh ID token")
+  Component(jwt, "JwtServiceImpl + RefreshTokenServiceImpl", "Spring Security JWT", "Ký/đọc JWT, phát hành và xoay refresh token")
+  Component(tokens, "RedisTokenStore", "Spring Data Redis", "Lưu/thu hồi token có TTL")
+  Component(listener, "NotificationEventListener + MailServiceImpl", "Spring event / @Async", "Gửi mail hậu commit")
+}
+
+Rel(frontend, controller, "POST /api/v1/auth/login hoặc /google", "JSON/HTTPS")
+Rel(controller, auth, "Gọi xử lý phiên", "in-process")
+Rel(auth, postgres, "Tìm/lưu User và RBAC", "JPA/JDBC")
+Rel(auth, googleService, "Xác thực Google khi /google", "in-process")
+Rel(googleService, google, "Đổi authorization code, verify ID token", "HTTPS/OAuth 2.0")
+Rel(auth, jwt, "Tạo/đọc JWT", "in-process")
+Rel(jwt, tokens, "Lưu, consume, blacklist token", "in-process")
+Rel(tokens, redis, "Đọc/ghi key TTL", "Redis")
+Rel(auth, listener, "Phát UserRegisteredEvent sau commit", "Spring event")
+Rel(listener, smtp, "Gửi email bất đồng bộ", "SMTP")

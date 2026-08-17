@@ -31,9 +31,10 @@ import com.example.businessstore.service.ShippingAddressService;
 import com.example.businessstore.service.OrderStatusHistoryService;
 import com.example.businessstore.service.PhotobookProjectService;
 import com.example.businessstore.service.PromotionService;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -63,7 +64,16 @@ class OrderServiceImplTest {
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
     @Mock private PromotionService promotionService;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @InjectMocks private OrderServiceImpl orderService;
+    private OrderServiceImpl orderService;
+
+    @BeforeEach
+    void setUp() {
+        orderService = new OrderServiceImpl(
+                cartRepository, orderRepository, productRepository, productVariantRepository,
+                photobookProjectService, paymentRepository, paymentRefundRepository, shipmentRepository,
+                orderStatusHistoryService, shippingAddressService, promotionService,
+                new ProductSelectionPricingService(photobookPageTierRepository), eventPublisher);
+    }
 
     @Test
     void cancel_pendingCodPayment_whenOrderIsCancelledBeforeShipping() {

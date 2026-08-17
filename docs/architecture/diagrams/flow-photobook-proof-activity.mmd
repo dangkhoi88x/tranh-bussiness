@@ -1,0 +1,16 @@
+flowchart TD
+    start([Khách submit ảnh photobook]) --> editable{Status = AWAITING_PHOTOS?}
+    editable -- Không --> locked[Trả PHOTOBOOK_PROJECT_NOT_EDITABLE]
+    editable -- Có --> minimum{Đủ số ảnh tối thiểu?}
+    minimum -- Không --> insufficient[Trả PHOTOBOOK_NOT_ENOUGH_PHOTOS]
+    minimum -- Có --> spreads[PhotobookLayoutEngine sinh spreads]
+    spreads --> submitted[Đổi status PHOTOS_SUBMITTED]
+    submitted --> proof[Nhân viên upload proof]
+    proof --> sent[Đổi status PROOF_SENT\nvà tạo notification]
+    sent --> decision{Khách duyệt proof?}
+    decision -- Duyệt --> approved[Đổi status APPROVED]
+    decision -- Yêu cầu sửa --> note{Có ghi chú\nvà còn lượt revision?}
+    note -- Không --> reject[Trả lỗi ghi chú / hết lượt]
+    note -- Có --> revision[Đổi status REVISION_REQUESTED\ntăng revisionCount]
+    approved --> finish([Kết thúc])
+    revision --> finish

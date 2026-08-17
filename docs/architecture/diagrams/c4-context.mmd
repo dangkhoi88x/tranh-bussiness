@@ -1,0 +1,15 @@
+C4Context
+title Sơ đồ ngữ cảnh — Business Store
+
+Person(customer, "Khách hàng", "Xem catalogue, đặt tranh/photobook và theo dõi đơn")
+Person(staff, "Nhân viên / quản trị viên", "Quản lý catalogue, đơn, photobook và vận hành")
+System(store, "Business Store", "Nền tảng bán tranh, khung và photobook đặt làm")
+System_Ext(google, "Google OAuth", "Xác thực Google Authorization Code và ID token")
+System_Ext(cloudinary, "Cloudinary", "Lưu ảnh và tạo signed URL")
+System_Ext(smtp, "Máy chủ SMTP", "Gửi email nghiệp vụ")
+
+Rel(customer, store, "Dùng storefront và API", "HTTPS")
+Rel(staff, store, "Quản trị và nhận thông báo đơn", "HTTPS/SSE")
+Rel(store, google, "Đổi authorization code, xác minh ID token", "HTTPS/OAuth 2.0")
+Rel(store, cloudinary, "Tải/xóa media, tạo URL ký", "HTTPS API")
+Rel(store, smtp, "Gửi email bất đồng bộ", "SMTP")

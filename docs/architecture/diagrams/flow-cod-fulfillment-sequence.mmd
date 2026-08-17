@@ -1,0 +1,23 @@
+sequenceDiagram
+    autonumber
+    actor S as Nhân viên / quản trị viên
+    participant C as ShipmentController và OrderController
+    participant SH as ShipmentServiceImpl
+    participant F as OrderFulfillmentServiceImpl
+    participant DB as PostgreSQL
+    participant N as NotificationEventListener
+    participant SMTP as SMTP
+    S->>C: POST /api/v1/orders/{id}/shipments (JSON/HTTPS)
+    C->>SH: create(changedBy, orderId, request)
+    SH->>DB: Khóa Order, kiểm COD PENDING, ghi Shipment READY
+    S->>C: PUT /api/v1/shipments/{id}/status = IN_TRANSIT (JSON/HTTPS)
+    C->>SH: updateStatus(changedBy, shipmentId, request)
+    SH->>DB: Đổi Shipment IN_TRANSIT, Order SHIPPING
+    Note over SH,N: Sau transaction commit
+    SH->>N: OrderShippedEvent (Spring event)
+    N->>SMTP: Gửi email giao hàng (SMTP, @Async)
+    S->>C: POST /api/v1/orders/{id}/fulfillment/complete (JSON/HTTPS)
+    C->>F: completeDelivery(changedBy, orderId, request)
+    F->>DB: Khóa các bản ghi và kiểm trạng thái COD trước khi hoàn tất
+    F->>DB: Shipment DELIVERED, Payment SUCCESS, Order DELIVERED và history
+    C-->>S: 200 OrderResponse

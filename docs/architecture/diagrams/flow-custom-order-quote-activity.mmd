@@ -1,0 +1,18 @@
+flowchart TD
+    start([Khách tạo yêu cầu đặt riêng]) --> created[CustomOrderRequest status NEW]
+    created --> images{Có tải ảnh tham khảo?}
+    images -- Có --> upload[Tải ảnh lên Cloudinary và ghi CustomOrderImage]
+    images -- Không --> quote
+    upload --> quote[Nhân viên gửi báo giá]
+    quote --> valid{Status chuyển đổi hợp lệ?}
+    valid -- Không --> statusError[Trả INVALID_CUSTOM_ORDER_STATUS]
+    valid -- Có --> quoted[Đổi status QUOTED và phát CustomOrderQuotedEvent]
+    quoted --> notify[Tạo notification và gửi email sau commit]
+    notify --> decision{Khách đồng ý báo giá?}
+    decision -- Không --> cancelled[Đổi status CANCELLED]
+    decision -- Có --> address{Có shippingAddressId?}
+    address -- Không --> addressError[Trả CUSTOM_ORDER_SHIPPING_ADDRESS_REQUIRED]
+    address -- Có --> order[OrderServiceImpl.createFromCustomRequest]
+    order --> confirmed[Liên kết Order, đổi status CONFIRMED]
+    cancelled --> finish([Kết thúc])
+    confirmed --> finish

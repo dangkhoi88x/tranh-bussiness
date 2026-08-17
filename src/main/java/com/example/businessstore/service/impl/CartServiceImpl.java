@@ -1,6 +1,5 @@
 package com.example.businessstore.service.impl;
 
-import com.example.businessstore.constant.FrameStatus;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.dto.request.AddCartItemRequest;
 import com.example.businessstore.dto.request.UpdateCartItemRequest;
@@ -11,7 +10,6 @@ import com.example.businessstore.dto.response.ProductVariantResponse;
 import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
 import com.example.businessstore.entity.PhotobookDesign;
-import com.example.businessstore.entity.PhotobookPageTier;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ProductVariant;
@@ -22,14 +20,13 @@ import com.example.businessstore.mapper.ProductFrameOptionMapper;
 import com.example.businessstore.repository.CartItemRepository;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.PhotobookDesignRepository;
-import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.PhotobookTemplateRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.CartService;
-import com.example.businessstore.service.PhotobookPricing;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,9 +46,9 @@ public class CartServiceImpl implements CartService {
     private final ProductFrameOptionRepository productFrameOptionRepository;
     private final ProductFrameOptionMapper productFrameOptionMapper;
     private final ProductVariantRepository productVariantRepository;
-    private final PhotobookPageTierRepository photobookPageTierRepository;
     private final PhotobookDesignRepository photobookDesignRepository;
     private final PhotobookTemplateRepository photobookTemplateRepository;
+    private final ProductSelectionPricingService selectionPricingService;
 
     @Override
     @Transactional
@@ -68,15 +65,17 @@ public class CartServiceImpl implements CartService {
         ProductFrameOption frameOption = request.productFrameOptionId() == null
                 ? null
                 : getAvailableFrameOption(product.getId(), request.productFrameOptionId());
-        validateFrameCompatibility(frameOption, variant);
-        Integer pageCount = validatePageCount(product, variant, request.pageCount());
+        selectionPricingService.validateFrameCompatibility(frameOption, variant);
+        ProductSelectionPricingService.SelectionQuote quote = selectionPricingService
+                .quote(product, variant, frameOption, request.pageCount());
+        Integer pageCount = quote.pageCount();
         PhotobookDesign design = resolveDesign(userId, product, pageCount, request.photobookDesignId());
         String templateCode = resolveTemplateCode(product, pageCount, request.photobookTemplateCode());
 
         CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount, design == null ? null : design.getId(), templateCode)
                 .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount, design, templateCode));
         int requestedQuantity = item.getQuantity() + request.quantity();
-        validateStock(product, variant, requestedQuantity);
+        selectionPricingService.requireAvailableStock(product, variant, requestedQuantity);
         item.setQuantity(requestedQuantity);
         if (item.getId() == null) {
             cartItemRepository.save(item);
@@ -92,9 +91,9 @@ public class CartServiceImpl implements CartService {
         ProductVariant variant = item.getProductVariant() == null ? null : getSelectedVariant(product, item.getProductVariant().getId());
         if (item.getProductFrameOption() != null) {
             ProductFrameOption frameOption = getAvailableFrameOption(product.getId(), item.getProductFrameOption().getId());
-            validateFrameCompatibility(frameOption, variant);
+            selectionPricingService.validateFrameCompatibility(frameOption, variant);
         }
-        validateStock(product, variant, request.quantity());
+        selectionPricingService.requireAvailableStock(product, variant, request.quantity());
         item.setQuantity(request.quantity());
         return toResponse(getOrCreateCart(userId));
     }
@@ -130,9 +129,6 @@ public class CartServiceImpl implements CartService {
     private ProductFrameOption getAvailableFrameOption(UUID productId, UUID optionId) {
         ProductFrameOption option = productFrameOptionRepository.findByIdAndProductId(optionId, productId)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Không tìm thấy lựa chọn khung của sản phẩm."));
-        if (!option.isAvailable() || option.getFrame().getStatus() != FrameStatus.ACTIVE) {
-            throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Lựa chọn khung này hiện không dùng được.");
-        }
         return option;
     }
 
@@ -202,54 +198,9 @@ public class CartServiceImpl implements CartService {
         return item;
     }
 
-    /**
-     * Photobook bắt buộc phải có số trang và số đó phải nằm trong bảng giá; sản phẩm thường
-     * thì không được mang số trang, tránh việc client gửi kèm rồi tưởng giá đã đổi theo.
-     */
-    private Integer validatePageCount(Product product, ProductVariant variant, Integer requested) {
-        if (!product.isPagePriced()) {
-            if (requested != null) {
-                throw new AppException(ErrorCode.INVALID_PHOTOBOOK_PAGE_COUNT, "Sản phẩm này không bán theo số trang.");
-            }
-            return null;
-        }
-        if (variant == null) {
-            throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Hãy chọn khổ photobook trước khi thêm vào giỏ.");
-        }
-        if (requested == null) {
-            throw new AppException(ErrorCode.PHOTOBOOK_PAGE_COUNT_REQUIRED, "Hãy chọn số trang cho cuốn photobook này.");
-        }
-        // Ném nếu số trang không bán được; giá trả về ở đây bỏ đi, toResponse tính lại khi đọc giỏ.
-        PhotobookPricing.priceAt(product, pageTiersOf(variant), requested);
-        return requested;
-    }
-
-    private List<PhotobookPageTier> pageTiersOf(ProductVariant variant) {
-        return photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId());
-    }
-
-    /** Giá một cuốn/bức trước phụ thu khung: theo số trang với photobook, theo variant với hàng thường. */
-    private BigDecimal basePriceOf(CartItem item) {
-        ProductVariant variant = item.getProductVariant();
-        if (variant == null) {
-            return item.getProduct().getPrice();
-        }
-        if (item.getProduct().isPagePriced() && item.getPageCount() != null) {
-            return PhotobookPricing.priceAt(item.getProduct(), pageTiersOf(variant), item.getPageCount());
-        }
-        return variant.getPrice();
-    }
-
     private CartItem getOwnedItem(UUID userId, UUID itemId) {
         return cartItemRepository.findByIdAndCartUserId(itemId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.CART_ITEM_NOT_FOUND, "Không tìm thấy sản phẩm này trong giỏ hàng."));
-    }
-
-    private void validateStock(Product product, ProductVariant variant, int quantity) {
-        int availableStock = variant == null ? product.getStockQuantity() : variant.getStockQuantity();
-        if (quantity > availableStock) {
-            throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
-        }
     }
 
     private CartResponse toResponse(Cart cart) {
@@ -266,11 +217,10 @@ public class CartServiceImpl implements CartService {
                 ? null
                 : productFrameOptionMapper.toResponse(item.getProductFrameOption());
         ProductVariant variant = item.getProductVariant();
-        BigDecimal basePrice = basePriceOf(item);
-        BigDecimal unitPrice = basePrice;
-        if (item.getProductFrameOption() != null) {
-            unitPrice = unitPrice.add(item.getProductFrameOption().getPriceAdjustment());
-        }
+        ProductSelectionPricingService.SelectionQuote quote = selectionPricingService.quote(
+                item.getProduct(), variant, item.getProductFrameOption(), item.getPageCount());
+        BigDecimal basePrice = quote.basePrice();
+        BigDecimal unitPrice = quote.unitPrice();
         return new CartItemResponse(
                 item.getId(),
                 item.getProduct().getId(),
@@ -296,15 +246,6 @@ public class CartServiceImpl implements CartService {
         return productVariantRepository.findByIdAndProductId(variantId, product.getId())
                 .filter(variant -> variant.isAvailable() && variant.getStockQuantity() > 0)
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Phiên bản sản phẩm này hiện không bán."));
-    }
-
-    private void validateFrameCompatibility(ProductFrameOption option, ProductVariant variant) {
-        if (option == null || variant == null) return;
-        boolean compatible = (option.getMinWidthCm() == null || variant.getWidthCm().compareTo(option.getMinWidthCm()) >= 0)
-                && (option.getMaxWidthCm() == null || variant.getWidthCm().compareTo(option.getMaxWidthCm()) <= 0)
-                && (option.getMinHeightCm() == null || variant.getHeightCm().compareTo(option.getMinHeightCm()) >= 0)
-                && (option.getMaxHeightCm() == null || variant.getHeightCm().compareTo(option.getMaxHeightCm()) <= 0);
-        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Khung này không lắp được cho phiên bản đã chọn.");
     }
 
     private ProductVariantResponse toVariantResponse(ProductVariant variant) {

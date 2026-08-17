@@ -22,10 +22,10 @@ import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -63,7 +63,6 @@ class CartServiceImplTest {
     @Mock
     private PhotobookTemplateRepository photobookTemplateRepository;
 
-    @InjectMocks
     private CartServiceImpl cartService;
 
     private UUID userId;
@@ -72,6 +71,11 @@ class CartServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        cartService = new CartServiceImpl(
+                cartRepository, cartItemRepository, userRepository, productRepository,
+                productFrameOptionRepository, productFrameOptionMapper, productVariantRepository,
+                photobookDesignRepository, photobookTemplateRepository,
+                new ProductSelectionPricingService(photobookPageTierRepository));
         userId = UUID.randomUUID();
         productId = UUID.randomUUID();
         product = new Product();

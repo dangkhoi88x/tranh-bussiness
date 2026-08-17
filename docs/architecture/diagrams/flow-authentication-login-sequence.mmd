@@ -1,0 +1,22 @@
+sequenceDiagram
+    autonumber
+    actor U as Khách hàng
+    participant FE as business-store-frontend
+    participant C as AuthenticationController
+    participant A as AuthenticationServiceImpl
+    participant DB as PostgreSQL
+    participant J as JwtServiceImpl
+    participant R as RedisTokenStore
+    participant RD as Redis
+    U->>FE: Nhập email và mật khẩu
+    FE->>C: POST /api/v1/auth/login (JSON/HTTPS)
+    C->>A: login(LoginRequest)
+    A->>DB: AuthenticationManager tìm User và RBAC (JPA/JDBC)
+    DB-->>A: User hợp lệ
+    A->>J: Tạo access JWT và refresh JWT
+    J->>R: storeRefreshToken(jti, userId, expiry)
+    R->>RD: Ghi refresh-token TTL (Redis)
+    RD-->>R: Xác nhận
+    A-->>C: AuthSession
+    C-->>FE: 200 + accessToken, Set-Cookie refresh_token HttpOnly
+    FE-->>U: Phiên đăng nhập sẵn sàng

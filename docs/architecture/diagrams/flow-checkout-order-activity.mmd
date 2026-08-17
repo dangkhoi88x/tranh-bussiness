@@ -1,0 +1,17 @@
+flowchart TD
+    start([POST /api/v1/orders/checkout]) --> cart[Đọc Cart của user]
+    cart --> empty{Cart có item?}
+    empty -- Không --> errCart[Trả CART_EMPTY]
+    empty -- Có --> stock[Khóa Product/Variant và kiểm tồn kho]
+    stock --> valid{Sản phẩm published\nvà đủ tồn?}
+    valid -- Không --> errStock[Trả lỗi không khả dụng / thiếu tồn]
+    valid -- Có --> order[Tạo Order và OrderItem\ngiảm stock]
+    order --> coupon{Có couponCode?}
+    coupon -- Có --> reserve[PromotionServiceImpl.reserve]
+    coupon -- Không --> project
+    reserve --> project{Có item photobook?}
+    project -- Có --> open[PhotobookProjectServiceImpl.openProjectsFor]
+    project -- Không --> clear
+    open --> clear[Xóa Cart và hoàn tất transaction]
+    clear --> event[Phát OrderPlacedEvent sau commit]
+    event --> completed([Trả 201 Created])

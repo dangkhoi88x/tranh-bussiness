@@ -1,0 +1,21 @@
+sequenceDiagram
+    autonumber
+    actor A as Nhân viên / quản trị viên
+    participant FE as business-store-frontend
+    participant C as AdminOrderNotificationController
+    participant SS as AdminOrderNotificationStreamService
+    participant NL as NotificationEventListener
+    participant P as AdminOrderNotificationPublisher
+    participant R as Redis
+    participant SUB as RedisAdminOrderNotificationSubscriber
+    A->>FE: Mở màn hình quản trị đơn hàng
+    FE->>C: GET /api/v1/admin/order-notifications/stream (SSE/HTTPS)
+    C->>SS: subscribe()
+    SS-->>FE: event connected
+    Note over NL,P: Một checkout đã commit OrderPlacedEvent
+    NL->>P: publish(OrderPlacedEvent)
+    P->>R: Publish business-store:admin:new-order (Redis pub/sub)
+    R->>SUB: Deliver message tới từng application instance
+    SUB->>SS: broadcast(AdminNewOrderNotificationResponse)
+    SS-->>FE: event new-order (SSE/HTTPS)
+    SS-->>FE: comment keepalive theo lịch (SSE/HTTPS)

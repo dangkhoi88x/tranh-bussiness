@@ -32,10 +32,9 @@ import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.ShipmentRepository;
-import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
-import com.example.businessstore.service.PhotobookPricing;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import com.example.businessstore.service.PhotobookProjectService;
 import com.example.businessstore.service.OrderService;
 import com.example.businessstore.service.OrderStatusHistoryService;
@@ -70,7 +69,6 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
-    private final PhotobookPageTierRepository photobookPageTierRepository;
     private final PhotobookProjectService photobookProjectService;
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
@@ -78,6 +76,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStatusHistoryService orderStatusHistoryService;
     private final ShippingAddressService shippingAddressService;
     private final PromotionService promotionService;
+    private final ProductSelectionPricingService selectionPricingService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override @Transactional
@@ -105,32 +104,24 @@ public class OrderServiceImpl implements OrderService {
             ProductVariant variant = lockSelectedVariant(product, cartItem.getProductVariant());
             Product lockedProduct = variant == null ? productRepository.findByIdForUpdate(product.getId()).orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm.")) : product;
             int stock = variant == null ? lockedProduct.getStockQuantity() : variant.getStockQuantity();
-            if (cartItem.getQuantity() > stock) throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Số lượng bạn chọn vượt quá hàng còn lại.");
             ProductFrameOption option = cartItem.getProductFrameOption();
-            validateFrameCompatibility(option, variant);
-            BigDecimal adjustment = option == null ? BigDecimal.ZERO : option.getPriceAdjustment();
-            // Giá tính lại từ đầu ở đây (không tin giỏ hàng), nên photobook phải dùng đúng
-            // PhotobookPricing như CartServiceImpl — lệch một trong hai là khách trả sai tiền.
-            BigDecimal basePrice = variant == null ? lockedProduct.getPrice()
-                    : lockedProduct.isPagePriced() && cartItem.getPageCount() != null
-                    ? PhotobookPricing.priceAt(lockedProduct,
-                    photobookPageTierRepository.findAllByProductVariantIdOrderByPageCountAsc(variant.getId()),
-                    cartItem.getPageCount())
-                    : variant.getPrice();
-            BigDecimal unitPrice = basePrice.add(adjustment);
+            selectionPricingService.requireAvailableStock(lockedProduct, variant, cartItem.getQuantity());
+            selectionPricingService.validateFrameCompatibility(option, variant);
+            ProductSelectionPricingService.SelectionQuote quote = selectionPricingService
+                    .quote(lockedProduct, variant, option, cartItem.getPageCount());
             OrderItem item = new OrderItem();
             item.setProductId(lockedProduct.getId()); item.setProductName(lockedProduct.getName()); item.setProductSlug(lockedProduct.getSlug());
             item.setPageCount(cartItem.getPageCount());
             item.setPhotobookDesignId(cartItem.getPhotobookDesign() == null ? null : cartItem.getPhotobookDesign().getId());
             item.setPhotobookTemplateCode(cartItem.getPhotobookTemplateCode());
-            item.setProductPrice(basePrice); item.setFramePriceAdjustment(adjustment); item.setUnitPrice(unitPrice);
-            item.setQuantity(cartItem.getQuantity()); item.setLineTotal(unitPrice.multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+            item.setProductPrice(quote.basePrice()); item.setFramePriceAdjustment(quote.framePriceAdjustment()); item.setUnitPrice(quote.unitPrice());
+            item.setQuantity(cartItem.getQuantity()); item.setLineTotal(quote.unitPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
             if (variant != null) { item.setProductVariantId(variant.getId()); item.setVariantSku(variant.getSku()); item.setVariantName(variant.getName()); item.setVariantMaterial(variant.getMaterial()); item.setVariantWidthCm(variant.getWidthCm()); item.setVariantHeightCm(variant.getHeightCm()); }
             if (option != null) { item.setProductFrameOptionId(option.getId()); item.setFrameName(option.getFrame().getName()); }
             order.addItem(item); subtotal = subtotal.add(item.getLineTotal());
             promotionLines.add(new PromotionLine(lockedProduct.getCategory().getId(), lockedProduct.getId(),
                     variant == null ? null : variant.getId(),
-                    basePrice.multiply(BigDecimal.valueOf(cartItem.getQuantity()))));
+                    quote.basePrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()))));
             if (variant == null) lockedProduct.setStockQuantity(stock - cartItem.getQuantity()); else variant.setStockQuantity(stock - cartItem.getQuantity());
         }
         order.setSubtotalAmount(subtotal);
@@ -299,13 +290,6 @@ public class OrderServiceImpl implements OrderService {
         return productVariantRepository.findByIdForUpdate(selected.getId())
                 .filter(variant -> variant.getProduct().getId().equals(product.getId()) && variant.isAvailable())
                 .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Phiên bản sản phẩm này hiện không bán."));
-    }
-    private void validateFrameCompatibility(ProductFrameOption option, ProductVariant variant) {
-        if (option == null) return;
-        if (!option.isAvailable() || option.getFrame().getStatus() != com.example.businessstore.constant.FrameStatus.ACTIVE) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Khung này hiện không dùng được.");
-        if (variant == null) return;
-        boolean compatible = (option.getMinWidthCm() == null || variant.getWidthCm().compareTo(option.getMinWidthCm()) >= 0) && (option.getMaxWidthCm() == null || variant.getWidthCm().compareTo(option.getMaxWidthCm()) <= 0) && (option.getMinHeightCm() == null || variant.getHeightCm().compareTo(option.getMinHeightCm()) >= 0) && (option.getMaxHeightCm() == null || variant.getHeightCm().compareTo(option.getMaxHeightCm()) <= 0);
-        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Khung này không lắp được cho phiên bản sản phẩm đã chọn.");
     }
     private String formatAddress(ShippingAddress address) { return String.join(", ", address.getAddressLine(), address.getWard(), address.getDistrict(), address.getProvince()); }
     private String generateOrderCode() { String base = "ART-" + LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).format(DateTimeFormatter.BASIC_ISO_DATE) + "-"; String code; do { code = base + UUID.randomUUID().toString().substring(0, 8).toUpperCase(); } while (orderRepository.existsByOrderCode(code)); return code; }
