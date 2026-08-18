@@ -12,6 +12,8 @@ export default defineConfig({
     // jsdom vì phần lớn logic được kiểm ở đây chạm localStorage, sessionStorage hoặc fetch.
     environment: 'jsdom',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // Nạp matcher jest-dom cho test component; test api/data không dùng tới nhưng cũng không tốn gì.
+    setupFiles: ['src/test/setup.ts'],
     // clearMocks xoá lịch sử gọi trước mỗi test; thiếu nó thì số lần gọi cộng dồn giữa các
     // ca và những khẳng định kiểu "chỉ làm mới token một lần" báo sai.
     clearMocks: true,
