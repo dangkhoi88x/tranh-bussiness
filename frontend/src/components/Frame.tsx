@@ -8,7 +8,14 @@ import type { CSSProperties } from 'react';
  * (trang chi tiết sản phẩm) thì phải truyền tone="color" để người mua thấy đúng màu tranh,
  * và fit="contain" để tranh khổ dọc không bị cắt đầu đuôi trong ô 4/3.
  */
-export function Frame({ src, alt, label, style, tone = 'grayscale', fit = 'cover' }: {
+export function Frame({
+  src,
+  alt,
+  label,
+  style,
+  tone = 'grayscale',
+  fit = 'cover',
+}: {
   src?: string;
   alt?: string;
   label: string;
@@ -22,7 +29,10 @@ export function Frame({ src, alt, label, style, tone = 'grayscale', fit = 'cover
         src={src}
         alt={alt ?? label}
         style={{
-          width: '100%', height: '100%', objectFit: fit, display: 'block',
+          width: '100%',
+          height: '100%',
+          objectFit: fit,
+          display: 'block',
           ...(tone === 'grayscale' ? { filter: 'grayscale(1)' } : null),
           ...style,
         }}
@@ -32,10 +42,18 @@ export function Frame({ src, alt, label, style, tone = 'grayscale', fit = 'cover
   return (
     <div
       style={{
-        width: '100%', height: '100%', display: 'grid', placeItems: 'center',
-        background: 'var(--color-neutral-200)', color: 'var(--color-neutral-700)',
-        fontSize: 12, letterSpacing: '.12em', textTransform: 'uppercase', textAlign: 'center',
-        padding: 'var(--space-4)', ...style,
+        width: '100%',
+        height: '100%',
+        display: 'grid',
+        placeItems: 'center',
+        background: 'var(--color-neutral-200)',
+        color: 'var(--color-neutral-700)',
+        fontSize: 12,
+        letterSpacing: '.12em',
+        textTransform: 'uppercase',
+        textAlign: 'center',
+        padding: 'var(--space-4)',
+        ...style,
       }}
     >
       {label}

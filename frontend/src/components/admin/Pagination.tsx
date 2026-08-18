@@ -1,4 +1,4 @@
-import type { Page } from "../../types/api";
+import type { Page } from '../../types/api';
 
 type PaginationProps = {
   data: Page<unknown> | null;
@@ -6,11 +6,7 @@ type PaginationProps = {
   label?: string;
 };
 
-export function Pagination({
-  data,
-  onPage,
-  label = "bản ghi",
-}: PaginationProps) {
+export function Pagination({ data, onPage, label = 'bản ghi' }: PaginationProps) {
   if (!data || data.totalPages <= 1) return null;
 
   return (

@@ -49,7 +49,9 @@ export function HomePage() {
   const book = photobooks.find((b) => b.slug === openSlug) ?? null;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenSlug(null); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenSlug(null);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);

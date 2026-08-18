@@ -1,12 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { DataTable } from "../components/admin/DataTable";
-import { Pagination } from "../components/admin/Pagination";
-import { apiRequest } from "../api/http";
-import type { Page } from "../types/api";
+import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DataTable } from '../components/admin/DataTable';
+import { Pagination } from '../components/admin/Pagination';
+import { apiRequest } from '../api/http';
+import type { Page } from '../types/api';
 
-type ShipmentStatus =
-  "READY" | "IN_TRANSIT" | "DELIVERED" | "DELIVERY_FAILED" | "CANCELLED";
+type ShipmentStatus = 'READY' | 'IN_TRANSIT' | 'DELIVERED' | 'DELIVERY_FAILED' | 'CANCELLED';
 type Shipment = {
   id: string;
   orderId: string;
@@ -23,39 +22,28 @@ type Shipment = {
   updatedAt: string;
 };
 type Filters = {
-  status: ShipmentStatus | "";
+  status: ShipmentStatus | '';
   carrier: string;
   trackingCode: string;
 };
 
-const statuses: ShipmentStatus[] = [
-  "READY",
-  "IN_TRANSIT",
-  "DELIVERED",
-  "DELIVERY_FAILED",
-  "CANCELLED",
-];
-const money = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
+const statuses: ShipmentStatus[] = ['READY', 'IN_TRANSIT', 'DELIVERED', 'DELIVERY_FAILED', 'CANCELLED'];
+const money = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
   maximumFractionDigits: 0,
 });
-const dateTime = new Intl.DateTimeFormat("vi-VN", {
-  dateStyle: "medium",
-  timeStyle: "short",
+const dateTime = new Intl.DateTimeFormat('vi-VN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
 });
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : "Đã có lỗi xảy ra.";
-const statusClass = (status: string) =>
-  `status status--${status.toLowerCase()}`;
+const errorText = (error: unknown) => (error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
+const statusClass = (status: string) => `status status--${status.toLowerCase()}`;
 
 function lastActivity(item: Shipment) {
-  if (item.deliveredAt)
-    return `Đã giao: ${dateTime.format(new Date(item.deliveredAt))}`;
-  if (item.failedAt)
-    return `Lỗi giao: ${dateTime.format(new Date(item.failedAt))}`;
-  if (item.shippedAt)
-    return `Bàn giao: ${dateTime.format(new Date(item.shippedAt))}`;
+  if (item.deliveredAt) return `Đã giao: ${dateTime.format(new Date(item.deliveredAt))}`;
+  if (item.failedAt) return `Lỗi giao: ${dateTime.format(new Date(item.failedAt))}`;
+  if (item.shippedAt) return `Bàn giao: ${dateTime.format(new Date(item.shippedAt))}`;
   return `Tạo: ${dateTime.format(new Date(item.createdAt))}`;
 }
 
@@ -63,14 +51,14 @@ export function ShipmentsPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<Page<Shipment> | null>(null);
   const [draft, setDraft] = useState<Filters>({
-    status: "",
-    carrier: "",
-    trackingCode: "",
+    status: '',
+    carrier: '',
+    trackingCode: '',
   });
   const [filters, setFilters] = useState<Filters>({
-    status: "",
-    carrier: "",
-    trackingCode: "",
+    status: '',
+    carrier: '',
+    trackingCode: '',
   });
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
@@ -79,14 +67,12 @@ export function ShipmentsPage() {
   async function load() {
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams({ page: String(page), size: "20" });
-    if (filters.status) params.set("status", filters.status);
-    if (filters.carrier) params.set("carrier", filters.carrier);
-    if (filters.trackingCode) params.set("trackingCode", filters.trackingCode);
+    const params = new URLSearchParams({ page: String(page), size: '20' });
+    if (filters.status) params.set('status', filters.status);
+    if (filters.carrier) params.set('carrier', filters.carrier);
+    if (filters.trackingCode) params.set('trackingCode', filters.trackingCode);
     try {
-      setData(
-        await apiRequest<Page<Shipment>>(`/shipments?${params.toString()}`),
-      );
+      setData(await apiRequest<Page<Shipment>>(`/shipments?${params.toString()}`));
     } catch (cause) {
       setError(errorText(cause));
     } finally {
@@ -106,7 +92,7 @@ export function ShipmentsPage() {
     });
   }
   function clearFilters() {
-    const empty = { status: "" as const, carrier: "", trackingCode: "" };
+    const empty = { status: '' as const, carrier: '', trackingCode: '' };
     setDraft(empty);
     setPage(1);
     setFilters(empty);
@@ -118,15 +104,9 @@ export function ShipmentsPage() {
         <div>
           <p className="eyebrow">VẬN HÀNH</p>
           <h2>Vận chuyển</h2>
-          <p>
-            Theo dõi tất cả vận đơn, lọc nhanh theo trạng thái, đơn vị giao hàng
-            hoặc mã vận đơn.
-          </p>
+          <p>Theo dõi tất cả vận đơn, lọc nhanh theo trạng thái, đơn vị giao hàng hoặc mã vận đơn.</p>
         </div>
-        <button
-          className="primary-button compact"
-          onClick={() => navigate("/admin/orders")}
-        >
+        <button className="primary-button compact" onClick={() => navigate('/admin/orders')}>
           + Tạo từ đơn hàng
         </button>
       </header>
@@ -140,7 +120,7 @@ export function ShipmentsPage() {
               onChange={(event) =>
                 setDraft((value) => ({
                   ...value,
-                  status: event.target.value as Filters["status"],
+                  status: event.target.value as Filters['status'],
                 }))
               }
             >
@@ -155,9 +135,7 @@ export function ShipmentsPage() {
             <input
               placeholder="VD: GHN, GHTK…"
               value={draft.carrier}
-              onChange={(event) =>
-                setDraft((value) => ({ ...value, carrier: event.target.value }))
-              }
+              onChange={(event) => setDraft((value) => ({ ...value, carrier: event.target.value }))}
             />
           </label>
           <label>
@@ -207,33 +185,19 @@ export function ShipmentsPage() {
                     <td>{item.carrier}</td>
                     <td>{money.format(item.shippingFee)}</td>
                     <td>
-                      <span className={statusClass(item.status)}>
-                        {item.status}
-                      </span>
-                      {item.failureReason && (
-                        <small className="shipment-failure">
-                          {item.failureReason}
-                        </small>
-                      )}
+                      <span className={statusClass(item.status)}>{item.status}</span>
+                      {item.failureReason && <small className="shipment-failure">{item.failureReason}</small>}
                     </td>
                     <td>{dateTime.format(new Date(item.updatedAt))}</td>
                     <td className="table-actions">
-                      <button
-                        onClick={() =>
-                          navigate(`/admin/orders/${item.orderId}`)
-                        }
-                      >
-                        Mở đơn
-                      </button>
+                      <button onClick={() => navigate(`/admin/orders/${item.orderId}`)}>Mở đơn</button>
                     </td>
                   </tr>
                 ))}
                 {data?.items.length === 0 && (
                   <tr>
                     <td colSpan={7}>
-                      <p className="empty-state">
-                        Không có vận đơn phù hợp với bộ lọc.
-                      </p>
+                      <p className="empty-state">Không có vận đơn phù hợp với bộ lọc.</p>
                     </td>
                   </tr>
                 )}

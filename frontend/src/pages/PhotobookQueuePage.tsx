@@ -45,8 +45,12 @@ export function PhotobookQueuePage() {
     }
   }, [tab, page]);
 
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { setPage(1); }, [tab]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    setPage(1);
+  }, [tab]);
 
   const items = data?.items ?? [];
 
@@ -60,21 +64,33 @@ export function PhotobookQueuePage() {
         </div>
       </header>
 
-      {message && <p className="catalog-message" role="status">{message}</p>}
+      {message && (
+        <p className="catalog-message" role="status">
+          {message}
+        </p>
+      )}
 
       <div className="detail-tabs" role="tablist">
         {TABS.map((item) => (
-          <button key={item.label} className={tab === item.value ? 'is-active' : ''}
-            onClick={() => setTab(item.value)}>{item.label}</button>
+          <button key={item.label} className={tab === item.value ? 'is-active' : ''} onClick={() => setTab(item.value)}>
+            {item.label}
+          </button>
         ))}
       </div>
 
       <section className="catalog-panel">
-        {loading && items.length === 0 ? <p>Đang tải…</p> : (
+        {loading && items.length === 0 ? (
+          <p>Đang tải…</p>
+        ) : (
           <table className="data-table">
             <thead>
               <tr>
-                <th>Cuốn</th><th>Đơn</th><th>Ảnh</th><th>Sửa</th><th>Trạng thái</th><th />
+                <th>Cuốn</th>
+                <th>Đơn</th>
+                <th>Ảnh</th>
+                <th>Sửa</th>
+                <th>Trạng thái</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -90,9 +106,13 @@ export function PhotobookQueuePage() {
                   </td>
                   <td>
                     {project.photoCount}
-                    <small>cần {project.recommendedPhotosMin}–{project.recommendedPhotosMax}</small>
+                    <small>
+                      cần {project.recommendedPhotosMin}–{project.recommendedPhotosMax}
+                    </small>
                   </td>
-                  <td>{project.revisionCount}/{project.maxRevisions}</td>
+                  <td>
+                    {project.revisionCount}/{project.maxRevisions}
+                  </td>
                   <td>{PHOTOBOOK_STATUS_LABEL[project.status]}</td>
                   <td className="table-actions">
                     <button onClick={() => setOpen(project)}>Mở</button>
@@ -106,9 +126,15 @@ export function PhotobookQueuePage() {
 
         {data && data.totalPages > 1 && (
           <div className="upload-row" style={{ justifyContent: 'space-between' }}>
-            <button className="ghost-button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Trang trước</button>
-            <span>Trang {data.page} / {data.totalPages}</span>
-            <button className="ghost-button" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>Trang sau →</button>
+            <button className="ghost-button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              ← Trang trước
+            </button>
+            <span>
+              Trang {data.page} / {data.totalPages}
+            </span>
+            <button className="ghost-button" disabled={!data.hasNext} onClick={() => setPage((p) => p + 1)}>
+              Trang sau →
+            </button>
           </div>
         )}
       </section>
@@ -117,7 +143,10 @@ export function PhotobookQueuePage() {
         <ProjectDrawer
           project={open}
           onClose={() => setOpen(null)}
-          onChanged={(updated) => { setOpen(updated); void load(); }}
+          onChanged={(updated) => {
+            setOpen(updated);
+            void load();
+          }}
           onMessage={setMessage}
         />
       )}
@@ -125,7 +154,12 @@ export function PhotobookQueuePage() {
   );
 }
 
-function ProjectDrawer({ project, onClose, onChanged, onMessage }: {
+function ProjectDrawer({
+  project,
+  onClose,
+  onChanged,
+  onMessage,
+}: {
   project: PhotobookProject;
   onClose: () => void;
   onChanged: (project: PhotobookProject) => void;
@@ -138,12 +172,14 @@ function ProjectDrawer({ project, onClose, onChanged, onMessage }: {
   // Bản mềm chỉ gửi được khi khách đã chốt ảnh hoặc vừa xin sửa — khớp với backend.
   const canSendProof = project.status === 'PHOTOS_SUBMITTED' || project.status === 'REVISION_REQUESTED';
   // findLast cần lib es2023; tsconfig ở đây thấp hơn nên duyệt ngược bằng tay.
-  const pendingRevisionNote = [...project.proofs].reverse()
-    .find((proof) => proof.decision === 'REVISION_REQUESTED');
+  const pendingRevisionNote = [...project.proofs].reverse().find((proof) => proof.decision === 'REVISION_REQUESTED');
 
   async function sendProof() {
     const file = fileInput.current?.files?.[0];
-    if (!file) { onMessage('Chọn file bản mềm trước.'); return; }
+    if (!file) {
+      onMessage('Chọn file bản mềm trước.');
+      return;
+    }
     setBusy(true);
     try {
       onChanged(await uploadPhotobookProof(project.id, file, staffNote));
@@ -161,20 +197,30 @@ function ProjectDrawer({ project, onClose, onChanged, onMessage }: {
     <div className="modal-backdrop" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Chi tiết cuốn photobook">
         <header>
-          <h3>{project.productName} · {project.pageCount} trang</h3>
-          <button type="button" className="icon-button" aria-label="Đóng" onClick={onClose}>×</button>
+          <h3>
+            {project.productName} · {project.pageCount} trang
+          </h3>
+          <button type="button" className="icon-button" aria-label="Đóng" onClick={onClose}>
+            ×
+          </button>
         </header>
 
         <div className="admin-form">
           <p>
-            Đơn <code>{project.orderCode}</code> · {PHOTOBOOK_STATUS_LABEL[project.status]} ·
-            {' '}{project.photoCount} ảnh (cần {project.recommendedPhotosMin}–{project.recommendedPhotosMax})
-            {' '}· đã sửa {project.revisionCount}/{project.maxRevisions}
+            Đơn <code>{project.orderCode}</code> · {PHOTOBOOK_STATUS_LABEL[project.status]} · {project.photoCount} ảnh
+            (cần {project.recommendedPhotosMin}–{project.recommendedPhotosMax}) · đã sửa {project.revisionCount}/
+            {project.maxRevisions}
           </p>
 
-          {project.customerNote && <p><strong>Khách dặn:</strong> {project.customerNote}</p>}
+          {project.customerNote && (
+            <p>
+              <strong>Khách dặn:</strong> {project.customerNote}
+            </p>
+          )}
           {pendingRevisionNote?.customerNote && (
-            <p><strong>Khách xin sửa:</strong> {pendingRevisionNote.customerNote}</p>
+            <p>
+              <strong>Khách xin sửa:</strong> {pendingRevisionNote.customerNote}
+            </p>
           )}
 
           {project.photos.length > 0 && (
@@ -199,8 +245,12 @@ function ProjectDrawer({ project, onClose, onChanged, onMessage }: {
                     <a href={proof.url} target="_blank" rel="noreferrer">
                       Bản {proof.revision} ({proof.pageCount} spread)
                     </a>
-                    {' — '}{proof.decision === 'PENDING' ? 'chờ khách'
-                      : proof.decision === 'APPROVED' ? 'khách đã duyệt' : `khách xin sửa: ${proof.customerNote}`}
+                    {' — '}
+                    {proof.decision === 'PENDING'
+                      ? 'chờ khách'
+                      : proof.decision === 'APPROVED'
+                        ? 'khách đã duyệt'
+                        : `khách xin sửa: ${proof.customerNote}`}
                   </li>
                 ))}
               </ul>
@@ -209,23 +259,39 @@ function ProjectDrawer({ project, onClose, onChanged, onMessage }: {
 
           {canSendProof ? (
             <>
-              <label>Gửi bản mềm {project.proofs.length + 1}
+              <label>
+                Gửi bản mềm {project.proofs.length + 1}
                 <input ref={fileInput} type="file" accept={PROOF_ACCEPT} />
                 <small>PDF nhiều trang — mỗi trang là một spread. Ảnh đơn cũng nhận được.</small>
               </label>
-              <label>Ghi chú cho khách
-                <textarea rows={3} maxLength={2000} value={staffNote}
-                  onChange={(event) => setStaffNote(event.target.value)} />
+              <label>
+                Ghi chú cho khách
+                <textarea
+                  rows={3}
+                  maxLength={2000}
+                  value={staffNote}
+                  onChange={(event) => setStaffNote(event.target.value)}
+                />
               </label>
               <footer>
-                <button type="button" className="ghost-button" onClick={onClose}>Đóng</button>
-                <button type="button" className="primary-button compact" disabled={busy}
-                  onClick={() => void sendProof()}>{busy ? 'Đang gửi…' : 'Gửi bản mềm'}</button>
+                <button type="button" className="ghost-button" onClick={onClose}>
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  className="primary-button compact"
+                  disabled={busy}
+                  onClick={() => void sendProof()}
+                >
+                  {busy ? 'Đang gửi…' : 'Gửi bản mềm'}
+                </button>
               </footer>
             </>
           ) : (
             <footer>
-              <button type="button" className="ghost-button" onClick={onClose}>Đóng</button>
+              <button type="button" className="ghost-button" onClick={onClose}>
+                Đóng
+              </button>
             </footer>
           )}
         </div>

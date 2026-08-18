@@ -2,7 +2,7 @@ import { apiRequest } from './http';
 import type { Page } from '../types/api';
 
 export type PhotobookProjectStatus =
-  | 'AWAITING_PHOTOS' | 'PHOTOS_SUBMITTED' | 'PROOF_SENT' | 'REVISION_REQUESTED' | 'APPROVED';
+  'AWAITING_PHOTOS' | 'PHOTOS_SUBMITTED' | 'PROOF_SENT' | 'REVISION_REQUESTED' | 'APPROVED';
 
 export type PhotobookProofDecision = 'PENDING' | 'APPROVED' | 'REVISION_REQUESTED';
 

@@ -76,9 +76,19 @@ function variantLabel(variant: ProductVariant, siblings: ProductVariant[] = []):
 }
 
 const chipStyle = (on: boolean, disabled: boolean): React.CSSProperties => ({
-  appearance: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-  height: 36, padding: '0 10px', font: 'inherit', fontSize: 12, fontWeight: on ? 600 : 400,
-  lineHeight: 1, whiteSpace: 'nowrap', cursor: disabled ? 'not-allowed' : 'pointer',
+  appearance: 'none',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  height: 36,
+  padding: '0 10px',
+  font: 'inherit',
+  fontSize: 12,
+  fontWeight: on ? 600 : 400,
+  lineHeight: 1,
+  whiteSpace: 'nowrap',
+  cursor: disabled ? 'not-allowed' : 'pointer',
   border: `2px solid ${on ? 'var(--color-text)' : 'var(--color-neutral-300)'}`,
   background: on ? 'var(--color-text)' : 'var(--color-bg)',
   color: on ? 'var(--color-bg)' : 'var(--color-text)',
@@ -86,22 +96,38 @@ const chipStyle = (on: boolean, disabled: boolean): React.CSSProperties => ({
 });
 
 const stepStyle = (disabled: boolean): React.CSSProperties => ({
-  appearance: 'none', width: 32, height: 32, border: 0, background: 'transparent',
-  font: 'inherit', fontSize: 16, color: 'var(--color-text)',
-  cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.4 : 1,
+  appearance: 'none',
+  width: 32,
+  height: 32,
+  border: 0,
+  background: 'transparent',
+  font: 'inherit',
+  fontSize: 16,
+  color: 'var(--color-text)',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  opacity: disabled ? 0.4 : 1,
 });
 
 const optionRow: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr)', alignItems: 'center',
-  gap: 'var(--space-4)', padding: 'var(--space-4) 0', borderBottom: '1px solid var(--color-neutral-300)',
+  display: 'grid',
+  gridTemplateColumns: '84px minmax(0, 1fr)',
+  alignItems: 'center',
+  gap: 'var(--space-4)',
+  padding: 'var(--space-4) 0',
+  borderBottom: '1px solid var(--color-neutral-300)',
 };
 
 const optionLabel: React.CSSProperties = {
-  fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--color-neutral-700)',
+  fontSize: 11,
+  letterSpacing: '.16em',
+  textTransform: 'uppercase',
+  color: 'var(--color-neutral-700)',
 };
 
 const chipGrid: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: 6,
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))',
+  gap: 6,
 };
 
 type Row = { k: string; v: string };
@@ -145,9 +171,15 @@ export function ProductPage() {
     setFrameOptions([]);
     setFrameOptionId(null);
     fetchProductBySlug(slug)
-      .then((item) => { if (alive) setProduct(item); })
-      .catch((error: Error) => { if (alive) setLoadError(error.message); });
-    return () => { alive = false; };
+      .then((item) => {
+        if (alive) setProduct(item);
+      })
+      .catch((error: Error) => {
+        if (alive) setLoadError(error.message);
+      });
+    return () => {
+      alive = false;
+    };
   }, [slug]);
 
   // Khổ: chọn sẵn variant còn hàng đầu tiên để giá và nút mua có nghĩa ngay khi mở trang.
@@ -163,8 +195,15 @@ export function ProductPage() {
       })
       // Nuốt lỗi ở đây thì trang trông y hệt sản phẩm bán một khổ duy nhất, giá hiển thị là
       // giá gốc, và người mua chỉ biết có chuyện khi backend từ chối lúc bấm thêm vào giỏ.
-      .catch(() => { if (alive) { setVariants([]); setVariantsFailed(true); } });
-    return () => { alive = false; };
+      .catch(() => {
+        if (alive) {
+          setVariants([]);
+          setVariantsFailed(true);
+        }
+      });
+    return () => {
+      alive = false;
+    };
   }, [product?.id]);
 
   // Khung: danh sách phụ thuộc khổ đang chọn, backend đã lọc khung không vừa kích thước.
@@ -181,8 +220,12 @@ export function ProductPage() {
         // Khung đang chọn có thể không hợp với khổ vừa đổi — bỏ chọn thay vì gửi lên rồi bị từ chối.
         setFrameOptionId((current) => (items.some((o) => o.id === current) ? current : null));
       })
-      .catch(() => { if (alive) setFrameOptions([]); });
-    return () => { alive = false; };
+      .catch(() => {
+        if (alive) setFrameOptions([]);
+      });
+    return () => {
+      alive = false;
+    };
   }, [product?.id, variantId]);
 
   const variant = variants.find((v) => v.id === variantId) ?? null;
@@ -195,7 +238,9 @@ export function ProductPage() {
   const stock = variant ? variant.stockQuantity : (product?.effectiveStockQuantity ?? 0);
   const maxQty = Math.max(1, Math.min(MAX_QTY, stock));
   const soldOut = stock <= 0 || Boolean(variant && !variant.available);
-  useEffect(() => { setQty((q) => Math.min(q, maxQty)); }, [maxQty]);
+  useEffect(() => {
+    setQty((q) => Math.min(q, maxQty));
+  }, [maxQty]);
 
   const price = product ? unitPrice(product, variant, frameOption) : 0;
 
@@ -205,7 +250,7 @@ export function ProductPage() {
       [product?.categoryId],
     ),
   );
-  const relatedSameCategory = product ? related.data ?? [] : [];
+  const relatedSameCategory = product ? (related.data ?? []) : [];
   const relatedItems = relatedSameCategory.filter((r) => r.slug !== slug).slice(0, 4);
   // Nhãn "Bán chạy" trước đây gắn cứng cho mọi sản phẩm. Danh sách trên đã là top bán chạy
   // của danh mục rồi, nên chỉ cần xem sản phẩm này có nằm trong đó không — không tốn request.
@@ -215,9 +260,9 @@ export function ProductPage() {
     if (!product) return [];
     const sizeRows: Row[] = variants.length
       ? variants.map((v) => ({
-        k: variantLabel(v, variants),
-        v: `${formatPrice(v.price)} · ${v.stockQuantity > 0 ? `còn ${v.stockQuantity}` : 'hết hàng'}`,
-      }))
+          k: variantLabel(v, variants),
+          v: `${formatPrice(v.price)} · ${v.stockQuantity > 0 ? `còn ${v.stockQuantity}` : 'hết hàng'}`,
+        }))
       : [{ k: formatSize(product.widthCm, product.heightCm) ?? 'Khổ tiêu chuẩn', v: formatPrice(product.price) }];
     const frameRows: Row[] = frameOptions.map((o) => ({
       k: o.frameName,
@@ -255,32 +300,46 @@ export function ProductPage() {
     return () => window.clearTimeout(timer);
   }, [added]);
 
-  const shareImage = product?.primaryImageUrl ?? product?.images.find((image) => image.primaryImage)?.secureUrl ?? product?.images[0]?.secureUrl ?? null;
-  useDocumentMeta(product ? {
-    title: `${product.name} | Bubble Memories`,
-    description: metaDescription(product.description, `${product.name} thuộc danh mục ${product.categoryName} tại Bubble Memories.`),
-    canonicalUrl: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
-    type: 'product',
-    imageUrl: shareImage ? absoluteSiteUrl(shareImage) : null,
-    imageAlt: product.name,
-    jsonLd: {
-      '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: product.name,
-      description: metaDescription(product.description, `${product.name} thuộc danh mục ${product.categoryName} tại Bubble Memories.`),
-      image: shareImage ? [absoluteSiteUrl(shareImage)] : undefined,
-      sku: product.id,
-      category: product.categoryName,
-      url: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
-      offers: {
-        '@type': 'Offer',
-        priceCurrency: 'VND',
-        price: product.price,
-        availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-        url: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
-      },
-    },
-  } : null);
+  const shareImage =
+    product?.primaryImageUrl ??
+    product?.images.find((image) => image.primaryImage)?.secureUrl ??
+    product?.images[0]?.secureUrl ??
+    null;
+  useDocumentMeta(
+    product
+      ? {
+          title: `${product.name} | Bubble Memories`,
+          description: metaDescription(
+            product.description,
+            `${product.name} thuộc danh mục ${product.categoryName} tại Bubble Memories.`,
+          ),
+          canonicalUrl: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
+          type: 'product',
+          imageUrl: shareImage ? absoluteSiteUrl(shareImage) : null,
+          imageAlt: product.name,
+          jsonLd: {
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: product.name,
+            description: metaDescription(
+              product.description,
+              `${product.name} thuộc danh mục ${product.categoryName} tại Bubble Memories.`,
+            ),
+            image: shareImage ? [absoluteSiteUrl(shareImage)] : undefined,
+            sku: product.id,
+            category: product.categoryName,
+            url: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
+            offers: {
+              '@type': 'Offer',
+              priceCurrency: 'VND',
+              price: product.price,
+              availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+              url: absoluteSiteUrl(`/tranh/${encodeURIComponent(product.slug)}`),
+            },
+          },
+        }
+      : null,
+  );
 
   async function addToCart() {
     if (!product) return;
@@ -313,10 +372,16 @@ export function ProductPage() {
 
   async function toggleFavorite() {
     if (!product) return;
-    if (!session) { navigate('/auth', { state: { from: location } }); return; }
+    if (!session) {
+      navigate('/auth', { state: { from: location } });
+      return;
+    }
     setWishlistError(null);
-    try { await toggleWishlist(product.id, variantId); }
-    catch (cause) { setWishlistError(cause instanceof Error ? cause.message : 'Không cập nhật được yêu thích.'); }
+    try {
+      await toggleWishlist(product.id, variantId);
+    } catch (cause) {
+      setWishlistError(cause instanceof Error ? cause.message : 'Không cập nhật được yêu thích.');
+    }
   }
 
   // Photobook có trục giá riêng (khổ × số trang) mà khối mua ở đây không diễn tả được:
@@ -328,11 +393,31 @@ export function ProductPage() {
   if (loadError || !product) {
     return (
       <StoreShell cartCount={cartCount}>
-        <div style={{ display: 'grid', placeItems: 'center', minHeight: '40vh', padding: 'var(--space-8)', gap: 'var(--space-4)' }}>
-          <p style={{ margin: 0, fontSize: 13, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
+        <div
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            minHeight: '40vh',
+            padding: 'var(--space-8)',
+            gap: 'var(--space-4)',
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              letterSpacing: '.12em',
+              textTransform: 'uppercase',
+              color: 'var(--color-neutral-700)',
+            }}
+          >
             {loadError ?? 'Đang tải sản phẩm…'}
           </p>
-          {loadError && <Link className="btn btn-secondary" to="/">← Về trang chủ</Link>}
+          {loadError && (
+            <Link className="btn btn-secondary" to="/">
+              ← Về trang chủ
+            </Link>
+          )}
         </div>
       </StoreShell>
     );
@@ -346,42 +431,102 @@ export function ProductPage() {
 
   return (
     <StoreShell cartCount={cartCount}>
-      <nav aria-label="Breadcrumb" data-breadcrumb="" style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-3)', height: 46, padding: '0 var(--space-8)',
-        borderBottom: '2px solid var(--color-divider)', fontSize: 11, letterSpacing: '.16em',
-        textTransform: 'uppercase', color: 'var(--color-neutral-700)',
-      }}>
-        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Trang chủ</Link>
+      <nav
+        aria-label="Breadcrumb"
+        data-breadcrumb=""
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          height: 46,
+          padding: '0 var(--space-8)',
+          borderBottom: '2px solid var(--color-divider)',
+          fontSize: 11,
+          letterSpacing: '.16em',
+          textTransform: 'uppercase',
+          color: 'var(--color-neutral-700)',
+        }}
+      >
+        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>
+          Trang chủ
+        </Link>
         <span aria-hidden="true">/</span>
-        <Link to={catalogHref} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>{product.categoryName}</Link>
+        <Link to={catalogHref} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>
+          {product.categoryName}
+        </Link>
         <span aria-hidden="true">/</span>
         <span style={{ color: 'var(--color-text)' }}>{product.name}</span>
-        <Link to={catalogHref} data-breadcrumb-back="" style={{ marginLeft: 'auto', color: 'var(--color-neutral-700)', textDecoration: 'none' }}>← Về danh sách</Link>
+        <Link
+          to={catalogHref}
+          data-breadcrumb-back=""
+          style={{ marginLeft: 'auto', color: 'var(--color-neutral-700)', textDecoration: 'none' }}
+        >
+          ← Về danh sách
+        </Link>
       </nav>
 
-      <section data-split="" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', alignItems: 'start' }}>
+      <section
+        data-split=""
+        style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', alignItems: 'start' }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', borderRight: '2px solid var(--color-text)' }}>
-          <div style={{
-            position: 'relative', width: '100%', aspectRatio: '4/3', maxHeight: '62vh',
-            background: 'var(--color-neutral-200)', borderBottom: '2px solid var(--color-text)', overflow: 'hidden',
-          }}>
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '4/3',
+              maxHeight: '62vh',
+              background: 'var(--color-neutral-200)',
+              borderBottom: '2px solid var(--color-text)',
+              overflow: 'hidden',
+            }}
+          >
             <div style={{ position: 'absolute', inset: 0 }}>
-              <Frame src={currentImage?.secureUrl} alt={currentImage?.altText ?? undefined}
-                label={`tranh canvas — ${product.name}`} tone="color" fit="contain" />
+              <Frame
+                src={currentImage?.secureUrl}
+                alt={currentImage?.altText ?? undefined}
+                label={`tranh canvas — ${product.name}`}
+                tone="color"
+                fit="contain"
+              />
             </div>
             {(soldOut || bestSelling) && (
-              <span style={{
-                position: 'absolute', top: 0, left: 0, padding: '6px 10px', background: 'var(--color-accent)',
-                color: 'var(--color-bg)', fontSize: 10, fontWeight: 800, letterSpacing: '.18em', textTransform: 'uppercase',
-              }}>{soldOut ? 'Tạm hết' : 'Bán chạy'}</span>
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  padding: '6px 10px',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-bg)',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: '.18em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {soldOut ? 'Tạm hết' : 'Bán chạy'}
+              </span>
             )}
-            <span style={{
-              position: 'absolute', right: 'var(--space-4)', bottom: 'var(--space-4)', padding: '7px 11px',
-              background: 'var(--color-text)', color: 'var(--color-bg)', fontSize: 11,
-              letterSpacing: '.16em', textTransform: 'uppercase',
-            }}>
-              {[variant ? variantLabel(variant, variants) : formatSize(product.widthCm, product.heightCm), frameOption?.frameName ?? 'Căng viền']
-                .filter(Boolean).join(' · ')}
+            <span
+              style={{
+                position: 'absolute',
+                right: 'var(--space-4)',
+                bottom: 'var(--space-4)',
+                padding: '7px 11px',
+                background: 'var(--color-text)',
+                color: 'var(--color-bg)',
+                fontSize: 11,
+                letterSpacing: '.16em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {[
+                variant ? variantLabel(variant, variants) : formatSize(product.widthCm, product.heightCm),
+                frameOption?.frameName ?? 'Căng viền',
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </span>
           </div>
 
@@ -390,23 +535,53 @@ export function ProductPage() {
               {images.map((image, k) => {
                 const on = k === shot;
                 return (
-                  <button key={image.id} type="button" onClick={() => setShot(k)} aria-pressed={on} style={{
-                    appearance: 'none', position: 'relative', padding: 0, width: '100%', aspectRatio: '1/1',
-                    background: 'var(--color-neutral-200)', cursor: 'pointer', overflow: 'hidden', border: 0,
-                    // Viền theo số cột thật, không phải hằng số 4: dưới 4 ảnh thì ô cuối hàng
-                    // vẽ viền phải đè lên viền cột, trên 4 ảnh thì hàng thứ hai thiếu viền trên.
-                    borderRight: k % thumbCols === thumbCols - 1 ? 0 : '2px solid var(--color-text)',
-                    borderTop: k >= thumbCols ? '2px solid var(--color-text)' : 0,
-                    outline: on ? '3px solid var(--color-accent)' : 'none', outlineOffset: -3,
-                  }}>
+                  <button
+                    key={image.id}
+                    type="button"
+                    onClick={() => setShot(k)}
+                    aria-pressed={on}
+                    style={{
+                      appearance: 'none',
+                      position: 'relative',
+                      padding: 0,
+                      width: '100%',
+                      aspectRatio: '1/1',
+                      background: 'var(--color-neutral-200)',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      border: 0,
+                      // Viền theo số cột thật, không phải hằng số 4: dưới 4 ảnh thì ô cuối hàng
+                      // vẽ viền phải đè lên viền cột, trên 4 ảnh thì hàng thứ hai thiếu viền trên.
+                      borderRight: k % thumbCols === thumbCols - 1 ? 0 : '2px solid var(--color-text)',
+                      borderTop: k >= thumbCols ? '2px solid var(--color-text)' : 0,
+                      outline: on ? '3px solid var(--color-accent)' : 'none',
+                      outlineOffset: -3,
+                    }}
+                  >
                     <div style={{ position: 'absolute', inset: 0 }}>
-                      <Frame src={image.secureUrl} alt={image.altText ?? undefined} label={`ảnh ${k + 1}`} tone="color" />
+                      <Frame
+                        src={image.secureUrl}
+                        alt={image.altText ?? undefined}
+                        label={`ảnh ${k + 1}`}
+                        tone="color"
+                      />
                     </div>
-                    <span style={{
-                      position: 'absolute', left: 0, bottom: 0, padding: '4px 8px',
-                      background: on ? 'var(--color-accent)' : 'var(--color-text)', color: 'var(--color-bg)',
-                      fontSize: 9, fontWeight: 700, letterSpacing: '.16em', textTransform: 'uppercase',
-                    }}>{image.altText || `Ảnh ${k + 1}`}</span>
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        bottom: 0,
+                        padding: '4px 8px',
+                        background: on ? 'var(--color-accent)' : 'var(--color-text)',
+                        color: 'var(--color-bg)',
+                        fontSize: 9,
+                        fontWeight: 700,
+                        letterSpacing: '.16em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {image.altText || `Ảnh ${k + 1}`}
+                    </span>
                   </button>
                 );
               })}
@@ -414,25 +589,88 @@ export function ProductPage() {
           )}
         </div>
 
-        <div data-buy="" id="mua" style={{
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', padding: 'var(--space-8)',
-        }}>
+        <div
+          data-buy=""
+          id="mua"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-5)',
+            padding: 'var(--space-8)',
+          }}
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', alignItems: 'start' }}>
-              <span style={{ fontSize: 11, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>{product.categoryName}</span>
-              <button type="button" aria-pressed={Boolean(favorite)} aria-label={favorite ? 'Bỏ sản phẩm khỏi yêu thích' : 'Lưu sản phẩm yêu thích'} disabled={wishlistBusy} onClick={() => void toggleFavorite()} style={{ appearance: 'none', display: 'grid', placeItems: 'center', width: 38, height: 38, flex: 'none', border: '2px solid var(--color-text)', background: favorite ? 'var(--color-accent)' : 'var(--color-bg)', color: favorite ? 'var(--color-bg)' : 'var(--color-text)', cursor: wishlistBusy ? 'not-allowed' : 'pointer' }}><svg width="18" height="18" viewBox="0 0 24 24" fill={favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="square"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z" /></svg></button>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--space-4)', alignItems: 'start' }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  letterSpacing: '.2em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-accent-700)',
+                }}
+              >
+                {product.categoryName}
+              </span>
+              <button
+                type="button"
+                aria-pressed={Boolean(favorite)}
+                aria-label={favorite ? 'Bỏ sản phẩm khỏi yêu thích' : 'Lưu sản phẩm yêu thích'}
+                disabled={wishlistBusy}
+                onClick={() => void toggleFavorite()}
+                style={{
+                  appearance: 'none',
+                  display: 'grid',
+                  placeItems: 'center',
+                  width: 38,
+                  height: 38,
+                  flex: 'none',
+                  border: '2px solid var(--color-text)',
+                  background: favorite ? 'var(--color-accent)' : 'var(--color-bg)',
+                  color: favorite ? 'var(--color-bg)' : 'var(--color-text)',
+                  cursor: wishlistBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill={favorite ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="square"
+                >
+                  <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.9-8.6a5.5 5.5 0 0 0-.1-7.8Z" />
+                </svg>
+              </button>
             </div>
-            <h1 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 30, lineHeight: 1.05, letterSpacing: '-.03em' }}>
+            <h1
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 800,
+                fontSize: 30,
+                lineHeight: 1.05,
+                letterSpacing: '-.03em',
+              }}
+            >
               {product.name}
             </h1>
             {/* Mô tả nằm ở tab "Mô tả" ngay bên dưới (tab mặc định) — in lại ở đây vừa trùng
                 nội dung vừa đẩy nút "Thêm vào giỏ" xuống dưới màn hình với mô tả dài. */}
           </div>
 
-          <div style={{
-            display: 'flex', alignItems: 'baseline', gap: 'var(--space-4)', padding: 'var(--space-4) 0',
-            borderTop: '2px solid var(--color-text)', borderBottom: '2px solid var(--color-text)',
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 'var(--space-4)',
+              padding: 'var(--space-4) 0',
+              borderTop: '2px solid var(--color-text)',
+              borderBottom: '2px solid var(--color-text)',
+            }}
+          >
             <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 26, letterSpacing: '-.03em' }}>
               {formatPrice(price)}
             </span>
@@ -451,9 +689,16 @@ export function ProductPage() {
                     const label = variantLabel(v, variants);
                     const note = `${formatPrice(unitPrice(product, v, frameOption))}${disabled ? ' · hết hàng' : ''}`;
                     return (
-                      <button key={v.id} type="button" disabled={disabled} aria-pressed={v.id === variantId}
-                        title={note} aria-label={`${label} — ${note}`}
-                        onClick={() => setVariantId(v.id)} style={chipStyle(v.id === variantId, disabled)}>
+                      <button
+                        key={v.id}
+                        type="button"
+                        disabled={disabled}
+                        aria-pressed={v.id === variantId}
+                        title={note}
+                        aria-label={`${label} — ${note}`}
+                        onClick={() => setVariantId(v.id)}
+                        style={chipStyle(v.id === variantId, disabled)}
+                      >
                         {label}
                       </button>
                     );
@@ -466,26 +711,47 @@ export function ProductPage() {
               <div data-option-row="" style={optionRow}>
                 <span style={optionLabel}>Khung</span>
                 <div style={chipGrid}>
-                  <button type="button" aria-pressed={frameOptionId === null} title="không phụ thu"
+                  <button
+                    type="button"
+                    aria-pressed={frameOptionId === null}
+                    title="không phụ thu"
                     aria-label="Căng viền — không phụ thu"
-                    onClick={() => setFrameOptionId(null)} style={chipStyle(frameOptionId === null, false)}>
-                    <span style={{
-                      flex: 'none', width: 10, height: 10, background: '#eae7e7',
-                      border: `1px solid ${frameOptionId === null ? 'var(--color-bg)' : 'var(--color-text)'}`,
-                    }} />
+                    onClick={() => setFrameOptionId(null)}
+                    style={chipStyle(frameOptionId === null, false)}
+                  >
+                    <span
+                      style={{
+                        flex: 'none',
+                        width: 10,
+                        height: 10,
+                        background: '#eae7e7',
+                        border: `1px solid ${frameOptionId === null ? 'var(--color-bg)' : 'var(--color-text)'}`,
+                      }}
+                    />
                     Căng viền
                   </button>
                   {frameOptions.map((o) => {
                     const on = o.id === frameOptionId;
                     const note = o.priceAdjustment > 0 ? `+ ${formatPrice(o.priceAdjustment)}` : 'không phụ thu';
                     return (
-                      <button key={o.id} type="button" aria-pressed={on}
-                        title={note} aria-label={`${o.frameName} — ${note}`}
-                        onClick={() => setFrameOptionId(o.id)} style={chipStyle(on, false)}>
-                        <span style={{
-                          flex: 'none', width: 10, height: 10, background: swatchColor(`${o.frameColor} ${o.frameMaterial}`),
-                          border: `1px solid ${on ? 'var(--color-bg)' : 'var(--color-text)'}`,
-                        }} />
+                      <button
+                        key={o.id}
+                        type="button"
+                        aria-pressed={on}
+                        title={note}
+                        aria-label={`${o.frameName} — ${note}`}
+                        onClick={() => setFrameOptionId(o.id)}
+                        style={chipStyle(on, false)}
+                      >
+                        <span
+                          style={{
+                            flex: 'none',
+                            width: 10,
+                            height: 10,
+                            background: swatchColor(`${o.frameColor} ${o.frameMaterial}`),
+                            border: `1px solid ${on ? 'var(--color-bg)' : 'var(--color-text)'}`,
+                          }}
+                        />
                         {o.frameName}
                       </button>
                     );
@@ -496,15 +762,43 @@ export function ProductPage() {
 
             <div data-option-row="" style={optionRow}>
               <span style={optionLabel}>Số lượng</span>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 'var(--space-4)',
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', border: '2px solid var(--color-text)' }}>
-                  <button type="button" aria-label="Bớt một" disabled={qty <= 1}
-                    onClick={() => setQty((q) => Math.max(1, q - 1))} style={stepStyle(qty <= 1)}>−</button>
+                  <button
+                    type="button"
+                    aria-label="Bớt một"
+                    disabled={qty <= 1}
+                    onClick={() => setQty((q) => Math.max(1, q - 1))}
+                    style={stepStyle(qty <= 1)}
+                  >
+                    −
+                  </button>
                   <span style={{ minWidth: 36, textAlign: 'center', fontSize: 14, fontWeight: 600 }}>{qty}</span>
-                  <button type="button" aria-label="Thêm một" disabled={qty >= maxQty}
-                    onClick={() => setQty((q) => Math.min(maxQty, q + 1))} style={stepStyle(qty >= maxQty)}>+</button>
+                  <button
+                    type="button"
+                    aria-label="Thêm một"
+                    disabled={qty >= maxQty}
+                    onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+                    style={stepStyle(qty >= maxQty)}
+                  >
+                    +
+                  </button>
                 </div>
-                <span style={{ fontSize: 12, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
+                <span
+                  style={{
+                    fontSize: 12,
+                    letterSpacing: '.1em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-neutral-700)',
+                  }}
+                >
                   Tổng {formatPrice(price * qty)}
                 </span>
               </div>
@@ -512,23 +806,41 @@ export function ProductPage() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <button type="button" className="btn btn-primary btn-block" style={{ cursor: 'pointer' }}
-              disabled={soldOut || busy || variantsFailed} onClick={() => void addToCart()}>
-              {variantsFailed ? 'Chưa chọn được khổ'
-                : soldOut ? 'Tạm hết hàng'
-                  : added ? 'Đã thêm vào giỏ ✓'
-                    : busy ? 'Đang thêm…' : 'Thêm vào giỏ'}
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              style={{ cursor: 'pointer' }}
+              disabled={soldOut || busy || variantsFailed}
+              onClick={() => void addToCart()}
+            >
+              {variantsFailed
+                ? 'Chưa chọn được khổ'
+                : soldOut
+                  ? 'Tạm hết hàng'
+                  : added
+                    ? 'Đã thêm vào giỏ ✓'
+                    : busy
+                      ? 'Đang thêm…'
+                      : 'Thêm vào giỏ'}
             </button>
-            <a href="/#uom-tranh" className="btn btn-secondary btn-block">Ướm tranh lên tường nhà bạn</a>
+            <a href="/#uom-tranh" className="btn btn-secondary btn-block">
+              Ướm tranh lên tường nhà bạn
+            </a>
             {variantsFailed && (
               <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>
                 Không tải được danh sách khổ tranh. Tải lại trang giúp mình nhé.
               </p>
             )}
             {cartError && (
-              <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{cartError}</p>
+              <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>
+                {cartError}
+              </p>
             )}
-            {wishlistError && <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>{wishlistError}</p>}
+            {wishlistError && (
+              <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>
+                {wishlistError}
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -536,35 +848,71 @@ export function ProductPage() {
       <section style={{ borderTop: '2px solid var(--color-text)' }}>
         <div style={{ display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-6) var(--space-8) 0' }}>
           {tabs.map((t, k) => (
-            <button key={t.label} type="button" onClick={() => setTab(k)} style={{
-              appearance: 'none', font: 'inherit', fontSize: 13, fontWeight: 600, letterSpacing: '.1em',
-              textTransform: 'uppercase', padding: '0 var(--space-6)', height: 44, cursor: 'pointer',
-              border: '2px solid var(--color-text)',
-              background: k === tab ? 'var(--color-text)' : 'var(--color-bg)',
-              color: k === tab ? 'var(--color-bg)' : 'var(--color-text)',
-            }}>{t.label}</button>
+            <button
+              key={t.label}
+              type="button"
+              onClick={() => setTab(k)}
+              style={{
+                appearance: 'none',
+                font: 'inherit',
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: '.1em',
+                textTransform: 'uppercase',
+                padding: '0 var(--space-6)',
+                height: 44,
+                cursor: 'pointer',
+                border: '2px solid var(--color-text)',
+                background: k === tab ? 'var(--color-text)' : 'var(--color-bg)',
+                color: k === tab ? 'var(--color-bg)' : 'var(--color-text)',
+              }}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
 
-        <div data-split="" style={{
-          display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: 'var(--space-8)',
-          padding: 'var(--space-6) var(--space-8) var(--space-8)',
-        }}>
+        <div
+          data-split=""
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)',
+            gap: 'var(--space-8)',
+            padding: 'var(--space-6) var(--space-8) var(--space-8)',
+          }}
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 28, lineHeight: 1.06, letterSpacing: '-.03em' }}>
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 800,
+                fontSize: 28,
+                lineHeight: 1.06,
+                letterSpacing: '-.03em',
+              }}
+            >
               {activeTab?.title}
             </h2>
-            <p style={{ margin: 0, maxWidth: '52ch', fontSize: 15, lineHeight: 1.65, color: 'var(--color-neutral-800)' }}>
+            <p
+              style={{ margin: 0, maxWidth: '52ch', fontSize: 15, lineHeight: 1.65, color: 'var(--color-neutral-800)' }}
+            >
               {activeTab?.body}
             </p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', borderTop: '2px solid var(--color-text)' }}>
             {/* key kèm chỉ số: nhãn khổ và tên khung có thể trùng nhau giữa các hàng. */}
             {activeTab?.rows.map((row, k) => (
-              <div key={`${row.k}-${k}`} style={{
-                display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)', gap: 'var(--space-6)',
-                padding: 'var(--space-4) 0', borderBottom: '1px solid var(--color-neutral-300)',
-              }}>
+              <div
+                key={`${row.k}-${k}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)',
+                  gap: 'var(--space-6)',
+                  padding: 'var(--space-4) 0',
+                  borderBottom: '1px solid var(--color-neutral-300)',
+                }}
+              >
                 <span style={optionLabel}>{row.k}</span>
                 <span style={{ fontSize: 14, lineHeight: 1.5 }}>{row.v}</span>
               </div>
@@ -575,34 +923,95 @@ export function ProductPage() {
 
       {relatedItems.length > 0 && (
         <section style={{ borderTop: '2px solid var(--color-text)' }}>
-          <div style={{
-            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-            gap: 'var(--space-6)', padding: 'var(--space-6) var(--space-8)',
-          }}>
-            <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 'var(--space-6)',
+              padding: 'var(--space-6) var(--space-8)',
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 800,
+                fontSize: 20,
+                letterSpacing: '.04em',
+                textTransform: 'uppercase',
+              }}
+            >
               Cùng bộ {product.categoryName.toLowerCase()}
             </h2>
-            <Link to={catalogHref} className="btn btn-secondary">Xem tất cả</Link>
+            <Link to={catalogHref} className="btn btn-secondary">
+              Xem tất cả
+            </Link>
           </div>
-          <div data-grid="cols" style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', borderTop: '2px solid var(--color-divider)',
-          }}>
+          <div
+            data-grid="cols"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+              borderTop: '2px solid var(--color-divider)',
+            }}
+          >
             {relatedItems.map((item, k) => (
-              <Link key={item.id} to={`/tranh/${item.slug}`} style={{
-                display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', minWidth: 0,
-                padding: 'var(--space-6)', color: 'var(--color-text)', textDecoration: 'none',
-                borderRight: k < relatedItems.length - 1 ? '2px solid var(--color-divider)' : undefined,
-              }}>
-                <div style={{ position: 'relative', width: '100%', aspectRatio: '4/5', border: '2px solid var(--color-text)', overflow: 'hidden' }}>
+              <Link
+                key={item.id}
+                to={`/tranh/${item.slug}`}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 'var(--space-2)',
+                  minWidth: 0,
+                  padding: 'var(--space-6)',
+                  color: 'var(--color-text)',
+                  textDecoration: 'none',
+                  borderRight: k < relatedItems.length - 1 ? '2px solid var(--color-divider)' : undefined,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '100%',
+                    aspectRatio: '4/5',
+                    border: '2px solid var(--color-text)',
+                    overflow: 'hidden',
+                  }}
+                >
                   <Frame src={item.primaryImageUrl ?? undefined} label={`tranh canvas — ${item.name}`} tone="color" />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', gap: 'var(--space-4)' }}>
-                  <h3 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 17, lineHeight: 1.15, letterSpacing: '-.015em' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                    alignItems: 'baseline',
+                    gap: 'var(--space-4)',
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontFamily: 'var(--font-heading)',
+                      fontWeight: 800,
+                      fontSize: 17,
+                      lineHeight: 1.15,
+                      letterSpacing: '-.015em',
+                    }}
+                  >
                     {item.name}
                   </h3>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{formatPrice(item.price)}</span>
                 </div>
-                <span style={{ fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--color-neutral-700)' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    letterSpacing: '.14em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-neutral-700)',
+                  }}
+                >
                   {formatSize(item.widthCm, item.heightCm) ?? item.categoryName}
                 </span>
               </Link>

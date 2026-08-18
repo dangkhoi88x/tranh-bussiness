@@ -20,9 +20,15 @@ export function useProducts(query: CatalogQuery | null): State<Product[]> {
     let alive = true;
     setState((s) => ({ ...s, loading: true, error: null }));
     fetchProducts(JSON.parse(key) as CatalogQuery)
-      .then((page) => { if (alive) setState({ data: page.items, loading: false, error: null }); })
-      .catch((e: Error) => { if (alive) setState({ data: null, loading: false, error: e.message }); });
-    return () => { alive = false; };
+      .then((page) => {
+        if (alive) setState({ data: page.items, loading: false, error: null });
+      })
+      .catch((e: Error) => {
+        if (alive) setState({ data: null, loading: false, error: e.message });
+      });
+    return () => {
+      alive = false;
+    };
   }, [key]);
 
   return state;
@@ -38,9 +44,15 @@ export function useProductPage(query: CatalogQuery | null): State<Page<Product>>
     let alive = true;
     setState((s) => ({ ...s, loading: true, error: null }));
     fetchProducts(JSON.parse(key) as CatalogQuery)
-      .then((page) => { if (alive) setState({ data: page, loading: false, error: null }); })
-      .catch((e: Error) => { if (alive) setState({ data: null, loading: false, error: e.message }); });
-    return () => { alive = false; };
+      .then((page) => {
+        if (alive) setState({ data: page, loading: false, error: null });
+      })
+      .catch((e: Error) => {
+        if (alive) setState({ data: null, loading: false, error: e.message });
+      });
+    return () => {
+      alive = false;
+    };
   }, [key]);
 
   return state;
@@ -52,9 +64,15 @@ export function useCategories(): State<Category[]> {
   useEffect(() => {
     let alive = true;
     fetchCategories()
-      .then((items) => { if (alive) setState({ data: items, loading: false, error: null }); })
-      .catch((e: Error) => { if (alive) setState({ data: null, loading: false, error: e.message }); });
-    return () => { alive = false; };
+      .then((items) => {
+        if (alive) setState({ data: items, loading: false, error: null });
+      })
+      .catch((e: Error) => {
+        if (alive) setState({ data: null, loading: false, error: e.message });
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   return state;

@@ -18,7 +18,9 @@ function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob | 
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
 }
 
-async function decodeImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; dispose: () => void }> {
+async function decodeImage(
+  file: File,
+): Promise<{ source: CanvasImageSource; width: number; height: number; dispose: () => void }> {
   if ('createImageBitmap' in window) {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     return { source: bitmap, width: bitmap.width, height: bitmap.height, dispose: () => bitmap.close() };
@@ -32,14 +34,24 @@ async function decodeImage(file: File): Promise<{ source: CanvasImageSource; wid
       element.onerror = () => reject(new Error('Cannot decode image'));
       element.src = url;
     });
-    return { source: image, width: image.naturalWidth, height: image.naturalHeight, dispose: () => URL.revokeObjectURL(url) };
+    return {
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      dispose: () => URL.revokeObjectURL(url),
+    };
   } catch (error) {
     URL.revokeObjectURL(url);
     throw error;
   }
 }
 
-async function compressImage(file: File, maxEdge: number, quality: number, keepOriginalWhenLarger: boolean): Promise<CompressionResult> {
+async function compressImage(
+  file: File,
+  maxEdge: number,
+  quality: number,
+  keepOriginalWhenLarger: boolean,
+): Promise<CompressionResult> {
   if (!file.type.startsWith('image/')) return { file, originalBytes: file.size, compressedBytes: file.size };
 
   let decoded: Awaited<ReturnType<typeof decodeImage>>;
@@ -61,8 +73,12 @@ async function compressImage(file: File, maxEdge: number, quality: number, keepO
 
     const blob = await canvasBlob(canvas, quality);
     if (!blob) return { file, originalBytes: file.size, compressedBytes: file.size };
-    const compressed = new File([blob], jpegFilename(file.name), { type: 'image/jpeg', lastModified: file.lastModified });
-    if (keepOriginalWhenLarger && compressed.size >= file.size) return { file, originalBytes: file.size, compressedBytes: file.size };
+    const compressed = new File([blob], jpegFilename(file.name), {
+      type: 'image/jpeg',
+      lastModified: file.lastModified,
+    });
+    if (keepOriginalWhenLarger && compressed.size >= file.size)
+      return { file, originalBytes: file.size, compressedBytes: file.size };
     return { file: compressed, originalBytes: file.size, compressedBytes: compressed.size };
   } finally {
     decoded.dispose();

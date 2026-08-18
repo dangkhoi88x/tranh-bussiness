@@ -23,32 +23,62 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    if (!session) { setItems([]); setError(null); return; }
-    setLoading(true); setError(null);
-    try { setItems((await fetchWishlist()).items); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Không tải được danh sách yêu thích.'); }
-    finally { setLoading(false); }
+    if (!session) {
+      setItems([]);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      setItems((await fetchWishlist()).items);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Không tải được danh sách yêu thích.');
+    } finally {
+      setLoading(false);
+    }
   }, [session]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
-  const itemFor = useCallback((productId: string, variantId?: string | null) => items.find((item) => item.product.id === productId && (item.selectedVariant?.id ?? null) === (variantId ?? null)), [items]);
+  const itemFor = useCallback(
+    (productId: string, variantId?: string | null) =>
+      items.find((item) => item.product.id === productId && (item.selectedVariant?.id ?? null) === (variantId ?? null)),
+    [items],
+  );
 
-  const toggle = useCallback(async (productId: string, variantId?: string | null) => {
-    if (!session) throw new Error('Đăng nhập để lưu sản phẩm yêu thích.');
-    const key = keyOf(productId, variantId);
-    const current = itemFor(productId, variantId);
-    setBusyKey(key); setError(null);
-    try {
-      if (current) { await removeWishlistItem(current.id); setItems((saved) => saved.filter((item) => item.id !== current.id)); }
-      else { const added = await addWishlistItem(productId, variantId); setItems((saved) => [added, ...saved]); }
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'Không cập nhật được danh sách yêu thích.';
-      setError(message); throw new Error(message);
-    } finally { setBusyKey(null); }
-  }, [itemFor, session]);
+  const toggle = useCallback(
+    async (productId: string, variantId?: string | null) => {
+      if (!session) throw new Error('Đăng nhập để lưu sản phẩm yêu thích.');
+      const key = keyOf(productId, variantId);
+      const current = itemFor(productId, variantId);
+      setBusyKey(key);
+      setError(null);
+      try {
+        if (current) {
+          await removeWishlistItem(current.id);
+          setItems((saved) => saved.filter((item) => item.id !== current.id));
+        } else {
+          const added = await addWishlistItem(productId, variantId);
+          setItems((saved) => [added, ...saved]);
+        }
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : 'Không cập nhật được danh sách yêu thích.';
+        setError(message);
+        throw new Error(message);
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [itemFor, session],
+  );
 
-  const value = useMemo(() => ({ items, loading, error, busyKey, itemFor, reload, toggle }), [busyKey, error, itemFor, items, loading, reload, toggle]);
+  const value = useMemo(
+    () => ({ items, loading, error, busyKey, itemFor, reload, toggle }),
+    [busyKey, error, itemFor, items, loading, reload, toggle],
+  );
   return <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>;
 }
 
@@ -58,4 +88,6 @@ export function useWishlist() {
   return context;
 }
 
-export function wishlistKey(productId: string, variantId?: string | null) { return keyOf(productId, variantId); }
+export function wishlistKey(productId: string, variantId?: string | null) {
+  return keyOf(productId, variantId);
+}

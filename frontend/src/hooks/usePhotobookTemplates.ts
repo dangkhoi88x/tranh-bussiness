@@ -16,8 +16,12 @@ export function usePhotobookTemplates(): PhotobookTemplate[] {
       .then((rows) => {
         if (active && rows.length > 0) setTemplates(rows.map(toStoreTemplate));
       })
-      .catch(() => { /* giữ nguyên danh sách đóng gói sẵn */ });
-    return () => { active = false; };
+      .catch(() => {
+        /* giữ nguyên danh sách đóng gói sẵn */
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return templates;

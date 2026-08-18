@@ -38,7 +38,9 @@ export type ActiveFrame = { id: string; name: string; material: string; color: s
 
 export function createCustomOrder(input: CreateCustomOrderInput): Promise<CustomOrderRequest> {
   return apiRequest<CustomOrderRequest>('/custom-order-requests', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   });
 }
 
@@ -47,15 +49,24 @@ export function fetchMyCustomOrders(page = 1, size = 20): Promise<Page<CustomOrd
 }
 
 export function uploadCustomOrderImage(requestId: string, file: File): Promise<CustomOrderRequest> {
-  const body = new FormData(); body.append('file', file);
+  const body = new FormData();
+  body.append('file', file);
   return apiRequest<CustomOrderRequest>(`/custom-order-requests/mine/${requestId}/images`, { method: 'POST', body });
 }
 
-export function decideCustomQuote(requestId: string, accepted: boolean, shippingAddressId?: string): Promise<CustomOrderRequest> {
+export function decideCustomQuote(
+  requestId: string,
+  accepted: boolean,
+  shippingAddressId?: string,
+): Promise<CustomOrderRequest> {
   return apiRequest<CustomOrderRequest>(`/custom-order-requests/mine/${requestId}/quote-decision`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accepted, shippingAddressId }),
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accepted, shippingAddressId }),
   });
 }
 
-export function fetchActiveFrames(): Promise<ActiveFrame[]> { return apiRequest<ActiveFrame[]>('/frames'); }
+export function fetchActiveFrames(): Promise<ActiveFrame[]> {
+  return apiRequest<ActiveFrame[]>('/frames');
+}
 export { type ShippingAddress };

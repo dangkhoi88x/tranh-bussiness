@@ -22,7 +22,12 @@ export type GuestCartMergeResult = {
  * Khoá gộp dòng phải trùng khớp với khoá bên server (index uq_cart_items_selection): cùng
  * một cuốn photobook ở 20 trang và 40 trang là hai dòng khác nhau vì giá khác nhau.
  */
-function itemId(input: Pick<AddCartItemInput, 'productId' | 'productVariantId' | 'productFrameOptionId' | 'pageCount' | 'photobookTemplateCode'>) {
+function itemId(
+  input: Pick<
+    AddCartItemInput,
+    'productId' | 'productVariantId' | 'productFrameOptionId' | 'pageCount' | 'photobookTemplateCode'
+  >,
+) {
   return [
     input.productId,
     input.productVariantId ?? '',
@@ -40,10 +45,12 @@ function isStoredItem(value: unknown): value is CartItem {
   if (!isObject(value)) return false;
   const stringFields = ['id', 'productId', 'productName', 'productSlug'];
   const numberFields = ['basePrice', 'unitPrice', 'quantity', 'lineTotal'];
-  return stringFields.every((key) => typeof value[key] === 'string')
-    && numberFields.every((key) => typeof value[key] === 'number' && Number.isFinite(value[key] as number))
-    && (value.selectedVariant === null || isObject(value.selectedVariant))
-    && (value.selectedFrameOption === null || isObject(value.selectedFrameOption));
+  return (
+    stringFields.every((key) => typeof value[key] === 'string') &&
+    numberFields.every((key) => typeof value[key] === 'number' && Number.isFinite(value[key] as number)) &&
+    (value.selectedVariant === null || isObject(value.selectedVariant)) &&
+    (value.selectedFrameOption === null || isObject(value.selectedFrameOption))
+  );
 }
 
 function normalize(items: CartItem[]): CartItem[] {
@@ -123,9 +130,9 @@ export function addGuestCartItem(input: GuestCartItemInput): Cart {
 }
 
 export function updateGuestCartItem(id: string, quantity: number): Cart {
-  const items = storedItems().map((item) => item.id === id
-    ? { ...item, quantity: Math.min(MAX_QUANTITY, Math.max(1, Math.floor(quantity))) }
-    : item);
+  const items = storedItems().map((item) =>
+    item.id === id ? { ...item, quantity: Math.min(MAX_QUANTITY, Math.max(1, Math.floor(quantity))) } : item,
+  );
   save(items);
   return asCart(items);
 }
@@ -179,7 +186,9 @@ export function mergeGuestCart(): Promise<GuestCartMergeResult> {
   // AuthProvider có thể chạy effect hai lần trong StrictMode; đồng thời người dùng
   // cũng có thể bấm "Thử lại". Chỉ một lần gộp trên mỗi tab để không cộng đôi server cart.
   if (!mergePromise) {
-    mergePromise = mergeItems().finally(() => { mergePromise = null; });
+    mergePromise = mergeItems().finally(() => {
+      mergePromise = null;
+    });
   }
   return mergePromise;
 }

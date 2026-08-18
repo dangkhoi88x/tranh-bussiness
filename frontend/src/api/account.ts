@@ -1,25 +1,25 @@
-import { apiFetch, apiRequest, ApiRequestError } from './http'
-import { parseJsonSafe, getApiMessage } from './apiResponse'
-import { sessionFromAuthResponse, type AuthSession } from './auth'
+import { apiFetch, apiRequest, ApiRequestError } from './http';
+import { parseJsonSafe, getApiMessage } from './apiResponse';
+import { sessionFromAuthResponse, type AuthSession } from './auth';
 
 export type CurrentUser = {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  phone: string | null
-  roles: string[]
-  authorities: string[]
-}
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  roles: string[];
+  authorities: string[];
+};
 
 export type ProfileInput = {
-  firstName: string
-  lastName: string
-  phone?: string
-}
+  firstName: string;
+  lastName: string;
+  phone?: string;
+};
 
 export function fetchCurrentUser(): Promise<CurrentUser> {
-  return apiRequest<CurrentUser>('/users/me')
+  return apiRequest<CurrentUser>('/users/me');
 }
 
 export function updateProfile(input: ProfileInput): Promise<CurrentUser> {
@@ -31,7 +31,7 @@ export function updateProfile(input: ProfileInput): Promise<CurrentUser> {
       lastName: input.lastName.trim(),
       phone: input.phone?.trim() || null,
     }),
-  })
+  });
 }
 
 /**
@@ -46,19 +46,19 @@ export async function changePassword(currentPassword: string, newPassword: strin
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ currentPassword, newPassword }),
-  })
-  const payload = await parseJsonSafe(response)
+  });
+  const payload = await parseJsonSafe(response);
 
   if (!response.ok) {
     // Sai mật khẩu hiện tại và access token hết hạn đều là 401; chỉ mã lỗi phân biệt được.
-    const code = (payload as { data?: { code?: string } } | null)?.data?.code
+    const code = (payload as { data?: { code?: string } } | null)?.data?.code;
     throw new ApiRequestError(
       code === 'INVALID_CREDENTIALS'
         ? 'Mật khẩu hiện tại không đúng.'
         : getApiMessage(payload, 'Không đổi được mật khẩu.'),
       response.status,
-    )
+    );
   }
 
-  return sessionFromAuthResponse(payload)
+  return sessionFromAuthResponse(payload);
 }

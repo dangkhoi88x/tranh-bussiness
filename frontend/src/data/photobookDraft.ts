@@ -67,10 +67,16 @@ function storageKey(slug: string) {
 function isStoredDraft(value: unknown, slug: string): value is StoredPhotobookDraft {
   if (!value || typeof value !== 'object') return false;
   const draft = value as Partial<StoredPhotobookDraft>;
-  return draft.version === DRAFT_VERSION && draft.slug === slug && Array.isArray(draft.spreads)
-    && typeof draft.pageIndex === 'number' && typeof draft.qty === 'number'
-    && typeof draft.photoCount === 'string' && typeof draft.step === 'number'
-    && typeof draft.currentSpreadIdx === 'number';
+  return (
+    draft.version === DRAFT_VERSION &&
+    draft.slug === slug &&
+    Array.isArray(draft.spreads) &&
+    typeof draft.pageIndex === 'number' &&
+    typeof draft.qty === 'number' &&
+    typeof draft.photoCount === 'string' &&
+    typeof draft.step === 'number' &&
+    typeof draft.currentSpreadIdx === 'number'
+  );
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
@@ -106,7 +112,7 @@ async function storedImagesForDraft(draftKey: string): Promise<DraftImageRecord[
   try {
     const transaction = database.transaction(IMAGE_STORE, 'readonly');
     const store = transaction.objectStore(IMAGE_STORE).index('draftKey');
-    const records = await requestResult(store.getAll(draftKey)) as DraftImageRecord[];
+    const records = (await requestResult(store.getAll(draftKey))) as DraftImageRecord[];
     await transactionDone(transaction);
     return records;
   } finally {
@@ -120,9 +126,15 @@ async function putImages(draftKey: string, images: DraftImage[]) {
   try {
     const transaction = database.transaction(IMAGE_STORE, 'readwrite');
     const store = transaction.objectStore(IMAGE_STORE);
-    images.forEach(({ id, file }) => store.put({
-      id, draftKey, blob: file, name: file.name, lastModified: file.lastModified,
-    } satisfies DraftImageRecord));
+    images.forEach(({ id, file }) =>
+      store.put({
+        id,
+        draftKey,
+        blob: file,
+        name: file.name,
+        lastModified: file.lastModified,
+      } satisfies DraftImageRecord),
+    );
     await transactionDone(transaction);
   } finally {
     database.close();
@@ -157,16 +169,23 @@ export function readPhotobookDraft(slug: string): StoredPhotobookDraft | null {
 }
 
 export async function readPhotobookDraftImages(draft: StoredPhotobookDraft): Promise<Map<string, File>> {
-  const imageIds = new Set(draft.spreads.flatMap((spread) => spread.slots)
-    .map((slot) => slot.imageId).filter((id): id is string => typeof id === 'string'));
+  const imageIds = new Set(
+    draft.spreads
+      .flatMap((spread) => spread.slots)
+      .map((slot) => slot.imageId)
+      .filter((id): id is string => typeof id === 'string'),
+  );
   const records = await storedImagesForDraft(storageKey(draft.slug));
   const images = new Map<string, File>();
   records.forEach((record) => {
     if (!imageIds.has(record.id)) return;
-    images.set(record.id, new File([record.blob], record.name, {
-      type: record.blob.type,
-      lastModified: record.lastModified,
-    }));
+    images.set(
+      record.id,
+      new File([record.blob], record.name, {
+        type: record.blob.type,
+        lastModified: record.lastModified,
+      }),
+    );
   });
   return images;
 }
@@ -201,7 +220,7 @@ export async function loadDraftFromServer(slug: string): Promise<StoredPhotobook
   try {
     const response = await apiFetch(`/photobook-drafts/${encodeURIComponent(slug)}`);
     if (response.status === 204 || !response.ok) return null;
-    const envelope = await response.json() as { data?: ServerDraftResponse };
+    const envelope = (await response.json()) as { data?: ServerDraftResponse };
     if (!envelope.data?.draftJson) return null;
     const draft = JSON.parse(envelope.data.draftJson) as unknown;
     if (isStoredDraft(draft, slug)) {

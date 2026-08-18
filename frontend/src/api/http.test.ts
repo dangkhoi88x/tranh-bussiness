@@ -69,7 +69,11 @@ describe('làm mới phiên khi gặp 401', () => {
     // Backend tiêu refresh token đúng một lần; xoay hai lần là tự đăng xuất người dùng.
     fetchMock.mockImplementation(async () => jsonResponse(401, {}));
     let resolveRefresh: (value: unknown) => void = () => {};
-    refreshSession.mockReturnValue(new Promise((resolve) => { resolveRefresh = resolve; }));
+    refreshSession.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }),
+    );
 
     const inflight = Promise.all([apiFetch('/a'), apiFetch('/b'), apiFetch('/c')]);
     resolveRefresh({ accessToken: 'token-moi' });
@@ -144,11 +148,13 @@ describe('apiRequest', () => {
   });
 
   it('ném ApiRequestError kèm thông báo và lỗi theo trường', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(400, {
-      status: 'error',
-      message: 'Dữ liệu gửi lên chưa hợp lệ.',
-      data: { code: 'VALIDATION_ERROR', fields: { email: 'Email không hợp lệ.' } },
-    }));
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, {
+        status: 'error',
+        message: 'Dữ liệu gửi lên chưa hợp lệ.',
+        data: { code: 'VALIDATION_ERROR', fields: { email: 'Email không hợp lệ.' } },
+      }),
+    );
 
     await expect(apiRequest('/auth/register', { method: 'POST' })).rejects.toMatchObject({
       // Thông báo lỗi theo trường được ưu tiên vì nó nói rõ chỗ cần sửa.

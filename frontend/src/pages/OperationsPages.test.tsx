@@ -130,7 +130,11 @@ function panel(heading: string) {
 function mutationCalls() {
   return apiRequest.mock.calls
     .filter(([, init]) => init && (init as RequestInit).method)
-    .map(([path, init]) => ({ path, method: (init as RequestInit).method, body: JSON.parse((init as RequestInit).body as string) }));
+    .map(([path, init]) => ({
+      path,
+      method: (init as RequestInit).method,
+      body: JSON.parse((init as RequestInit).body as string),
+    }));
 }
 
 beforeEach(() => {
@@ -146,9 +150,7 @@ describe('OrderStatusCard — tuỳ chọn chuyển trạng thái', () => {
     stubApi({ order: makeOrder('PENDING'), shipment: null });
     await renderPage();
 
-    const options = panel('Xử lý đơn')
-      .getByRole('combobox')
-      .querySelectorAll('option');
+    const options = panel('Xử lý đơn').getByRole('combobox').querySelectorAll('option');
     expect([...options].map((o) => o.textContent)).toEqual(['CONFIRMED', 'CANCELLED']);
   });
 

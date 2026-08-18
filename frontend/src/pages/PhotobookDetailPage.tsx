@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ApiRequestError, apiRequest } from '../api/http';
-import {
-  fetchPhotobookPricing,
-  photoRangeFor,
-  type PhotobookPricing,
-  type PhotobookSize,
-} from '../api/photobook';
+import { fetchPhotobookPricing, photoRangeFor, type PhotobookPricing, type PhotobookSize } from '../api/photobook';
 import { fetchProductBySlug, formatPrice, formatSize, type Product, type ProductVariant } from '../api/storefront';
 import { layoutByCode, SPREAD_LAYOUTS, type SpreadLayout } from '../data/spreadLayouts';
 import { templateById, type PhotobookTemplate } from '../data/photobookTemplates';
@@ -33,8 +28,29 @@ import { PhotobookProgressBar } from './photobook/PhotobookProgressBar';
 import { StepArrange } from './photobook/StepArrange';
 import { StepReview } from './photobook/StepReview';
 import { StepSpecs } from './photobook/StepSpecs';
-import { AutoFillResult, CATALOG_HREF, DraftCaption, DraftSlot, DraftSpread, FINISHES, HISTORY_LIMIT, STEPS, SpreadHistory, clamp, cloneSpread, draftImages, emptyDraftSlot, hydrateDraftSpreads, makeSpreads, newCaption, newImageId, pickNewerDraft, slotCapacityOf, suggestPageCountForTemplate, variantSnapshot } from './photobook/draft';
-
+import {
+  AutoFillResult,
+  CATALOG_HREF,
+  DraftCaption,
+  DraftSlot,
+  DraftSpread,
+  FINISHES,
+  HISTORY_LIMIT,
+  STEPS,
+  SpreadHistory,
+  clamp,
+  cloneSpread,
+  draftImages,
+  emptyDraftSlot,
+  hydrateDraftSpreads,
+  makeSpreads,
+  newCaption,
+  newImageId,
+  pickNewerDraft,
+  slotCapacityOf,
+  suggestPageCountForTemplate,
+  variantSnapshot,
+} from './photobook/draft';
 
 export function PhotobookDetailPage() {
   const { slug = '' } = useParams();
@@ -55,7 +71,10 @@ export function PhotobookDetailPage() {
   const templates = usePhotobookTemplates();
 
   const [step, setStepRaw] = useState(0);
-  const setStep = useCallback((s: number) => { setStepRaw(s); window.scrollTo(0, 0); }, []);
+  const setStep = useCallback((s: number) => {
+    setStepRaw(s);
+    window.scrollTo(0, 0);
+  }, []);
   const [spreads, setSpreads] = useState<DraftSpread[]>([]);
   const [currentSpreadIdx, setCurrentSpreadIdx] = useState(0);
   const spreadsRef = useRef<DraftSpread[]>([]);
@@ -76,57 +95,77 @@ export function PhotobookDetailPage() {
   const [busy, setBusy] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
 
-  const hydrateFromDraft = useCallback(async (
-    draft: StoredPhotobookDraft,
-    fromServer: boolean,
-    isCurrent: () => boolean,
-  ) => {
-    const images = await readPhotobookDraftImages(draft);
-    if (!isCurrent()) return false;
-    const hasUnavailableImages = draft.spreads.some((spread) =>
-      spread.slots.some((slot) => slot.imageId !== null && !images.has(slot.imageId)),
-    );
-    const restored = hydrateDraftSpreads(draft, images, (url) => previewUrlsRef.current.add(url));
-    spreadsRef.current = restored;
-    setSpreads(restored);
-    setSizeId(draft.sizeId);
-    setPageIndex(Math.max(0, draft.pageIndex));
-    setFinish(FINISHES.includes(draft.finish) ? draft.finish : FINISHES[0]);
-    setQty(Math.max(1, draft.qty));
-    setPhotoCount(draft.photoCount);
-    setTemplateId(draft.templateId ?? 'free');
-    setStepRaw(clamp(draft.step, 0, 2));
-    setCurrentSpreadIdx(Math.max(0, draft.currentSpreadIdx));
-    // This flag is intentionally sticky for the current page session. Layout
-    // or template changes must not silently authorize overwriting image
-    // metadata that only exists on another device.
-    setServerDraftReadOnly(hasUnavailableImages);
-    if (hasUnavailableImages) {
-      setDraftNotice('\u0110\u00e3 kh\u00f4i ph\u1ee5c b\u1ed1 c\u1ee5c. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.');
-    } else if (fromServer) {
-      setDraftNotice(images.size
-        ? 'Đã khôi phục bản nháp từ tài khoản và ảnh trên thiết bị này.'
-        : 'Đã khôi phục bản nháp từ tài khoản. Hãy chọn lại ảnh.');
-    } else {
-      setDraftNotice(images.size ? 'Đã khôi phục bản nháp và ảnh trên thiết bị này.' : 'Đã khôi phục bố cục bản nháp. Hãy chọn lại ảnh bị thiếu.');
-    }
-    setDraftHydrated(true);
-    return true;
-  }, []);
+  const hydrateFromDraft = useCallback(
+    async (draft: StoredPhotobookDraft, fromServer: boolean, isCurrent: () => boolean) => {
+      const images = await readPhotobookDraftImages(draft);
+      if (!isCurrent()) return false;
+      const hasUnavailableImages = draft.spreads.some((spread) =>
+        spread.slots.some((slot) => slot.imageId !== null && !images.has(slot.imageId)),
+      );
+      const restored = hydrateDraftSpreads(draft, images, (url) => previewUrlsRef.current.add(url));
+      spreadsRef.current = restored;
+      setSpreads(restored);
+      setSizeId(draft.sizeId);
+      setPageIndex(Math.max(0, draft.pageIndex));
+      setFinish(FINISHES.includes(draft.finish) ? draft.finish : FINISHES[0]);
+      setQty(Math.max(1, draft.qty));
+      setPhotoCount(draft.photoCount);
+      setTemplateId(draft.templateId ?? 'free');
+      setStepRaw(clamp(draft.step, 0, 2));
+      setCurrentSpreadIdx(Math.max(0, draft.currentSpreadIdx));
+      // This flag is intentionally sticky for the current page session. Layout
+      // or template changes must not silently authorize overwriting image
+      // metadata that only exists on another device.
+      setServerDraftReadOnly(hasUnavailableImages);
+      if (hasUnavailableImages) {
+        setDraftNotice(
+          '\u0110\u00e3 kh\u00f4i ph\u1ee5c b\u1ed1 c\u1ee5c. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.',
+        );
+      } else if (fromServer) {
+        setDraftNotice(
+          images.size
+            ? 'Đã khôi phục bản nháp từ tài khoản và ảnh trên thiết bị này.'
+            : 'Đã khôi phục bản nháp từ tài khoản. Hãy chọn lại ảnh.',
+        );
+      } else {
+        setDraftNotice(
+          images.size
+            ? 'Đã khôi phục bản nháp và ảnh trên thiết bị này.'
+            : 'Đã khôi phục bố cục bản nháp. Hãy chọn lại ảnh bị thiếu.',
+        );
+      }
+      setDraftHydrated(true);
+      return true;
+    },
+    [],
+  );
 
   useEffect(() => {
     let alive = true;
     const savedDraft = readPhotobookDraft(slug);
-    setProduct(null); setPricing(null); setLoadError(null);
-    setDraftHydrated(false); setDraftNotice(null); setServerDraftReady(false); setServerDraftReadOnly(false);
+    setProduct(null);
+    setPricing(null);
+    setLoadError(null);
+    setDraftHydrated(false);
+    setDraftNotice(null);
+    setServerDraftReady(false);
+    setServerDraftReadOnly(false);
     serverDraftUserRef.current = null;
     draftSaveVersionRef.current++;
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     previewUrlsRef.current.clear();
     spreadsRef.current = [];
     historyRef.current = {};
-    setSizeId(null); setPageIndex(0); setFinish(FINISHES[0]); setQty(1); setPhotoCount(''); setTemplateId('free');
-    setStepRaw(0); setCurrentSpreadIdx(0); setSpreads([]); setHistoryBySpread({});
+    setSizeId(null);
+    setPageIndex(0);
+    setFinish(FINISHES[0]);
+    setQty(1);
+    setPhotoCount('');
+    setTemplateId('free');
+    setStepRaw(0);
+    setCurrentSpreadIdx(0);
+    setSpreads([]);
+    setHistoryBySpread({});
 
     const initialUserId = sessionRef.current?.userId ?? null;
     if (initialUserId) serverDraftUserRef.current = initialUserId;
@@ -162,13 +201,19 @@ export function PhotobookDetailPage() {
           if (!alive) return;
           setPricing(table);
           const savedSize = savedDraft?.sizeId ?? null;
-          setSizeId(table.sizes.some((size) => size.variantId === savedSize)
-            ? savedSize
-            : table.sizes.find((size) => size.available)?.variantId ?? table.sizes[0]?.variantId ?? null);
+          setSizeId(
+            table.sizes.some((size) => size.variantId === savedSize)
+              ? savedSize
+              : (table.sizes.find((size) => size.available)?.variantId ?? table.sizes[0]?.variantId ?? null),
+          );
         });
       })
-      .catch((e: Error) => { if (alive) setLoadError(e.message); });
-    return () => { alive = false; };
+      .catch((e: Error) => {
+        if (alive) setLoadError(e.message);
+      });
+    return () => {
+      alive = false;
+    };
   }, [slug, hydrateFromDraft]);
 
   useEffect(() => {
@@ -193,7 +238,9 @@ export function PhotobookDetailPage() {
       serverDraftUserRef.current = userId;
       setServerDraftReady(true);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [draftHydrated, hydrateFromDraft, session?.userId, slug]);
 
   const size: PhotobookSize | null = pricing?.sizes.find((s) => s.variantId === sizeId) ?? null;
@@ -226,7 +273,17 @@ export function PhotobookDetailPage() {
         let captions = hasImages ? spread.captions : [];
         const presets = tpl.presetCaptions.filter((pc) => pc.spreadIndex === i);
         if (!hasImages && presets.length > 0) {
-          captions = presets.map((pc) => ({ id: newImageId(), text: pc.text, x: 0.5, y: 0.5, fontSize: pc.fontSize, color: pc.color, bold: false, align: pc.align, fontFamily: pc.fontFamily }));
+          captions = presets.map((pc) => ({
+            id: newImageId(),
+            text: pc.text,
+            x: 0.5,
+            y: 0.5,
+            fontSize: pc.fontSize,
+            color: pc.color,
+            bold: false,
+            align: pc.align,
+            fontFamily: pc.fontFamily,
+          }));
         }
         return { ...spread, layoutCode: code, slots, captions, backgroundColor: colors[i % colors.length] };
       });
@@ -292,19 +349,20 @@ export function PhotobookDetailPage() {
         .then(async () => {
           if (version !== draftSaveVersionRef.current) return;
           await savePhotobookDraft(draft, images);
-          const synced = sessionUserId && serverDraftReady && !serverDraftReadOnly
-            ? await saveDraftToServer(draft)
-            : false;
+          const synced =
+            sessionUserId && serverDraftReady && !serverDraftReadOnly ? await saveDraftToServer(draft) : false;
           if (version === draftSaveVersionRef.current) {
-            setDraftNotice(!sessionUserId
-              ? 'Bản nháp đã được lưu trên thiết bị này.'
-              : serverDraftReadOnly
-                ? '\u0110\u00e3 l\u01b0u b\u1ea3n nh\u00e1p tr\u00ean thi\u1ebft b\u1ecb n\u00e0y. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.'
-              : synced
-                ? 'Bản nháp đã được lưu và đồng bộ lên tài khoản.'
-                : serverDraftReady
-                  ? 'Bản nháp đã được lưu trên thiết bị này, nhưng chưa đồng bộ được lên tài khoản.'
-                  : 'Bản nháp đã được lưu trên thiết bị này. Đang kiểm tra bản nháp trên tài khoản.');
+            setDraftNotice(
+              !sessionUserId
+                ? 'Bản nháp đã được lưu trên thiết bị này.'
+                : serverDraftReadOnly
+                  ? '\u0110\u00e3 l\u01b0u b\u1ea3n nh\u00e1p tr\u00ean thi\u1ebft b\u1ecb n\u00e0y. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.'
+                  : synced
+                    ? 'Bản nháp đã được lưu và đồng bộ lên tài khoản.'
+                    : serverDraftReady
+                      ? 'Bản nháp đã được lưu trên thiết bị này, nhưng chưa đồng bộ được lên tài khoản.'
+                      : 'Bản nháp đã được lưu trên thiết bị này. Đang kiểm tra bản nháp trên tài khoản.',
+            );
           }
         })
         .catch(() => {
@@ -312,7 +370,22 @@ export function PhotobookDetailPage() {
         });
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [currentSpreadIdx, draftHydrated, finish, pageIndex, photoCount, qty, serverDraftReadOnly, serverDraftReady, sessionUserId, sizeId, slug, spreads, step, templateId]);
+  }, [
+    currentSpreadIdx,
+    draftHydrated,
+    finish,
+    pageIndex,
+    photoCount,
+    qty,
+    serverDraftReadOnly,
+    serverDraftReady,
+    sessionUserId,
+    sizeId,
+    slug,
+    spreads,
+    step,
+    templateId,
+  ]);
 
   useDocumentMeta({
     title: product ? `${product.name} | Bubble Memories` : 'Photobook | Bubble Memories',
@@ -328,16 +401,19 @@ export function PhotobookDetailPage() {
     setHistoryBySpread(nextHistory);
   }, []);
 
-  const rememberSpread = useCallback((spreadIdx: number, spread: DraftSpread) => {
-    const current = historyRef.current[spreadIdx] ?? { past: [], future: [] };
-    setHistory({
-      ...historyRef.current,
-      [spreadIdx]: {
-        past: [...current.past, cloneSpread(spread)].slice(-HISTORY_LIMIT),
-        future: [],
-      },
-    });
-  }, [setHistory]);
+  const rememberSpread = useCallback(
+    (spreadIdx: number, spread: DraftSpread) => {
+      const current = historyRef.current[spreadIdx] ?? { past: [], future: [] };
+      setHistory({
+        ...historyRef.current,
+        [spreadIdx]: {
+          past: [...current.past, cloneSpread(spread)].slice(-HISTORY_LIMIT),
+          future: [],
+        },
+      });
+    },
+    [setHistory],
+  );
 
   const restoreSpread = useCallback((spreadIdx: number, snapshot: DraftSpread) => {
     setSpreads((prev) => {
@@ -349,76 +425,88 @@ export function PhotobookDetailPage() {
     });
   }, []);
 
-  const undoSpread = useCallback((spreadIdx: number) => {
-    const current = spreadsRef.current[spreadIdx];
-    const history = historyRef.current[spreadIdx];
-    if (!current || !history?.past.length) return;
-    const previous = history.past[history.past.length - 1];
-    setHistory({
-      ...historyRef.current,
-      [spreadIdx]: {
-        past: history.past.slice(0, -1),
-        future: [cloneSpread(current), ...history.future].slice(0, HISTORY_LIMIT),
-      },
-    });
-    restoreSpread(spreadIdx, previous);
-  }, [restoreSpread, setHistory]);
-
-  const redoSpread = useCallback((spreadIdx: number) => {
-    const current = spreadsRef.current[spreadIdx];
-    const history = historyRef.current[spreadIdx];
-    if (!current || !history?.future.length) return;
-    const nextSnapshot = history.future[0];
-    setHistory({
-      ...historyRef.current,
-      [spreadIdx]: {
-        past: [...history.past, cloneSpread(current)].slice(-HISTORY_LIMIT),
-        future: history.future.slice(1),
-      },
-    });
-    restoreSpread(spreadIdx, nextSnapshot);
-  }, [restoreSpread, setHistory]);
-
-  const autoFillFiles = useCallback((files: File[]): AutoFillResult => {
-    const orderedFiles = files
-      .filter((file) => file.type.startsWith('image/'))
-      .sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {
-        numeric: true, sensitivity: 'base',
-      }));
-    const current = spreadsRef.current;
-    if (!orderedFiles.length || !current.length) return { placed: 0, remaining: orderedFiles.length };
-
-    const next = current.map(cloneSpread);
-    const changedSpreadIndexes = new Set<number>();
-    let fileIndex = 0;
-    for (let spreadIndex = 0; spreadIndex < next.length && fileIndex < orderedFiles.length; spreadIndex++) {
-      const layout = layoutByCode(next[spreadIndex].layoutCode);
-      for (let slotIndex = 0; slotIndex < layout.slots.length && fileIndex < orderedFiles.length; slotIndex++) {
-        if (next[spreadIndex].slots[slotIndex]?.file) continue;
-        const file = orderedFiles[fileIndex++];
-        const preview = URL.createObjectURL(file);
-        previewUrlsRef.current.add(preview);
-        next[spreadIndex].slots[slotIndex] = { imageId: newImageId(), file, preview, zoom: 1, panX: 0, panY: 0 };
-        changedSpreadIndexes.add(spreadIndex);
-      }
-    }
-
-    if (changedSpreadIndexes.size) {
-      const nextHistory = { ...historyRef.current };
-      changedSpreadIndexes.forEach((spreadIndex) => {
-        const history = nextHistory[spreadIndex] ?? { past: [], future: [] };
-        nextHistory[spreadIndex] = {
-          past: [...history.past, cloneSpread(current[spreadIndex])].slice(-HISTORY_LIMIT),
-          future: [],
-        };
+  const undoSpread = useCallback(
+    (spreadIdx: number) => {
+      const current = spreadsRef.current[spreadIdx];
+      const history = historyRef.current[spreadIdx];
+      if (!current || !history?.past.length) return;
+      const previous = history.past[history.past.length - 1];
+      setHistory({
+        ...historyRef.current,
+        [spreadIdx]: {
+          past: history.past.slice(0, -1),
+          future: [cloneSpread(current), ...history.future].slice(0, HISTORY_LIMIT),
+        },
       });
-      setHistory(nextHistory);
-      spreadsRef.current = next;
-      setSpreads(next);
-    }
+      restoreSpread(spreadIdx, previous);
+    },
+    [restoreSpread, setHistory],
+  );
 
-    return { placed: fileIndex, remaining: orderedFiles.length - fileIndex };
-  }, [setHistory]);
+  const redoSpread = useCallback(
+    (spreadIdx: number) => {
+      const current = spreadsRef.current[spreadIdx];
+      const history = historyRef.current[spreadIdx];
+      if (!current || !history?.future.length) return;
+      const nextSnapshot = history.future[0];
+      setHistory({
+        ...historyRef.current,
+        [spreadIdx]: {
+          past: [...history.past, cloneSpread(current)].slice(-HISTORY_LIMIT),
+          future: history.future.slice(1),
+        },
+      });
+      restoreSpread(spreadIdx, nextSnapshot);
+    },
+    [restoreSpread, setHistory],
+  );
+
+  const autoFillFiles = useCallback(
+    (files: File[]): AutoFillResult => {
+      const orderedFiles = files
+        .filter((file) => file.type.startsWith('image/'))
+        .sort((a, b) =>
+          (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          }),
+        );
+      const current = spreadsRef.current;
+      if (!orderedFiles.length || !current.length) return { placed: 0, remaining: orderedFiles.length };
+
+      const next = current.map(cloneSpread);
+      const changedSpreadIndexes = new Set<number>();
+      let fileIndex = 0;
+      for (let spreadIndex = 0; spreadIndex < next.length && fileIndex < orderedFiles.length; spreadIndex++) {
+        const layout = layoutByCode(next[spreadIndex].layoutCode);
+        for (let slotIndex = 0; slotIndex < layout.slots.length && fileIndex < orderedFiles.length; slotIndex++) {
+          if (next[spreadIndex].slots[slotIndex]?.file) continue;
+          const file = orderedFiles[fileIndex++];
+          const preview = URL.createObjectURL(file);
+          previewUrlsRef.current.add(preview);
+          next[spreadIndex].slots[slotIndex] = { imageId: newImageId(), file, preview, zoom: 1, panX: 0, panY: 0 };
+          changedSpreadIndexes.add(spreadIndex);
+        }
+      }
+
+      if (changedSpreadIndexes.size) {
+        const nextHistory = { ...historyRef.current };
+        changedSpreadIndexes.forEach((spreadIndex) => {
+          const history = nextHistory[spreadIndex] ?? { past: [], future: [] };
+          nextHistory[spreadIndex] = {
+            past: [...history.past, cloneSpread(current[spreadIndex])].slice(-HISTORY_LIMIT),
+            future: [],
+          };
+        });
+        setHistory(nextHistory);
+        spreadsRef.current = next;
+        setSpreads(next);
+      }
+
+      return { placed: fileIndex, remaining: orderedFiles.length - fileIndex };
+    },
+    [setHistory],
+  );
 
   const setSlotFile = useCallback((spreadIdx: number, slotIdx: number, file: File | null) => {
     const preview = file ? URL.createObjectURL(file) : null;
@@ -456,57 +544,76 @@ export function PhotobookDetailPage() {
     });
   }, []);
 
-  const moveSpread = useCallback((fromIdx: number, toIdx: number) => {
-    const current = spreadsRef.current;
-    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= current.length || toIdx >= current.length) return;
+  const moveSpread = useCallback(
+    (fromIdx: number, toIdx: number) => {
+      const current = spreadsRef.current;
+      if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= current.length || toIdx >= current.length) return;
 
-    // Keep the undo/redo stack attached to the spread, not its former array index.
-    const priorIndexes = current.map((_, index) => index);
-    const [movedIndex] = priorIndexes.splice(fromIdx, 1);
-    priorIndexes.splice(toIdx, 0, movedIndex);
-    const reordered = priorIndexes.map((oldIndex, index) => ({ ...current[oldIndex], position: index + 1 }));
-    const reorderedHistory = priorIndexes.reduce<Record<number, SpreadHistory>>((result, oldIndex, index) => {
-      const history = historyRef.current[oldIndex];
-      if (history) result[index] = history;
-      return result;
-    }, {});
+      // Keep the undo/redo stack attached to the spread, not its former array index.
+      const priorIndexes = current.map((_, index) => index);
+      const [movedIndex] = priorIndexes.splice(fromIdx, 1);
+      priorIndexes.splice(toIdx, 0, movedIndex);
+      const reordered = priorIndexes.map((oldIndex, index) => ({ ...current[oldIndex], position: index + 1 }));
+      const reorderedHistory = priorIndexes.reduce<Record<number, SpreadHistory>>((result, oldIndex, index) => {
+        const history = historyRef.current[oldIndex];
+        if (history) result[index] = history;
+        return result;
+      }, {});
 
-    spreadsRef.current = reordered;
-    setSpreads(reordered);
-    setHistory(reorderedHistory);
-    setCurrentSpreadIdx((currentIdx) => priorIndexes.indexOf(currentIdx));
-  }, [setHistory]);
+      spreadsRef.current = reordered;
+      setSpreads(reordered);
+      setHistory(reorderedHistory);
+      setCurrentSpreadIdx((currentIdx) => priorIndexes.indexOf(currentIdx));
+    },
+    [setHistory],
+  );
 
-  const setSlotCrop = useCallback((spreadIdx: number, slotIdx: number, crop: Pick<DraftSlot, 'zoom' | 'panX' | 'panY'>) => {
-    setSpreads((prev) => {
-      const next = [...prev];
-      const spread = { ...next[spreadIdx], slots: [...next[spreadIdx].slots] };
-      spread.slots[slotIdx] = { ...spread.slots[slotIdx], ...crop };
-      next[spreadIdx] = spread;
-      spreadsRef.current = next;
-      return next;
-    });
-  }, []);
+  const setSlotCrop = useCallback(
+    (spreadIdx: number, slotIdx: number, crop: Pick<DraftSlot, 'zoom' | 'panX' | 'panY'>) => {
+      setSpreads((prev) => {
+        const next = [...prev];
+        const spread = { ...next[spreadIdx], slots: [...next[spreadIdx].slots] };
+        spread.slots[slotIdx] = { ...spread.slots[slotIdx], ...crop };
+        next[spreadIdx] = spread;
+        spreadsRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
 
-  const addCaption = useCallback((spreadIdx: number) => {
-    const caption: DraftCaption = { ...newCaption(), fontFamily: template.defaultFont, color: template.defaultCaptionColor };
-    setSpreads((prev) => {
-      const next = [...prev];
-      next[spreadIdx] = { ...next[spreadIdx], captions: [...next[spreadIdx].captions, caption] };
-      spreadsRef.current = next;
-      return next;
-    });
-    return caption.id;
-  }, [template]);
+  const addCaption = useCallback(
+    (spreadIdx: number) => {
+      const caption: DraftCaption = {
+        ...newCaption(),
+        fontFamily: template.defaultFont,
+        color: template.defaultCaptionColor,
+      };
+      setSpreads((prev) => {
+        const next = [...prev];
+        next[spreadIdx] = { ...next[spreadIdx], captions: [...next[spreadIdx].captions, caption] };
+        spreadsRef.current = next;
+        return next;
+      });
+      return caption.id;
+    },
+    [template],
+  );
 
-  const updateCaption = useCallback((spreadIdx: number, captionId: string, updates: Partial<Omit<DraftCaption, 'id'>>) => {
-    setSpreads((prev) => {
-      const next = [...prev];
-      next[spreadIdx] = { ...next[spreadIdx], captions: next[spreadIdx].captions.map((c) => c.id === captionId ? { ...c, ...updates } : c) };
-      spreadsRef.current = next;
-      return next;
-    });
-  }, []);
+  const updateCaption = useCallback(
+    (spreadIdx: number, captionId: string, updates: Partial<Omit<DraftCaption, 'id'>>) => {
+      setSpreads((prev) => {
+        const next = [...prev];
+        next[spreadIdx] = {
+          ...next[spreadIdx],
+          captions: next[spreadIdx].captions.map((c) => (c.id === captionId ? { ...c, ...updates } : c)),
+        };
+        spreadsRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
 
   const removeCaption = useCallback((spreadIdx: number, captionId: string) => {
     setSpreads((prev) => {
@@ -552,9 +659,21 @@ export function PhotobookDetailPage() {
       finish,
       templateId,
       spreads: spreads.map((s) => ({
-        position: s.position, layoutCode: s.layoutCode, backgroundColor: s.backgroundColor,
+        position: s.position,
+        layoutCode: s.layoutCode,
+        backgroundColor: s.backgroundColor,
         slots: s.slots.map((sl) => ({ imageId: sl.imageId, zoom: sl.zoom, panX: sl.panX, panY: sl.panY })),
-        captions: s.captions.map((c) => ({ id: c.id, text: c.text, x: c.x, y: c.y, fontSize: c.fontSize, color: c.color, bold: c.bold, align: c.align, fontFamily: c.fontFamily })),
+        captions: s.captions.map((c) => ({
+          id: c.id,
+          text: c.text,
+          x: c.x,
+          y: c.y,
+          fontSize: c.fontSize,
+          color: c.color,
+          bold: c.bold,
+          align: c.align,
+          fontFamily: c.fontFamily,
+        })),
       })),
     };
     const { id } = await createPhotobookDesign(metadata, compressedImages);
@@ -563,24 +682,39 @@ export function PhotobookDetailPage() {
 
   async function addToCart() {
     if (!product || !size || !selected) return;
-    setBusy(true); setCartError(null);
+    setBusy(true);
+    setCartError(null);
     try {
       const photobookDesignId = await saveDesign();
       await add({
-        productId: product.id, productVariantId: size.variantId, productFrameOptionId: null,
+        productId: product.id,
+        productVariantId: size.variantId,
+        productFrameOptionId: null,
         // saveDesign() trả null khi khách chưa tải ảnh nào lên: cuốn đi tiếp bằng luồng gửi ảnh
         // sau khi mua, và mã mẫu là thứ duy nhất còn giữ lựa chọn của khách tới lúc xưởng dựng.
-        pageCount: selected.pageCount, photobookDesignId, photobookTemplateCode: templateId, quantity: qty,
-        productName: product.name, productSlug: product.slug,
+        pageCount: selected.pageCount,
+        photobookDesignId,
+        photobookTemplateCode: templateId,
+        quantity: qty,
+        productName: product.name,
+        productSlug: product.slug,
         selectedVariant: variantSnapshot(product, size, selected.price),
-        basePrice: selected.price, selectedFrameOption: null, unitPrice: selected.price,
+        basePrice: selected.price,
+        selectedFrameOption: null,
+        unitPrice: selected.price,
       });
       setAdded(true);
     } catch (e) {
-      setCartError(e instanceof ApiRequestError && e.status === 401
-        ? 'Vui lòng đăng nhập để lưu thiết kế trước khi thêm cuốn này vào giỏ.'
-        : e instanceof ApiRequestError ? e.message : 'Không thêm được vào giỏ.');
-    } finally { setBusy(false); }
+      setCartError(
+        e instanceof ApiRequestError && e.status === 401
+          ? 'Vui lòng đăng nhập để lưu thiết kế trước khi thêm cuốn này vào giỏ.'
+          : e instanceof ApiRequestError
+            ? e.message
+            : 'Không thêm được vào giỏ.',
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (product && !product.pagePriced) return <Navigate to={`/tranh/${product.slug}`} replace />;
@@ -591,7 +725,11 @@ export function PhotobookDetailPage() {
         <StoreNotice
           title="Không mở được photobook này"
           body={loadError}
-          action={<Link className="btn btn-secondary" to={CATALOG_HREF}>← Về danh sách</Link>}
+          action={
+            <Link className="btn btn-secondary" to={CATALOG_HREF}>
+              ← Về danh sách
+            </Link>
+          }
         />
       </StoreShell>
     );
@@ -608,42 +746,93 @@ export function PhotobookDetailPage() {
   return (
     <StoreShell cartCount={cartCount}>
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" data-breadcrumb="" style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minHeight: 46, padding: '0 var(--space-8)',
-        borderBottom: '2px solid var(--color-divider)', fontSize: 11, letterSpacing: '.16em',
-        textTransform: 'uppercase', color: 'var(--color-neutral-700)',
-      }}>
-        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Trang chủ</Link>
+      <nav
+        aria-label="Breadcrumb"
+        data-breadcrumb=""
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          minHeight: 46,
+          padding: '0 var(--space-8)',
+          borderBottom: '2px solid var(--color-divider)',
+          fontSize: 11,
+          letterSpacing: '.16em',
+          textTransform: 'uppercase',
+          color: 'var(--color-neutral-700)',
+        }}
+      >
+        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>
+          Trang chủ
+        </Link>
         <span aria-hidden="true">/</span>
-        <Link to={CATALOG_HREF} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Photobook</Link>
+        <Link to={CATALOG_HREF} style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>
+          Photobook
+        </Link>
         <span aria-hidden="true">/</span>
         <span style={{ color: 'var(--color-text)' }}>{product.name}</span>
       </nav>
 
       {/* Step indicator */}
-      <div data-pb-step-bar="" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)',
-        padding: 'var(--space-4) var(--space-8)', borderBottom: '2px solid var(--color-text)',
-        background: 'var(--color-neutral-100)',
-      }}>
+      <div
+        data-pb-step-bar=""
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-8)',
+          borderBottom: '2px solid var(--color-text)',
+          background: 'var(--color-neutral-100)',
+        }}
+      >
         {STEPS.map((label, i) => {
           const active = i === step;
           const done = i < step;
           return (
-            <button key={label} type="button" onClick={() => { if (done) setStep(i); }}
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                if (done) setStep(i);
+              }}
               disabled={i > step}
               style={{
-                appearance: 'none', display: 'flex', alignItems: 'center', gap: 6, border: 0,
-                background: 'transparent', font: 'inherit', fontSize: 12, fontWeight: active ? 700 : 400,
-                letterSpacing: '.08em', textTransform: 'uppercase', cursor: done ? 'pointer' : 'default',
+                appearance: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                border: 0,
+                background: 'transparent',
+                font: 'inherit',
+                fontSize: 12,
+                fontWeight: active ? 700 : 400,
+                letterSpacing: '.08em',
+                textTransform: 'uppercase',
+                cursor: done ? 'pointer' : 'default',
                 color: active ? 'var(--color-text)' : done ? 'var(--color-accent-700)' : 'var(--color-neutral-500)',
-              }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24,
-                borderRadius: '50%', fontSize: 11, fontWeight: 700,
-                background: active ? 'var(--color-text)' : done ? 'var(--color-accent-700)' : 'var(--color-neutral-300)',
-                color: active || done ? 'var(--color-bg)' : 'var(--color-neutral-600)',
-              }}>{done ? '✓' : i + 1}</span>
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: active
+                    ? 'var(--color-text)'
+                    : done
+                      ? 'var(--color-accent-700)'
+                      : 'var(--color-neutral-300)',
+                  color: active || done ? 'var(--color-bg)' : 'var(--color-neutral-600)',
+                }}
+              >
+                {done ? '✓' : i + 1}
+              </span>
               {label}
             </button>
           );
@@ -655,11 +844,28 @@ export function PhotobookDetailPage() {
       {/* Step content */}
       {step === 0 && (
         <StepSpecs
-          product={product} pricing={pricing} size={size} sizeId={sizeId} setSizeId={setSizeId}
-          pageIndex={pageIndex} setPageIndex={setPageIndex} pageOptions={pageOptions} selected={selected}
-          finish={finish} setFinish={setFinish} qty={qty} setQty={setQty}
-          price={price} photos={photos} slotCapacity={slotCapacity} photoCount={photoCount} setPhotoCount={setPhotoCount}
-          suggestion={suggestion} templates={templates} templateId={templateId} setTemplateId={setTemplateId}
+          product={product}
+          pricing={pricing}
+          size={size}
+          sizeId={sizeId}
+          setSizeId={setSizeId}
+          pageIndex={pageIndex}
+          setPageIndex={setPageIndex}
+          pageOptions={pageOptions}
+          selected={selected}
+          finish={finish}
+          setFinish={setFinish}
+          qty={qty}
+          setQty={setQty}
+          price={price}
+          photos={photos}
+          slotCapacity={slotCapacity}
+          photoCount={photoCount}
+          setPhotoCount={setPhotoCount}
+          suggestion={suggestion}
+          templates={templates}
+          templateId={templateId}
+          setTemplateId={setTemplateId}
           spreadsHaveImages={spreads.some((s) => s.slots.some((sl) => sl.file !== null))}
           onApplyTemplate={() => applyTemplateToSpreads(template)}
           onNext={() => setStep(1)}
@@ -668,28 +874,58 @@ export function PhotobookDetailPage() {
 
       {step === 1 && (
         <StepArrange
-          spreads={spreads} currentIdx={currentSpreadIdx} setCurrentIdx={setCurrentSpreadIdx}
-          onChangeLayout={changeLayout} onSetSlotFile={setSlotFile} onSwapSlots={swapSlots} onSetSlotCrop={setSlotCrop}
-          onAddCaption={addCaption} onUpdateCaption={updateCaption} onRemoveCaption={removeCaption}
-          history={historyBySpread[currentSpreadIdx]} onRemember={rememberSpread}
-          onUndo={undoSpread} onRedo={redoSpread} onAutoFillFiles={autoFillFiles}
+          spreads={spreads}
+          currentIdx={currentSpreadIdx}
+          setCurrentIdx={setCurrentSpreadIdx}
+          onChangeLayout={changeLayout}
+          onSetSlotFile={setSlotFile}
+          onSwapSlots={swapSlots}
+          onSetSlotCrop={setSlotCrop}
+          onAddCaption={addCaption}
+          onUpdateCaption={updateCaption}
+          onRemoveCaption={removeCaption}
+          history={historyBySpread[currentSpreadIdx]}
+          onRemember={rememberSpread}
+          onUndo={undoSpread}
+          onRedo={redoSpread}
+          onAutoFillFiles={autoFillFiles}
           onMoveSpread={moveSpread}
           draftNotice={draftNotice}
-          onBack={() => setStep(0)} onNext={() => setStep(2)}
+          onBack={() => setStep(0)}
+          onNext={() => setStep(2)}
         />
       )}
 
       {step === 2 && (
         <StepReview
-          spreads={spreads} price={price} qty={qty} finish={finish} size={size} selected={selected}
-          pricing={pricing} pageOptions={pageOptions} pageIndex={pageIndex}
-          added={added} busy={busy} cartError={cartError} slug={slug} templateId={templateId}
-          onEdit={(idx) => { setCurrentSpreadIdx(idx); setStep(1); }}
+          spreads={spreads}
+          price={price}
+          qty={qty}
+          finish={finish}
+          size={size}
+          selected={selected}
+          pricing={pricing}
+          pageOptions={pageOptions}
+          pageIndex={pageIndex}
+          added={added}
+          busy={busy}
+          cartError={cartError}
+          slug={slug}
+          templateId={templateId}
+          onEdit={(idx) => {
+            setCurrentSpreadIdx(idx);
+            setStep(1);
+          }}
           onMoveSpread={moveSpread}
           onBack={() => setStep(1)}
           onAddToCart={() => void addToCart()}
-          onUpgradePages={(idx) => { setPageIndex(idx); }}
-          onUpgradeSize={(id) => { setSizeId(id); setPageIndex(0); }}
+          onUpgradePages={(idx) => {
+            setPageIndex(idx);
+          }}
+          onUpgradeSize={(id) => {
+            setSizeId(id);
+            setPageIndex(0);
+          }}
         />
       )}
     </StoreShell>

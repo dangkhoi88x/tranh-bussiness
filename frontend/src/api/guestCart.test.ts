@@ -4,14 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const addCartItem = vi.fn();
 vi.mock('./cart', () => ({ addCartItem: (...args: unknown[]) => addCartItem(...args) }));
 
-const {
-  addGuestCartItem,
-  readGuestCart,
-  updateGuestCartItem,
-  removeGuestCartItem,
-  clearGuestCart,
-  mergeGuestCart,
-} = await import('./guestCart');
+const { addGuestCartItem, readGuestCart, updateGuestCartItem, removeGuestCartItem, clearGuestCart, mergeGuestCart } =
+  await import('./guestCart');
 
 const STORAGE_KEY = 'business-store.guest-cart.v1';
 
@@ -111,7 +105,8 @@ describe('gộp sang giỏ trên máy chủ khi đăng nhập', () => {
     addGuestCartItem(item());
     addGuestCartItem(item({ productId: 'het-hang' }));
     addCartItem.mockImplementation((input: { productId: string }) =>
-      input.productId === 'het-hang' ? Promise.reject(new Error('hết hàng')) : Promise.resolve({}));
+      input.productId === 'het-hang' ? Promise.reject(new Error('hết hàng')) : Promise.resolve({}),
+    );
 
     const result = await mergeGuestCart();
 
@@ -126,9 +121,13 @@ describe('gộp sang giỏ trên máy chủ khi đăng nhập', () => {
     await mergeGuestCart();
 
     // Thiếu ba trường này thì cuốn photobook lặng lẽ về mặc định ngay khi khách đăng nhập.
-    expect(addCartItem).toHaveBeenCalledWith(expect.objectContaining({
-      pageCount: 20, photobookTemplateCode: 'WEDDING', photobookDesignId: 'd1',
-    }));
+    expect(addCartItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageCount: 20,
+        photobookTemplateCode: 'WEDDING',
+        photobookDesignId: 'd1',
+      }),
+    );
   });
 
   it('hai lời gọi song song chỉ gộp một lần', async () => {

@@ -8,9 +8,32 @@ export const FINISHES = ['Eco Matte', 'Eco Silk'];
 export const CATALOG_HREF = '/photobook';
 export const STEPS = ['Quy cách', 'Thêm ảnh', 'Xem lại'] as const;
 
-export type DraftSlot = { imageId: string | null; file: File | null; preview: string | null; zoom: number; panX: number; panY: number };
-export type DraftCaption = { id: string; text: string; x: number; y: number; fontSize: number; color: string; bold: boolean; align: 'left' | 'center' | 'right'; fontFamily: string };
-export type DraftSpread = { position: number; layoutCode: string; slots: DraftSlot[]; captions: DraftCaption[]; backgroundColor: string };
+export type DraftSlot = {
+  imageId: string | null;
+  file: File | null;
+  preview: string | null;
+  zoom: number;
+  panX: number;
+  panY: number;
+};
+export type DraftCaption = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  bold: boolean;
+  align: 'left' | 'center' | 'right';
+  fontFamily: string;
+};
+export type DraftSpread = {
+  position: number;
+  layoutCode: string;
+  slots: DraftSlot[];
+  captions: DraftCaption[];
+  backgroundColor: string;
+};
 export type SpreadHistory = { past: DraftSpread[]; future: DraftSpread[] };
 export type AutoFillResult = { placed: number; remaining: number };
 
@@ -18,7 +41,10 @@ export const HISTORY_LIMIT = 30;
 
 export const CAPTION_COLORS = ['#1a1a1a', '#ffffff', '#8b4513', '#c0392b', '#2c3e50', '#27ae60', '#8e44ad', '#e67e22'];
 export const CAPTION_SIZES: { label: string; value: number }[] = [
-  { label: 'Nhỏ', value: 2.5 }, { label: 'Vừa', value: 4 }, { label: 'Lớn', value: 6 }, { label: 'Rất lớn', value: 8 },
+  { label: 'Nhỏ', value: 2.5 },
+  { label: 'Vừa', value: 4 },
+  { label: 'Lớn', value: 6 },
+  { label: 'Rất lớn', value: 8 },
 ];
 export const CAPTION_FONTS: { label: string; value: string; fallback: string }[] = [
   { label: 'Mặc định', value: 'Archivo', fallback: 'sans-serif' },
@@ -33,10 +59,27 @@ export const CAPTION_FONTS: { label: string; value: string; fallback: string }[]
   { label: 'Pacifico', value: 'Pacifico', fallback: 'cursive' },
 ];
 
-export const emptyDraftSlot = (): DraftSlot => ({ imageId: null, file: null, preview: null, zoom: 1, panX: 0, panY: 0 });
+export const emptyDraftSlot = (): DraftSlot => ({
+  imageId: null,
+  file: null,
+  preview: null,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+});
 
 export function newCaption(): DraftCaption {
-  return { id: newImageId(), text: '', x: 0.5, y: 0.5, fontSize: 4, color: '#1a1a1a', bold: false, align: 'center', fontFamily: 'Archivo' };
+  return {
+    id: newImageId(),
+    text: '',
+    x: 0.5,
+    y: 0.5,
+    fontSize: 4,
+    color: '#1a1a1a',
+    bold: false,
+    align: 'center',
+    fontFamily: 'Archivo',
+  };
 }
 
 export function newImageId() {
@@ -46,7 +89,11 @@ export function newImageId() {
 }
 
 export function cloneSpread(spread: DraftSpread): DraftSpread {
-  return { ...spread, slots: spread.slots.map((slot) => ({ ...slot })), captions: spread.captions.map((c) => ({ ...c })) };
+  return {
+    ...spread,
+    slots: spread.slots.map((slot) => ({ ...slot })),
+    captions: spread.captions.map((c) => ({ ...c })),
+  };
 }
 
 export function clamp(value: number, min: number, max: number) {
@@ -60,11 +107,8 @@ export function pickNewerDraft(
   if (!local && !server) return null;
   if (!server) return { draft: local!, source: 'local' };
   if (!local) return { draft: server, source: 'server' };
-  return server.updatedAt > local.updatedAt
-    ? { draft: server, source: 'server' }
-    : { draft: local, source: 'local' };
+  return server.updatedAt > local.updatedAt ? { draft: server, source: 'server' } : { draft: local, source: 'local' };
 }
-
 
 /**
  * Số ô ảnh thật sự có trong một cuốn khi khách tự thiết kế: đi đúng chu kỳ bố cục mà
@@ -105,19 +149,39 @@ export function makeSpreads(count: number, prev: DraftSpread[], template: Photob
     const captions: DraftCaption[] = [];
     for (const pc of template.presetCaptions) {
       if (pc.spreadIndex === i) {
-        captions.push({ id: newImageId(), text: pc.text, x: 0.5, y: 0.5, fontSize: pc.fontSize, color: pc.color, bold: false, align: pc.align, fontFamily: pc.fontFamily });
+        captions.push({
+          id: newImageId(),
+          text: pc.text,
+          x: 0.5,
+          y: 0.5,
+          fontSize: pc.fontSize,
+          color: pc.color,
+          bold: false,
+          align: pc.align,
+          fontFamily: pc.fontFamily,
+        });
       }
     }
-    return { position: i + 1, layoutCode: code, slots: layout.slots.map(emptyDraftSlot), captions, backgroundColor: colors[i % colors.length] };
+    return {
+      position: i + 1,
+      layoutCode: code,
+      slots: layout.slots.map(emptyDraftSlot),
+      captions,
+      backgroundColor: colors[i % colors.length],
+    };
   });
 }
 
-export function hydrateDraftSpreads(draft: StoredPhotobookDraft, images: Map<string, File>, trackPreview: (url: string) => void): DraftSpread[] {
+export function hydrateDraftSpreads(
+  draft: StoredPhotobookDraft,
+  images: Map<string, File>,
+  trackPreview: (url: string) => void,
+): DraftSpread[] {
   return draft.spreads.map((spread) => ({
     position: spread.position,
     layoutCode: spread.layoutCode,
     slots: spread.slots.map((slot) => {
-      const file = slot.imageId ? images.get(slot.imageId) ?? null : null;
+      const file = slot.imageId ? (images.get(slot.imageId) ?? null) : null;
       const preview = file ? URL.createObjectURL(file) : null;
       if (preview) trackPreview(preview);
       return {
@@ -138,15 +202,25 @@ export function hydrateDraftSpreads(draft: StoredPhotobookDraft, images: Map<str
 }
 
 export function draftImages(spreads: DraftSpread[]) {
-  return spreads.flatMap((spread) => spread.slots)
-    .flatMap((slot) => slot.imageId && slot.file ? [{ id: slot.imageId, file: slot.file }] : []);
+  return spreads
+    .flatMap((spread) => spread.slots)
+    .flatMap((slot) => (slot.imageId && slot.file ? [{ id: slot.imageId, file: slot.file }] : []));
 }
 
 export function variantSnapshot(product: Product, size: PhotobookSize, priceAtPageCount: number): ProductVariant {
   return {
-    id: size.variantId, productId: product.id, sku: size.sku, name: size.name,
-    widthCm: size.widthCm, heightCm: size.heightCm, artSizeId: null, artSizeCode: 'CUSTOM',
-    materialId: null, material: product.coverMaterial ?? 'Photobook',
-    price: priceAtPageCount, stockQuantity: product.effectiveStockQuantity, available: size.available,
+    id: size.variantId,
+    productId: product.id,
+    sku: size.sku,
+    name: size.name,
+    widthCm: size.widthCm,
+    heightCm: size.heightCm,
+    artSizeId: null,
+    artSizeCode: 'CUSTOM',
+    materialId: null,
+    material: product.coverMaterial ?? 'Photobook',
+    price: priceAtPageCount,
+    stockQuantity: product.effectiveStockQuantity,
+    available: size.available,
   };
 }

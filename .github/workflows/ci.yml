@@ -41,6 +41,12 @@ jobs:
         working-directory: frontend
         run: npm ci --no-audit --no-fund
 
+      # Chốt định dạng để các file vừa được format không trôi ngược về kiểu một dòng dài
+      # hàng nghìn ký tự. Nếu bước này chặn PR, chạy `npm run format` rồi commit lại.
+      - name: Check frontend formatting
+        working-directory: frontend
+        run: npm run format:check
+
       - name: Run frontend tests
         working-directory: frontend
         run: npm run test

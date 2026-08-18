@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  addCartItem,
-  clearCart,
-  fetchCart,
-  removeCartItem,
-  updateCartItem,
-  type Cart,
-} from '../api/cart';
+import { addCartItem, clearCart, fetchCart, removeCartItem, updateCartItem, type Cart } from '../api/cart';
 import {
   addGuestCartItem,
   clearGuestCart,
@@ -28,11 +21,15 @@ import { useAuth } from '../contexts/AuthContext';
  */
 export function useCart() {
   const { session } = useAuth();
-  const [cart, setCart] = useState<Cart | null>(() => session ? null : readGuestCart());
+  const [cart, setCart] = useState<Cart | null>(() => (session ? null : readGuestCart()));
   const [loading, setLoading] = useState(Boolean(session));
 
   const reload = useCallback(async () => {
-    if (!session) { setCart(readGuestCart()); setLoading(false); return; }
+    if (!session) {
+      setCart(readGuestCart());
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       setCart(await fetchCart());
@@ -43,7 +40,9 @@ export function useCart() {
     }
   }, [session?.userId]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   useEffect(() => {
     const syncGuestCart = () => {
@@ -58,36 +57,45 @@ export function useCart() {
   }, [session?.userId]);
 
   // add và update trả về giỏ mới nên dùng thẳng; remove và clear trả 204 nên phải nạp lại.
-  const add = useCallback(async (input: GuestCartItemInput) => {
-    if (!session) {
-      const next = addGuestCartItem(input);
+  const add = useCallback(
+    async (input: GuestCartItemInput) => {
+      if (!session) {
+        const next = addGuestCartItem(input);
+        setCart(next);
+        return next;
+      }
+      const next = await addCartItem(input);
       setCart(next);
       return next;
-    }
-    const next = await addCartItem(input);
-    setCart(next);
-    return next;
-  }, [session?.userId]);
+    },
+    [session?.userId],
+  );
 
-  const update = useCallback(async (itemId: string, quantity: number) => {
-    if (!session) {
-      const next = updateGuestCartItem(itemId, quantity);
+  const update = useCallback(
+    async (itemId: string, quantity: number) => {
+      if (!session) {
+        const next = updateGuestCartItem(itemId, quantity);
+        setCart(next);
+        return next;
+      }
+      const next = await updateCartItem(itemId, quantity);
       setCart(next);
       return next;
-    }
-    const next = await updateCartItem(itemId, quantity);
-    setCart(next);
-    return next;
-  }, [session?.userId]);
+    },
+    [session?.userId],
+  );
 
-  const remove = useCallback(async (itemId: string) => {
-    if (!session) {
-      setCart(removeGuestCartItem(itemId));
-      return;
-    }
-    await removeCartItem(itemId);
-    await reload();
-  }, [reload, session?.userId]);
+  const remove = useCallback(
+    async (itemId: string) => {
+      if (!session) {
+        setCart(removeGuestCartItem(itemId));
+        return;
+      }
+      await removeCartItem(itemId);
+      await reload();
+    },
+    [reload, session?.userId],
+  );
 
   const clear = useCallback(async () => {
     if (!session) {

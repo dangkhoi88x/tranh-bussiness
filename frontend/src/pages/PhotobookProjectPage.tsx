@@ -46,11 +46,21 @@ export function PhotobookProjectPage() {
   const [revisionNote, setRevisionNote] = useState('');
   const [deciding, setDeciding] = useState(false);
   // Upload chạy tuần tự nên hiện được tiến độ thật thay vì một spinner mù.
-  const [uploading, setUploading] = useState<{ done: number; total: number; stage: 'compressing' | 'uploading' } | null>(null);
-  const [compressionSummary, setCompressionSummary] = useState<{ originalBytes: number; compressedBytes: number } | null>(null);
+  const [uploading, setUploading] = useState<{
+    done: number;
+    total: number;
+    stage: 'compressing' | 'uploading';
+  } | null>(null);
+  const [compressionSummary, setCompressionSummary] = useState<{
+    originalBytes: number;
+    compressedBytes: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
-    if (!session) { setLoading(false); return; }
+    if (!session) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError(null);
     try {
@@ -64,7 +74,9 @@ export function PhotobookProjectPage() {
     }
   }, [projectId, session?.userId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   useDocumentMeta({
     title: project ? `Ảnh cho ${project.productName} | Bubble Memories` : 'Gửi ảnh photobook | Bubble Memories',
@@ -160,7 +172,11 @@ export function PhotobookProjectPage() {
         <StoreNotice
           title="Đăng nhập để gửi ảnh"
           body="Ảnh gốc của bạn được lưu riêng theo tài khoản."
-          action={<Link className="btn btn-primary" to="/auth" state={{ from: location }}>Đăng nhập</Link>}
+          action={
+            <Link className="btn btn-primary" to="/auth" state={{ from: location }}>
+              Đăng nhập
+            </Link>
+          }
         />
       </StoreShell>
     );
@@ -172,7 +188,13 @@ export function PhotobookProjectPage() {
         <StoreNotice
           title={loadError ? 'Không mở được cuốn photobook này' : 'Đang tải…'}
           body={loadError ?? ''}
-          action={loadError ? <Link className="btn btn-secondary" to="/don-hang-cua-toi">Về đơn hàng</Link> : undefined}
+          action={
+            loadError ? (
+              <Link className="btn btn-secondary" to="/don-hang-cua-toi">
+                Về đơn hàng
+              </Link>
+            ) : undefined
+          }
         />
       </StoreShell>
     );
@@ -184,30 +206,60 @@ export function PhotobookProjectPage() {
 
   return (
     <StoreShell cartCount={cartCount}>
-      <nav aria-label="Breadcrumb" data-breadcrumb="" style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-3)', minHeight: 46, padding: '0 var(--space-8)',
-        borderBottom: '2px solid var(--color-divider)', fontSize: 11, letterSpacing: '.16em',
-        textTransform: 'uppercase', color: 'var(--color-neutral-700)',
-      }}>
-        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Trang chủ</Link>
+      <nav
+        aria-label="Breadcrumb"
+        data-breadcrumb=""
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          minHeight: 46,
+          padding: '0 var(--space-8)',
+          borderBottom: '2px solid var(--color-divider)',
+          fontSize: 11,
+          letterSpacing: '.16em',
+          textTransform: 'uppercase',
+          color: 'var(--color-neutral-700)',
+        }}
+      >
+        <Link to="/" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>
+          Trang chủ
+        </Link>
         <span aria-hidden="true">/</span>
-        <Link to="/don-hang-cua-toi" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>Đơn hàng</Link>
+        <Link to="/don-hang-cua-toi" style={{ color: 'var(--color-neutral-700)', textDecoration: 'none' }}>
+          Đơn hàng
+        </Link>
         <span aria-hidden="true">/</span>
         <span style={{ color: 'var(--color-text)' }}>Ảnh photobook</span>
       </nav>
 
-      <section style={{
-        display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
-        gap: 'var(--space-4)', padding: 'var(--space-8) var(--space-8) var(--space-6)',
-      }}>
+      <section
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-8) var(--space-8) var(--space-6)',
+        }}
+      >
         <div>
-          <h1 style={{
-            margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800,
-            fontSize: 'clamp(28px, 4vw, 36px)', lineHeight: 1.02, letterSpacing: '-.03em',
-          }}>Gửi ảnh cho cuốn của bạn</h1>
+          <h1
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-heading)',
+              fontWeight: 800,
+              fontSize: 'clamp(28px, 4vw, 36px)',
+              lineHeight: 1.02,
+              letterSpacing: '-.03em',
+            }}
+          >
+            Gửi ảnh cho cuốn của bạn
+          </h1>
           <p style={{ margin: 'var(--space-2) 0 0', fontSize: 14, color: 'var(--color-neutral-800)' }}>
             {project.productName}
-            {project.variantName ? ` · ${project.variantName}` : ''} · {project.pageCount} trang · đơn {project.orderCode}
+            {project.variantName ? ` · ${project.variantName}` : ''} · {project.pageCount} trang · đơn{' '}
+            {project.orderCode}
           </p>
         </div>
         <span style={STORE_LABEL_STYLE}>{PHOTOBOOK_STATUS_LABEL[project.status]}</span>
@@ -228,10 +280,15 @@ export function PhotobookProjectPage() {
 
       {/* Tiến độ: mốc là số ảnh tối thiểu cho số trang đã chọn. */}
       <section style={{ padding: '0 var(--space-8) var(--space-6)' }}>
-        <div style={{
-          display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-          gap: 'var(--space-4)', marginBottom: 'var(--space-2)',
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 'var(--space-4)',
+            marginBottom: 'var(--space-2)',
+          }}
+        >
           <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20 }}>
             Đã gửi {photoCount} / {recommendedPhotosMin}–{recommendedPhotosMax} ảnh
           </span>
@@ -240,36 +297,51 @@ export function PhotobookProjectPage() {
           </span>
         </div>
         <div style={{ height: 10, background: 'var(--color-neutral-200)', border: '2px solid var(--color-text)' }}>
-          <div style={{
-            width: `${progress}%`, height: '100%',
-            background: enough ? 'var(--color-text)' : 'var(--color-accent)',
-            transition: 'width .25s linear',
-          }} />
+          <div
+            style={{
+              width: `${progress}%`,
+              height: '100%',
+              background: enough ? 'var(--color-text)' : 'var(--color-accent)',
+              transition: 'width .25s linear',
+            }}
+          />
         </div>
         <p style={{ margin: 'var(--space-3) 0 0', fontSize: 13, lineHeight: 1.55, color: 'var(--color-neutral-800)' }}>
-          Cuốn {project.pageCount} trang cần khoảng {recommendedPhotosMin}–{recommendedPhotosMax} ảnh.
-          Gửi dư cũng được, xưởng sẽ chọn và bố cục giúp — tối đa {maxPhotos} ảnh.
+          Cuốn {project.pageCount} trang cần khoảng {recommendedPhotosMin}–{recommendedPhotosMax} ảnh. Gửi dư cũng được,
+          xưởng sẽ chọn và bố cục giúp — tối đa {maxPhotos} ảnh.
         </p>
       </section>
 
       {project.editable ? (
-        <section style={{
-          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-3)',
-          padding: '0 var(--space-8) var(--space-6)',
-        }}>
+        <section
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 'var(--space-3)',
+            padding: '0 var(--space-8) var(--space-6)',
+          }}
+        >
           <input ref={fileInput} type="file" accept={ACCEPT} multiple hidden onChange={(event) => void onPick(event)} />
-          <button type="button" className="btn btn-primary" disabled={uploading !== null}
-            onClick={() => fileInput.current?.click()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={uploading !== null}
+            onClick={() => fileInput.current?.click()}
+          >
             {uploading
               ? uploading.stage === 'compressing'
                 ? `Đang tối ưu ${Math.min(uploading.done + 1, uploading.total)}/${uploading.total}…`
                 : `Đang tải ${uploading.done}/${uploading.total}…`
               : '+ Chọn ảnh từ máy'}
           </button>
-          <span style={{ fontSize: 12, color: 'var(--color-neutral-700)' }}>JPEG, PNG hoặc WebP · tự tối ưu cạnh dài 2.000px</span>
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-700)' }}>
+            JPEG, PNG hoặc WebP · tự tối ưu cạnh dài 2.000px
+          </span>
           {compressionSummary && (
             <span role="status" style={{ fontSize: 12, color: 'var(--color-accent-700)' }}>
-              Đã tối ưu {formatFileSize(compressionSummary.originalBytes)} → {formatFileSize(compressionSummary.compressedBytes)}
+              Đã tối ưu {formatFileSize(compressionSummary.originalBytes)} →{' '}
+              {formatFileSize(compressionSummary.compressedBytes)}
               {compressionSummary.compressedBytes < compressionSummary.originalBytes
                 ? ` (giảm ${Math.round((1 - compressionSummary.compressedBytes / compressionSummary.originalBytes) * 100)}%)`
                 : ''}
@@ -278,21 +350,39 @@ export function PhotobookProjectPage() {
         </section>
       ) : (
         <section style={{ padding: '0 var(--space-8) var(--space-6)' }}>
-          <p style={{
-            margin: 0, padding: 'var(--space-4)', border: '2px solid var(--color-text)',
-            fontSize: 14, lineHeight: 1.6,
-          }}>
-            Bạn đã gửi bộ ảnh này cho xưởng{project.submittedAt ? ` lúc ${dateTime.format(new Date(project.submittedAt))}` : ''}.
-            Xưởng sẽ lên layout và gửi bản mềm để bạn duyệt trước khi in.
-            {project.customerNote && <><br /><strong>Ghi chú của bạn:</strong> {project.customerNote}</>}
+          <p
+            style={{
+              margin: 0,
+              padding: 'var(--space-4)',
+              border: '2px solid var(--color-text)',
+              fontSize: 14,
+              lineHeight: 1.6,
+            }}
+          >
+            Bạn đã gửi bộ ảnh này cho xưởng
+            {project.submittedAt ? ` lúc ${dateTime.format(new Date(project.submittedAt))}` : ''}. Xưởng sẽ lên layout
+            và gửi bản mềm để bạn duyệt trước khi in.
+            {project.customerNote && (
+              <>
+                <br />
+                <strong>Ghi chú của bạn:</strong> {project.customerNote}
+              </>
+            )}
           </p>
         </section>
       )}
 
       {error && (
-        <p role="status" style={{
-          margin: '0 var(--space-8) var(--space-4)', fontSize: 13, color: 'var(--color-accent-700)',
-        }}>{error}</p>
+        <p
+          role="status"
+          style={{
+            margin: '0 var(--space-8) var(--space-4)',
+            fontSize: 13,
+            color: 'var(--color-accent-700)',
+          }}
+        >
+          {error}
+        </p>
       )}
 
       {project.proofs.length > 0 && (
@@ -308,24 +398,57 @@ export function PhotobookProjectPage() {
       {photoCount === 0 ? (
         <StoreNotice title="Chưa có ảnh nào" body="Chọn ảnh từ máy để bắt đầu. Bạn có thể gửi làm nhiều lần." />
       ) : (
-        <section data-grid="cols" style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-          gap: 2, padding: '0 var(--space-8) var(--space-8)',
-        }}>
+        <section
+          data-grid="cols"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            gap: 2,
+            padding: '0 var(--space-8) var(--space-8)',
+          }}
+        >
           {project.photos.map((photo) => (
-            <figure key={photo.id} style={{ position: 'relative', margin: 0, aspectRatio: '1/1', border: '2px solid var(--color-text)', overflow: 'hidden' }}>
-              <img src={photo.url} alt={photo.originalFilename ?? 'Ảnh đã gửi'}
-                loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <figure
+              key={photo.id}
+              style={{
+                position: 'relative',
+                margin: 0,
+                aspectRatio: '1/1',
+                border: '2px solid var(--color-text)',
+                overflow: 'hidden',
+              }}
+            >
+              <img
+                src={photo.url}
+                alt={photo.originalFilename ?? 'Ảnh đã gửi'}
+                loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
               {project.editable && (
-                <button type="button" aria-label={`Xoá ${photo.originalFilename ?? 'ảnh'}`}
-                  disabled={busyPhotoId === photo.id} onClick={() => void removePhoto(photo.id)}
+                <button
+                  type="button"
+                  aria-label={`Xoá ${photo.originalFilename ?? 'ảnh'}`}
+                  disabled={busyPhotoId === photo.id}
+                  onClick={() => void removePhoto(photo.id)}
                   style={{
-                    position: 'absolute', top: 0, right: 0, appearance: 'none', width: 28, height: 28,
-                    border: 0, background: 'var(--color-text)', color: 'var(--color-bg)',
-                    font: 'inherit', fontSize: 14, lineHeight: 1,
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    appearance: 'none',
+                    width: 28,
+                    height: 28,
+                    border: 0,
+                    background: 'var(--color-text)',
+                    color: 'var(--color-bg)',
+                    font: 'inherit',
+                    fontSize: 14,
+                    lineHeight: 1,
                     cursor: busyPhotoId === photo.id ? 'not-allowed' : 'pointer',
                     opacity: busyPhotoId === photo.id ? 0.5 : 1,
-                  }}>×</button>
+                  }}
+                >
+                  ×
+                </button>
               )}
             </figure>
           ))}
@@ -333,17 +456,34 @@ export function PhotobookProjectPage() {
       )}
 
       {project.editable && (
-        <section style={{
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
-          padding: 'var(--space-6) var(--space-8) var(--space-8)', borderTop: '2px solid var(--color-text)',
-        }}>
-          <label htmlFor="note" style={STORE_LABEL_STYLE}>Ghi chú cho xưởng (tuỳ chọn)</label>
-          <textarea id="note" className="input" rows={3} maxLength={2000} value={note}
+        <section
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-6) var(--space-8) var(--space-8)',
+            borderTop: '2px solid var(--color-text)',
+          }}
+        >
+          <label htmlFor="note" style={STORE_LABEL_STYLE}>
+            Ghi chú cho xưởng (tuỳ chọn)
+          </label>
+          <textarea
+            id="note"
+            className="input"
+            rows={3}
+            maxLength={2000}
+            value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Ví dụ: xếp theo thứ tự thời gian, ảnh cưới để lên bìa." />
+            placeholder="Ví dụ: xếp theo thứ tự thời gian, ảnh cưới để lên bìa."
+          />
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <button type="button" className="btn btn-primary" disabled={!enough || submitting || uploading !== null}
-              onClick={() => void submit()}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!enough || submitting || uploading !== null}
+              onClick={() => void submit()}
+            >
               {submitting ? 'Đang gửi…' : 'Gửi bộ ảnh cho xưởng'}
             </button>
             {!enough && (
@@ -365,7 +505,13 @@ export function PhotobookProjectPage() {
  * Bản mềm xưởng gửi và quyết định của khách. Lịch sử giữ đủ các bản để hai bên đối chiếu
  * đã sửa những gì; chỉ bản mới nhất mới có nút bấm.
  */
-function ProofSection({ project, note, onNote, busy, onDecide }: {
+function ProofSection({
+  project,
+  note,
+  onNote,
+  busy,
+  onDecide,
+}: {
   project: PhotobookProject;
   note: string;
   onNote: (value: string) => void;
@@ -376,12 +522,25 @@ function ProofSection({ project, note, onNote, busy, onDecide }: {
   const remaining = project.maxRevisions - project.revisionCount;
 
   return (
-    <section style={{
-      display: 'flex', flexDirection: 'column', gap: 'var(--space-4)',
-      margin: '0 var(--space-8) var(--space-8)', padding: 'var(--space-6)',
-      border: '2px solid var(--color-text)',
-    }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
+    <section
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--space-4)',
+        margin: '0 var(--space-8) var(--space-8)',
+        padding: 'var(--space-6)',
+        border: '2px solid var(--color-text)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 'var(--space-3)',
+        }}
+      >
         <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 20 }}>
           Bản mềm lần {latest.revision}
         </h2>
@@ -403,15 +562,25 @@ function ProofSection({ project, note, onNote, busy, onDecide }: {
           <label htmlFor="revision-note" style={STORE_LABEL_STYLE}>
             Muốn sửa gì? (bắt buộc nếu yêu cầu sửa)
           </label>
-          <textarea id="revision-note" className="input" rows={3} maxLength={2000} value={note}
+          <textarea
+            id="revision-note"
+            className="input"
+            rows={3}
+            maxLength={2000}
+            value={note}
             onChange={(event) => onNote(event.target.value)}
-            placeholder="Ví dụ: đổi ảnh bìa sang tấm ở biển, trang 4 xếp lại cho thoáng." />
+            placeholder="Ví dụ: đổi ảnh bìa sang tấm ở biển, trang 4 xếp lại cho thoáng."
+          />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'center' }}>
             <button type="button" className="btn btn-primary" disabled={busy} onClick={() => onDecide(true)}>
               {busy ? 'Đang gửi…' : 'Duyệt, cho in'}
             </button>
-            <button type="button" className="btn btn-secondary" disabled={busy || remaining <= 0}
-              onClick={() => onDecide(false)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy || remaining <= 0}
+              onClick={() => onDecide(false)}
+            >
               Yêu cầu sửa
             </button>
             <span style={{ fontSize: 13, color: 'var(--color-neutral-700)' }}>
@@ -437,7 +606,9 @@ function ProofSection({ project, note, onNote, busy, onDecide }: {
           <ul style={{ margin: 'var(--space-3) 0 0', paddingLeft: 'var(--space-6)', fontSize: 13, lineHeight: 1.7 }}>
             {project.proofs.slice(0, -1).map((proof) => (
               <li key={proof.id}>
-                <a href={proof.url} target="_blank" rel="noreferrer">Bản {proof.revision}</a>
+                <a href={proof.url} target="_blank" rel="noreferrer">
+                  Bản {proof.revision}
+                </a>
                 {proof.customerNote ? ` — bạn yêu cầu: ${proof.customerNote}` : ''}
               </li>
             ))}
@@ -456,7 +627,9 @@ function SpreadViewer({ proof }: { proof: PhotobookProof }) {
   const [index, setIndex] = useState(0);
   const pages = proof.pageUrls.length > 0 ? proof.pageUrls : [proof.url];
   // Đổi sang bản mềm khác thì quay lại spread đầu.
-  useEffect(() => { setIndex(0); }, [proof.id]);
+  useEffect(() => {
+    setIndex(0);
+  }, [proof.id]);
 
   const at = Math.min(index, pages.length - 1);
   const single = pages.length === 1;
@@ -464,30 +637,62 @@ function SpreadViewer({ proof }: { proof: PhotobookProof }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
       {/* Tỉ lệ 2/1: một spread là hai trang cạnh nhau, nên rộng gấp đôi một trang. */}
-      <div style={{
-        position: 'relative', width: '100%', aspectRatio: single ? undefined : '2 / 1',
-        background: 'var(--color-neutral-200)', border: '2px solid var(--color-divider)',
-      }}>
-        <img src={pages[at]} alt={`Bản mềm lần ${proof.revision}, spread ${at + 1}`}
+      <div
+        style={{
+          position: 'relative',
+          width: '100%',
+          aspectRatio: single ? undefined : '2 / 1',
+          background: 'var(--color-neutral-200)',
+          border: '2px solid var(--color-divider)',
+        }}
+      >
+        <img
+          src={pages[at]}
+          alt={`Bản mềm lần ${proof.revision}, spread ${at + 1}`}
           style={{
-            width: '100%', height: single ? 'auto' : '100%',
-            objectFit: 'contain', display: 'block',
-          }} />
+            width: '100%',
+            height: single ? 'auto' : '100%',
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
         {!single && (
-          <span aria-hidden="true" style={{
-            position: 'absolute', top: 0, bottom: 0, left: '50%', width: 2,
-            background: 'var(--color-divider)', opacity: .6,
-          }} />
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: '50%',
+              width: 2,
+              background: 'var(--color-divider)',
+              opacity: 0.6,
+            }}
+          />
         )}
       </div>
 
       {!single && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
-          <button type="button" className="btn btn-secondary" disabled={at <= 0}
-            onClick={() => setIndex((value) => Math.max(0, value - 1))}>← Spread trước</button>
-          <span style={STORE_LABEL_STYLE}>Spread {at + 1} / {pages.length}</span>
-          <button type="button" className="btn btn-secondary" disabled={at >= pages.length - 1}
-            onClick={() => setIndex((value) => Math.min(pages.length - 1, value + 1))}>Spread sau →</button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={at <= 0}
+            onClick={() => setIndex((value) => Math.max(0, value - 1))}
+          >
+            ← Spread trước
+          </button>
+          <span style={STORE_LABEL_STYLE}>
+            Spread {at + 1} / {pages.length}
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={at >= pages.length - 1}
+            onClick={() => setIndex((value) => Math.min(pages.length - 1, value + 1))}
+          >
+            Spread sau →
+          </button>
         </div>
       )}
 

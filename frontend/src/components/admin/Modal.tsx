@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 type ModalProps = {
   title: string;
@@ -10,20 +10,10 @@ type ModalProps = {
 export function Modal({ title, children, onClose, wide = false }: ModalProps) {
   return (
     <div className="modal-backdrop" role="presentation">
-      <section
-        className={`modal${wide ? " modal--wide" : ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
+      <section className={`modal${wide ? ' modal--wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <header>
           <h3>{title}</h3>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onClose}
-            aria-label="Đóng"
-          >
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Đóng">
             ×
           </button>
         </header>

@@ -1,20 +1,13 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { DataTable } from "../components/admin/DataTable";
-import { Panel } from "../components/admin/Panel";
-import { Pagination } from "../components/admin/Pagination";
-import { apiRequest } from "../api/http";
-import { usePagedRequest } from "../hooks/usePagedRequest";
+import { useMemo, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DataTable } from '../components/admin/DataTable';
+import { Panel } from '../components/admin/Panel';
+import { Pagination } from '../components/admin/Pagination';
+import { apiRequest } from '../api/http';
+import { usePagedRequest } from '../hooks/usePagedRequest';
 
-type OrderStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "PROCESSING"
-  | "SHIPPING"
-  | "DELIVERY_FAILED"
-  | "DELIVERED"
-  | "CANCELLED";
-type PaymentStatus = "PENDING" | "SUCCESS" | "CANCELLED";
+type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPING' | 'DELIVERY_FAILED' | 'DELIVERED' | 'CANCELLED';
+type PaymentStatus = 'PENDING' | 'SUCCESS' | 'CANCELLED';
 type Order = {
   id: string;
   orderCode: string;
@@ -22,9 +15,9 @@ type Order = {
   totalAmount: number;
   shippingFee: number;
   paymentStatus: PaymentStatus | null;
-  paymentMethod: "COD" | null;
-  shipmentStatus: "READY" | "IN_TRANSIT" | "DELIVERED" | "DELIVERY_FAILED" | "CANCELLED" | null;
-  refundStatus: "PENDING" | "SUCCESS" | "FAILED" | null;
+  paymentMethod: 'COD' | null;
+  shipmentStatus: 'READY' | 'IN_TRANSIT' | 'DELIVERED' | 'DELIVERY_FAILED' | 'CANCELLED' | null;
+  refundStatus: 'PENDING' | 'SUCCESS' | 'FAILED' | null;
   refundAmount: number | null;
   promotionCode: string | null;
   items: unknown[];
@@ -36,33 +29,26 @@ type Payment = {
   orderId: string;
   orderCode: string;
   amount: number;
-  method: "COD";
+  method: 'COD';
   status: PaymentStatus;
   transactionCode: string;
   paidAt: string | null;
   createdAt: string;
 };
 
-const money = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
+const money = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
   maximumFractionDigits: 0,
 });
-const dateTime = new Intl.DateTimeFormat("vi-VN", {
-  dateStyle: "medium",
-  timeStyle: "short",
+const dateTime = new Intl.DateTimeFormat('vi-VN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
 });
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : "Đã có lỗi xảy ra.";
+const errorText = (error: unknown) => (error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
 const stateClass = (status: string) => `status status--${status.toLowerCase()}`;
 
-function Header({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+function Header({ title, description }: { title: string; description: string }) {
   return (
     <header className="catalog-header">
       <div>
@@ -78,15 +64,15 @@ export function OrdersSearchPage() {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
-    orderCode: "",
-    status: "",
-    customer: "",
-    createdFrom: "",
-    createdTo: "",
+    orderCode: '',
+    status: '',
+    customer: '',
+    createdFrom: '',
+    createdTo: '',
   });
   const [draft, setDraft] = useState(filters);
   const query = useMemo(() => {
-    const value = new URLSearchParams({ page: String(page), size: "15" });
+    const value = new URLSearchParams({ page: String(page), size: '15' });
     Object.entries(filters).forEach(([key, item]) => {
       if (item) value.set(key, item);
     });
@@ -100,11 +86,11 @@ export function OrdersSearchPage() {
   }
   function reset() {
     const empty = {
-      orderCode: "",
-      status: "",
-      customer: "",
-      createdFrom: "",
-      createdTo: "",
+      orderCode: '',
+      status: '',
+      customer: '',
+      createdFrom: '',
+      createdTo: '',
     };
     setDraft(empty);
     setFilters(empty);
@@ -114,8 +100,8 @@ export function OrdersSearchPage() {
     if (!window.confirm(`Xác nhận ${order.orderCode} đã giao thành công và đã thu COD?`)) return;
     try {
       await apiRequest(`/orders/${order.id}/fulfillment/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ note: null }),
       });
       void reload();
@@ -124,13 +110,13 @@ export function OrdersSearchPage() {
     }
   }
   async function failDelivery(order: Order) {
-    const failureReason = window.prompt("Lý do giao thất bại:");
+    const failureReason = window.prompt('Lý do giao thất bại:');
     if (!failureReason?.trim()) return;
-    if (!window.confirm("Xác nhận hàng đã về kho? Hệ thống sẽ hoàn tồn, hủy COD và hoàn quota coupon.")) return;
+    if (!window.confirm('Xác nhận hàng đã về kho? Hệ thống sẽ hoàn tồn, hủy COD và hoàn quota coupon.')) return;
     try {
       await apiRequest(`/orders/${order.id}/fulfillment/delivery-failed`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ failureReason: failureReason.trim(), restockConfirmed: true }),
       });
       void reload();
@@ -140,10 +126,7 @@ export function OrdersSearchPage() {
   }
   return (
     <>
-      <Header
-        title="Đơn hàng"
-        description="Tìm nhanh theo mã đơn, khách hàng, trạng thái và thời điểm tạo."
-      />
+      <Header title="Đơn hàng" description="Tìm nhanh theo mã đơn, khách hàng, trạng thái và thời điểm tạo." />
       {error && <p className="catalog-message">{error}</p>}
       <Panel>
         <form className="operations-filters" onSubmit={submit}>
@@ -152,9 +135,7 @@ export function OrdersSearchPage() {
             <input
               value={draft.orderCode}
               placeholder="ART-..."
-              onChange={(event) =>
-                setDraft({ ...draft, orderCode: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, orderCode: event.target.value })}
             />
           </label>
           <label>
@@ -162,29 +143,22 @@ export function OrdersSearchPage() {
             <input
               value={draft.customer}
               placeholder="Tên hoặc email"
-              onChange={(event) =>
-                setDraft({ ...draft, customer: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, customer: event.target.value })}
             />
           </label>
           <label>
             Trạng thái
-            <select
-              value={draft.status}
-              onChange={(event) =>
-                setDraft({ ...draft, status: event.target.value })
-              }
-            >
+            <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
               <option value="">Tất cả</option>
               {(
                 [
-                  "PENDING",
-                  "CONFIRMED",
-                  "PROCESSING",
-                  "SHIPPING",
-                  "DELIVERY_FAILED",
-                  "DELIVERED",
-                  "CANCELLED",
+                  'PENDING',
+                  'CONFIRMED',
+                  'PROCESSING',
+                  'SHIPPING',
+                  'DELIVERY_FAILED',
+                  'DELIVERED',
+                  'CANCELLED',
                 ] as OrderStatus[]
               ).map((item) => (
                 <option key={item}>{item}</option>
@@ -196,9 +170,7 @@ export function OrdersSearchPage() {
             <input
               type="date"
               value={draft.createdFrom}
-              onChange={(event) =>
-                setDraft({ ...draft, createdFrom: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, createdFrom: event.target.value })}
             />
           </label>
           <label>
@@ -206,9 +178,7 @@ export function OrdersSearchPage() {
             <input
               type="date"
               value={draft.createdTo}
-              onChange={(event) =>
-                setDraft({ ...draft, createdTo: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, createdTo: event.target.value })}
             />
           </label>
           <button className="primary-button compact">Tìm kiếm</button>
@@ -240,43 +210,31 @@ export function OrdersSearchPage() {
                       <strong>{order.orderCode}</strong>
                       <small>
                         {order.items.length} sản phẩm
-                        {order.customDetails ? " · Đơn theo yêu cầu" : ""}
+                        {order.customDetails ? ' · Đơn theo yêu cầu' : ''}
                       </small>
                     </td>
                     <td>{dateTime.format(new Date(order.createdAt))}</td>
                     <td>
                       {order.paymentStatus ? (
                         <>
-                          <span className={stateClass(order.paymentStatus)}>
-                            {order.paymentStatus}
-                          </span>
+                          <span className={stateClass(order.paymentStatus)}>{order.paymentStatus}</span>
                           <small>{order.paymentMethod}</small>
                         </>
                       ) : (
-                        "Chưa tạo"
+                        'Chưa tạo'
                       )}
                     </td>
-                    <td>
-                      {order.promotionCode ? `Mã ${order.promotionCode}` : "—"}
-                    </td>
+                    <td>{order.promotionCode ? `Mã ${order.promotionCode}` : '—'}</td>
                     <td>{money.format(order.shippingFee)}</td>
                     <td>{money.format(order.totalAmount)}</td>
                     <td>
-                      <span className={stateClass(order.status)}>
-                        {order.status}
-                      </span>
+                      <span className={stateClass(order.status)}>{order.status}</span>
                     </td>
                     <td className="table-actions">
-                      <button
-                        onClick={() => navigate(`/admin/orders/${order.id}`)}
-                      >
-                        Chi tiết
-                      </button>
-                      {order.status === "SHIPPING" && order.shipmentStatus === "IN_TRANSIT" && (
+                      <button onClick={() => navigate(`/admin/orders/${order.id}`)}>Chi tiết</button>
+                      {order.status === 'SHIPPING' && order.shipmentStatus === 'IN_TRANSIT' && (
                         <>
-                          <button onClick={() => void completeDelivery(order)}>
-                            Hoàn thành
-                          </button>
+                          <button onClick={() => void completeDelivery(order)}>Hoàn thành</button>
                           <button className="danger-text" onClick={() => void failDelivery(order)}>
                             Giao thất bại
                           </button>
@@ -287,9 +245,7 @@ export function OrdersSearchPage() {
                 ))}
               </tbody>
             </DataTable>
-            {data?.items.length === 0 && (
-              <p className="empty-state">Không tìm thấy đơn hàng phù hợp.</p>
-            )}
+            {data?.items.length === 0 && <p className="empty-state">Không tìm thấy đơn hàng phù hợp.</p>}
             <Pagination data={data} onPage={setPage} />
           </>
         )}
@@ -301,33 +257,28 @@ export function OrdersSearchPage() {
 export function PaymentsSearchPage() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
-    status: "",
-    orderCode: "",
-    createdFrom: "",
-    createdTo: "",
+    status: '',
+    orderCode: '',
+    createdFrom: '',
+    createdTo: '',
   });
   const [draft, setDraft] = useState(filters);
   const [message, setMessage] = useState<string | null>(null);
   const query = useMemo(() => {
-    const value = new URLSearchParams({ page: String(page), size: "20" });
+    const value = new URLSearchParams({ page: String(page), size: '20' });
     Object.entries(filters).forEach(([key, item]) => {
       if (item) value.set(key, item);
     });
     return value.toString();
   }, [filters, page]);
-  const {
-    data,
-    loading,
-    error,
-    reload: load,
-  } = usePagedRequest<Payment>(`/payments?${query}`);
+  const { data, loading, error, reload: load } = usePagedRequest<Payment>(`/payments?${query}`);
   function submit(event: FormEvent) {
     event.preventDefault();
     setPage(1);
     setFilters(draft);
   }
   function reset() {
-    const empty = { status: "", orderCode: "", createdFrom: "", createdTo: "" };
+    const empty = { status: '', orderCode: '', createdFrom: '', createdTo: '' };
     setDraft(empty);
     setFilters(empty);
     setPage(1);
@@ -335,8 +286,8 @@ export function PaymentsSearchPage() {
   async function confirm(item: Payment) {
     if (!window.confirm(`Xác nhận đã thu COD cho ${item.orderCode}?`)) return;
     try {
-      await apiRequest(`/payments/${item.id}/cod/confirm`, { method: "PUT" });
-      setMessage("Đã xác nhận thanh toán COD.");
+      await apiRequest(`/payments/${item.id}/cod/confirm`, { method: 'PUT' });
+      setMessage('Đã xác nhận thanh toán COD.');
       void load();
     } catch (error) {
       setMessage(errorText(error));
@@ -348,38 +299,24 @@ export function PaymentsSearchPage() {
         title="Thanh toán COD"
         description="Lọc theo trạng thái, ngày tạo và mã đơn để kiểm soát các khoản phải thu."
       />
-      {(message || error) && (
-        <p className="catalog-message">{message || error}</p>
-      )}
+      {(message || error) && <p className="catalog-message">{message || error}</p>}
       <Panel>
-        <form
-          className="operations-filters operations-filters--payments"
-          onSubmit={submit}
-        >
+        <form className="operations-filters operations-filters--payments" onSubmit={submit}>
           <label>
             Mã đơn
             <input
               value={draft.orderCode}
               placeholder="ART-..."
-              onChange={(event) =>
-                setDraft({ ...draft, orderCode: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, orderCode: event.target.value })}
             />
           </label>
           <label>
             Trạng thái
-            <select
-              value={draft.status}
-              onChange={(event) =>
-                setDraft({ ...draft, status: event.target.value })
-              }
-            >
+            <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
               <option value="">Tất cả</option>
-              {(["PENDING", "SUCCESS", "CANCELLED"] as PaymentStatus[]).map(
-                (item) => (
-                  <option key={item}>{item}</option>
-                ),
-              )}
+              {(['PENDING', 'SUCCESS', 'CANCELLED'] as PaymentStatus[]).map((item) => (
+                <option key={item}>{item}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -387,9 +324,7 @@ export function PaymentsSearchPage() {
             <input
               type="date"
               value={draft.createdFrom}
-              onChange={(event) =>
-                setDraft({ ...draft, createdFrom: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, createdFrom: event.target.value })}
             />
           </label>
           <label>
@@ -397,9 +332,7 @@ export function PaymentsSearchPage() {
             <input
               type="date"
               value={draft.createdTo}
-              onChange={(event) =>
-                setDraft({ ...draft, createdTo: event.target.value })
-              }
+              onChange={(event) => setDraft({ ...draft, createdTo: event.target.value })}
             />
           </label>
           <button className="primary-button compact">Tìm kiếm</button>
@@ -433,29 +366,17 @@ export function PaymentsSearchPage() {
                     <td>{item.method}</td>
                     <td>{money.format(item.amount)}</td>
                     <td>
-                      <span className={stateClass(item.status)}>
-                        {item.status}
-                      </span>
+                      <span className={stateClass(item.status)}>{item.status}</span>
                     </td>
                     <td className="table-actions">
-                      {item.status === "PENDING" && (
-                        <button onClick={() => void confirm(item)}>
-                          Xác nhận COD
-                        </button>
-                      )}
-                      {item.paidAt && (
-                        <small>
-                          Thu: {dateTime.format(new Date(item.paidAt))}
-                        </small>
-                      )}
+                      {item.status === 'PENDING' && <button onClick={() => void confirm(item)}>Xác nhận COD</button>}
+                      {item.paidAt && <small>Thu: {dateTime.format(new Date(item.paidAt))}</small>}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </DataTable>
-            {data?.items.length === 0 && (
-              <p className="empty-state">Không tìm thấy thanh toán phù hợp.</p>
-            )}
+            {data?.items.length === 0 && <p className="empty-state">Không tìm thấy thanh toán phù hợp.</p>}
             <Pagination data={data} onPage={setPage} />
           </>
         )}
@@ -472,7 +393,7 @@ type Refund = {
   paymentId: string;
   transactionCode: string;
   amount: number;
-  status: "PENDING" | "SUCCESS" | "FAILED";
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
   reason: string;
   providerRefundId: string | null;
   failureMessage: string | null;
@@ -487,28 +408,21 @@ type Refund = {
  */
 function RefundsPanel() {
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState("PENDING");
+  const [status, setStatus] = useState('PENDING');
   const [message, setMessage] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const query = useMemo(() => {
-    const value = new URLSearchParams({ page: String(page), size: "20" });
-    if (status) value.set("status", status);
+    const value = new URLSearchParams({ page: String(page), size: '20' });
+    if (status) value.set('status', status);
     return value.toString();
   }, [status, page]);
-  const { data, loading, error, reload } = usePagedRequest<Refund>(
-    `/payment-refunds?${query}`,
-  );
+  const { data, loading, error, reload } = usePagedRequest<Refund>(`/payment-refunds?${query}`);
 
-  async function settle(
-    refund: Refund,
-    next: "SUCCESS" | "FAILED",
-    reference: string,
-    failureMessage: string,
-  ) {
+  async function settle(refund: Refund, next: 'SUCCESS' | 'FAILED', reference: string, failureMessage: string) {
     try {
       await apiRequest(`/payment-refunds/${refund.id}/settle`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: next,
           providerRefundId: reference || null,
@@ -516,7 +430,7 @@ function RefundsPanel() {
         }),
       });
       setMessage(
-        next === "SUCCESS"
+        next === 'SUCCESS'
           ? `Đã ghi nhận hoàn tiền cho ${refund.orderCode}.`
           : `Đã ghi nhận hoàn tiền thất bại cho ${refund.orderCode}.`,
       );
@@ -588,29 +502,21 @@ function RefundsPanel() {
                     <span className={stateClass(refund.status)}>{refund.status}</span>
                   </td>
                   <td className="table-actions">
-                    {refund.status === "PENDING" ? (
+                    {refund.status === 'PENDING' ? (
                       openId === refund.id ? (
-                        <SettleRefundForm
-                          refund={refund}
-                          onCancel={() => setOpenId(null)}
-                          onSettle={settle}
-                        />
+                        <SettleRefundForm refund={refund} onCancel={() => setOpenId(null)} onSettle={settle} />
                       ) : (
                         <button onClick={() => setOpenId(refund.id)}>Chốt khoản này</button>
                       )
                     ) : (
-                      refund.completedAt && (
-                        <small>{dateTime.format(new Date(refund.completedAt))}</small>
-                      )
+                      refund.completedAt && <small>{dateTime.format(new Date(refund.completedAt))}</small>
                     )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </DataTable>
-          {data?.items.length === 0 && (
-            <p className="empty-state">Không có khoản hoàn tiền nào.</p>
-          )}
+          {data?.items.length === 0 && <p className="empty-state">Không có khoản hoàn tiền nào.</p>}
           <Pagination data={data} onPage={setPage} />
         </>
       )}
@@ -625,18 +531,13 @@ function SettleRefundForm({
 }: {
   refund: Refund;
   onCancel: () => void;
-  onSettle: (
-    refund: Refund,
-    next: "SUCCESS" | "FAILED",
-    reference: string,
-    failureMessage: string,
-  ) => Promise<void>;
+  onSettle: (refund: Refund, next: 'SUCCESS' | 'FAILED', reference: string, failureMessage: string) => Promise<void>;
 }) {
-  const [reference, setReference] = useState("");
-  const [failureMessage, setFailureMessage] = useState("");
+  const [reference, setReference] = useState('');
+  const [failureMessage, setFailureMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function run(next: "SUCCESS" | "FAILED") {
+  async function run(next: 'SUCCESS' | 'FAILED') {
     setBusy(true);
     try {
       await onSettle(refund, next, reference.trim(), failureMessage.trim());
@@ -665,13 +566,13 @@ function SettleRefundForm({
           onChange={(event) => setFailureMessage(event.target.value)}
         />
       </label>
-      <button disabled={busy} onClick={() => void run("SUCCESS")}>
+      <button disabled={busy} onClick={() => void run('SUCCESS')}>
         Đã hoàn tiền
       </button>
       <button
         disabled={busy || !failureMessage.trim()}
-        title={!failureMessage.trim() ? "Cần ghi lý do trước" : undefined}
-        onClick={() => void run("FAILED")}
+        title={!failureMessage.trim() ? 'Cần ghi lý do trước' : undefined}
+        onClick={() => void run('FAILED')}
       >
         Hoàn thất bại
       </button>

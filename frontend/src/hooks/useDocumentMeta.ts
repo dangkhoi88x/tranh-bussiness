@@ -103,7 +103,16 @@ export function useDocumentMeta(metadata: DocumentMeta | null) {
       document.title = originalTitle;
       restore.reverse().forEach((restoreEntry) => restoreEntry());
     };
-  }, [metadata?.title, metadata?.description, metadata?.canonicalUrl, metadata?.type, metadata?.imageUrl, metadata?.imageAlt, metadata?.robots, jsonLd]);
+  }, [
+    metadata?.title,
+    metadata?.description,
+    metadata?.canonicalUrl,
+    metadata?.type,
+    metadata?.imageUrl,
+    metadata?.imageAlt,
+    metadata?.robots,
+    jsonLd,
+  ]);
 }
 
 export function absoluteSiteUrl(pathOrUrl: string): string {

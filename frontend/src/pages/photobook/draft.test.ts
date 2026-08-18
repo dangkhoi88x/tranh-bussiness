@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { clamp, draftImages, hydrateDraftSpreads, makeSpreads, pickNewerDraft, slotCapacityOf, suggestPageCountForTemplate } from './draft';
+import {
+  clamp,
+  draftImages,
+  hydrateDraftSpreads,
+  makeSpreads,
+  pickNewerDraft,
+  slotCapacityOf,
+  suggestPageCountForTemplate,
+} from './draft';
 import { PHOTOBOOK_TEMPLATES, type PhotobookTemplate } from '../../data/photobookTemplates';
 import { layoutByCode } from '../../data/spreadLayouts';
 import type { StoredPhotobookDraft } from '../../data/photobookDraft';
@@ -8,7 +16,16 @@ const template = {
   id: 'tu-do',
   layoutCycle: ['full-bleed', 'duo'],
   spreadColors: ['#ffffff', '#f5f5f5'],
-  presetCaptions: [{ spreadIndex: 1, text: 'Chuyện của chúng mình', fontSize: 24, color: '#1a1a1a', align: 'center', fontFamily: 'Lora' }],
+  presetCaptions: [
+    {
+      spreadIndex: 1,
+      text: 'Chuyện của chúng mình',
+      fontSize: 24,
+      color: '#1a1a1a',
+      align: 'center',
+      fontFamily: 'Lora',
+    },
+  ],
 } as unknown as PhotobookTemplate;
 
 describe('slotCapacityOf', () => {
@@ -23,8 +40,10 @@ describe('slotCapacityOf', () => {
 
   it('khớp với số ô đếm được từ chính các trang đôi makeSpreads dựng ra', () => {
     for (const tpl of PHOTOBOOK_TEMPLATES) {
-      const built = makeSpreads(10, [], tpl)
-        .reduce((total, spread) => total + layoutByCode(spread.layoutCode).slots.length, 0);
+      const built = makeSpreads(10, [], tpl).reduce(
+        (total, spread) => total + layoutByCode(spread.layoutCode).slots.length,
+        0,
+      );
 
       expect(slotCapacityOf(tpl, 20)).toBe(built);
     }
@@ -40,7 +59,10 @@ describe('slotCapacityOf', () => {
 });
 
 describe('suggestPageCountForTemplate', () => {
-  const options = [{ pageCount: 20, price: 0 }, { pageCount: 40, price: 0 }];
+  const options = [
+    { pageCount: 20, price: 0 },
+    { pageCount: 40, price: 0 },
+  ];
   const tpl = { layoutCycle: ['BON_O'] } as unknown as PhotobookTemplate;
 
   it('gợi ý mức trang đầu tiên đủ ô cho số ảnh khách có', () => {
@@ -94,15 +116,19 @@ describe('makeSpreads', () => {
 
 describe('hydrateDraftSpreads', () => {
   const storedDraft = {
-    spreads: [{
-      position: 1,
-      layoutCode: 'duo',
-      slots: [
-        { imageId: 'anh-1', zoom: 9, panX: -5, panY: 0.4 },
-        { imageId: 'anh-thieu', zoom: 1, panX: 0, panY: 0 },
-      ],
-      captions: [{ id: 'c1', text: 'Hè 2026', x: 0.5, y: 0.5, fontSize: 20, color: '#000', bold: false, align: 'center' }],
-    }],
+    spreads: [
+      {
+        position: 1,
+        layoutCode: 'duo',
+        slots: [
+          { imageId: 'anh-1', zoom: 9, panX: -5, panY: 0.4 },
+          { imageId: 'anh-thieu', zoom: 1, panX: 0, panY: 0 },
+        ],
+        captions: [
+          { id: 'c1', text: 'Hè 2026', x: 0.5, y: 0.5, fontSize: 20, color: '#000', bold: false, align: 'center' },
+        ],
+      },
+    ],
   } as unknown as StoredPhotobookDraft;
 
   it('ép zoom và pan về khoảng hợp lệ', () => {
@@ -144,14 +170,19 @@ describe('hydrateDraftSpreads', () => {
 describe('draftImages', () => {
   it('chỉ lấy ô vừa có id vừa có tệp', () => {
     const file = new File(['x'], 'a.jpg');
-    const spreads = [{
-      position: 1, layoutCode: 'duo', captions: [], backgroundColor: '#fff',
-      slots: [
-        { imageId: 'co-du', file, preview: null, zoom: 1, panX: 0, panY: 0 },
-        { imageId: 'thieu-tep', file: null, preview: null, zoom: 1, panX: 0, panY: 0 },
-        { imageId: null, file, preview: null, zoom: 1, panX: 0, panY: 0 },
-      ],
-    }];
+    const spreads = [
+      {
+        position: 1,
+        layoutCode: 'duo',
+        captions: [],
+        backgroundColor: '#fff',
+        slots: [
+          { imageId: 'co-du', file, preview: null, zoom: 1, panX: 0, panY: 0 },
+          { imageId: 'thieu-tep', file: null, preview: null, zoom: 1, panX: 0, panY: 0 },
+          { imageId: null, file, preview: null, zoom: 1, panX: 0, panY: 0 },
+        ],
+      },
+    ];
 
     expect(draftImages(spreads)).toEqual([{ id: 'co-du', file }]);
   });

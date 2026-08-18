@@ -10,14 +10,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const reloadUnreadCount = useCallback(async () => {
-    if (!session) { setUnreadCount(0); return; }
+    if (!session) {
+      setUnreadCount(0);
+      return;
+    }
     setLoading(true);
-    try { setUnreadCount((await fetchUnreadNotificationCount()).unreadCount); }
-    catch { setUnreadCount(0); }
-    finally { setLoading(false); }
+    try {
+      setUnreadCount((await fetchUnreadNotificationCount()).unreadCount);
+    } catch {
+      setUnreadCount(0);
+    } finally {
+      setLoading(false);
+    }
   }, [session]);
 
-  useEffect(() => { void reloadUnreadCount(); }, [reloadUnreadCount]);
+  useEffect(() => {
+    void reloadUnreadCount();
+  }, [reloadUnreadCount]);
   const value = useMemo(() => ({ unreadCount, loading, reloadUnreadCount }), [loading, reloadUnreadCount, unreadCount]);
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
 }
