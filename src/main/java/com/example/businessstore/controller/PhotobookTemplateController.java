@@ -32,7 +32,9 @@ public class PhotobookTemplateController {
 
     private final PhotobookTemplateService photobookTemplateService;
 
-    /** Công khai: trang sản phẩm dựng danh sách chủ đề cho khách chọn từ đây. */
+    /**
+     * Công khai: trang sản phẩm dựng danh sách chủ đề cho khách chọn từ đây.
+     */
     @GetMapping
     public ResponseEntity<ApiResponse<List<PhotobookTemplateResponse>>> active() {
         return ResponseEntity.ok(ApiResponse.success(photobookTemplateService.findActive()));

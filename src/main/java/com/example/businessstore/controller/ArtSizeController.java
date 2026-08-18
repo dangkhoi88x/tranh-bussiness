@@ -1,3 +1,43 @@
 package com.example.businessstore.controller;
-import com.example.businessstore.constant.SecurityExpressions; import com.example.businessstore.dto.request.*; import com.example.businessstore.dto.response.*; import com.example.businessstore.service.ArtSizeService; import jakarta.validation.Valid; import lombok.RequiredArgsConstructor; import org.springframework.http.*; import org.springframework.security.access.prepost.PreAuthorize; import org.springframework.web.bind.annotation.*; import java.util.*;
-@RestController @RequestMapping("/api/v1/art-sizes") @RequiredArgsConstructor public class ArtSizeController { private final ArtSizeService service; @GetMapping public ResponseEntity<ApiResponse<List<ArtSizeResponse>>> active(){return ResponseEntity.ok(ApiResponse.success(service.findActive()));} @GetMapping("/management") @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS) public ResponseEntity<ApiResponse<List<ArtSizeResponse>>> all(){return ResponseEntity.ok(ApiResponse.success(service.findAllForManagement()));} @PostMapping @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS) public ResponseEntity<ApiResponse<ArtSizeResponse>> create(@Valid @RequestBody CreateArtSizeRequest r){return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.create(r),"Đã tạo khổ tranh."));} @PutMapping("/{id}") @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS) public ResponseEntity<ApiResponse<ArtSizeResponse>> update(@PathVariable UUID id,@Valid @RequestBody UpdateArtSizeRequest r){return ResponseEntity.ok(ApiResponse.success(service.update(id,r),"Đã cập nhật khổ tranh."));}}
+
+import com.example.businessstore.constant.SecurityExpressions;
+import com.example.businessstore.dto.request.*;
+import com.example.businessstore.dto.response.*;
+import com.example.businessstore.service.ArtSizeService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/v1/art-sizes")
+@RequiredArgsConstructor
+public class ArtSizeController {
+    private final ArtSizeService service;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<ArtSizeResponse>>> active() {
+        return ResponseEntity.ok(ApiResponse.success(service.findActive()));
+    }
+
+    @GetMapping("/management")
+    @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
+    public ResponseEntity<ApiResponse<List<ArtSizeResponse>>> all() {
+        return ResponseEntity.ok(ApiResponse.success(service.findAllForManagement()));
+    }
+
+    @PostMapping
+    @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
+    public ResponseEntity<ApiResponse<ArtSizeResponse>> create(@Valid @RequestBody CreateArtSizeRequest r) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(service.create(r), "Đã tạo khổ tranh."));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
+    public ResponseEntity<ApiResponse<ArtSizeResponse>> update(@PathVariable UUID id, @Valid @RequestBody UpdateArtSizeRequest r) {
+        return ResponseEntity.ok(ApiResponse.success(service.update(id, r), "Đã cập nhật khổ tranh."));
+    }
+}
