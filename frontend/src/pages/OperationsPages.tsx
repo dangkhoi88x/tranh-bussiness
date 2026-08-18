@@ -32,7 +32,7 @@ export function OrderDetailPage() {
 }
 
 function OrderStatusCard({ order, onSaved, onError }: { order: Order; onSaved: () => void; onError: (message: string) => void }) {
-  const options = order.status === 'PENDING' ? ['CONFIRMED', 'CANCELLED'] : []
+  const options = order.status === 'PENDING' ? ['CONFIRMED', 'CANCELLED'] : order.status === 'CONFIRMED' ? ['CANCELLED'] : []
   const [status, setStatus] = useState(options[0] ?? ''); const [note, setNote] = useState(''); const [busy, setBusy] = useState(false)
   if (options.length === 0) return <Panel><div className="panel-heading"><div><h3>Trạng thái đơn</h3><p>Đơn được vận hành tiếp bởi shipment hoặc đã ở trạng thái kết thúc.</p></div></div><div className="detail-copy">Trạng thái hiện tại: <span className={stateClass(order.status)}>{order.status}</span></div></Panel>
   async function submit(event: FormEvent) { event.preventDefault(); setBusy(true); try { await apiRequest(`/orders/${order.id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note: note || null }) }); onSaved() } catch (error) { onError(errorText(error)) } finally { setBusy(false) } }
@@ -41,7 +41,7 @@ function OrderStatusCard({ order, onSaved, onError }: { order: Order; onSaved: (
 
 function ShipmentCard({ order, shipment, onSaved, onError }: { order: Order; shipment: Shipment | null; onSaved: () => void; onError: (message: string) => void }) {
   if (!shipment) return <CreateShipmentCard order={order} onSaved={onSaved} onError={onError} />
-  return <ExistingShipmentCard order={order} shipment={shipment} onSaved={onSaved} onError={onError} />
+  return <ExistingShipmentCard key={shipment.status} order={order} shipment={shipment} onSaved={onSaved} onError={onError} />
 }
 
 // DELIVERED và DELIVERY_FAILED không đi qua PUT /shipments/{id}/status — ShipmentServiceImpl.allowed()
