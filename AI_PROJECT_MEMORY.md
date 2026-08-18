@@ -1,11 +1,13 @@
 # AI Project Memory — Business Store
 
-> Cập nhật theo source tại nhánh `main`, ngày 2026-08-05.  
+> Cập nhật theo source tại nhánh `fe-detail1`, ngày 2026-08-18 (lần trước: 2026-08-05, đã lệch khá xa so với source).  
 > Đây là tài liệu bàn giao ngữ cảnh cho AI/lập trình viên tiếp theo. Khi tài liệu và source khác nhau, **source + Flyway migration + test hiện tại là nguồn sự thật cuối cùng**.
+>
+> Tài liệu này mô tả *ngữ cảnh và ý đồ thiết kế*, không phải trạng thái hoàn thành theo thời gian thực. Trước khi dựa vào mục 15 (đã có / chưa có), hãy đối chiếu nhanh: `ls src/main/resources/db/migration | tail`, `git log --oneline -20`, và route table trong `frontend/src/App.tsx`.
 
 ## 1. Project này đang xây cái gì?
 
-Business Store là hệ thống thương mại điện tử cho cửa hàng tranh, khung tranh và dịch vụ đặt tranh/đóng khung theo yêu cầu.
+Business Store (thương hiệu *bubble memories*) là hệ thống thương mại điện tử cho cửa hàng tranh, khung tranh, photobook đặt làm và dịch vụ in/đóng khung theo yêu cầu.
 
 Sản phẩm không chỉ là một website bán hàng phổ thông. Domain chính phải thể hiện đúng đặc thù cửa hàng tranh:
 
@@ -13,6 +15,7 @@ Sản phẩm không chỉ là một website bán hàng phổ thông. Domain chí
 - Một tác phẩm có thể có nhiều biến thể theo khổ tranh, chất liệu, SKU, giá và tồn kho riêng.
 - Khách có thể chọn khung tương thích; tiền khung là phần cộng thêm, tách khỏi giá tranh.
 - Khách có thể gửi yêu cầu riêng như làm khung, in và đóng khung, hoặc in ảnh gia đình; nhân viên báo giá rồi chuyển yêu cầu được chấp nhận thành Order bình thường.
+- **Photobook là dòng sản phẩm tự dựng riêng, phức tạp nhất hệ thống**: khách tự thiết kế trước khi mua, giá tính theo số trang, sau khi mua thì gửi ảnh và xưởng gửi bản mềm cho khách duyệt (xem mục 14).
 - Cửa hàng vận hành đơn, COD, giao hàng, coupon, tồn kho, nhân sự và dashboard trong cùng một hệ thống.
 
 Mục tiêu hiện tại là một **modular monolith thực dụng**, đủ chặt về transaction, phân quyền và tính nhất quán dữ liệu. Không chia microservice chỉ để tăng số lượng service.
@@ -58,8 +61,8 @@ Các thư mục quan trọng:
 - `entity`: domain persistence model.
 - `constant`: state machine/permission/domain enum.
 - `security`: JWT, CORS, cookie, authentication/authorization.
-- `src/main/resources/db/migration`: lịch sử schema V1…V36; phải thêm migration mới thay vì sửa migration đã chạy.
-- `frontend/src`: admin web app hiện tại.
+- `src/main/resources/db/migration`: lịch sử schema V1…V55 (16 migration trong đó thuộc photobook); phải thêm migration mới thay vì sửa migration đã chạy.
+- `frontend/src`: **cả storefront công khai và admin/operations** trong cùng một app; `/admin/*` là một chunk `lazy()` riêng.
 - `src/test`: unit/security/migration test.
 
 ## 4. Hạ tầng và cách chạy local
@@ -289,10 +292,18 @@ NEW -> QUOTED -> CONFIRMED -> IN_PRODUCTION -> COMPLETED
 
 ## 12. Notification và email
 
-Event hiện có:
+`NotificationType` hiện có 6 giá trị, tất cả đều đã được wire:
 
-- `UserRegisteredEvent` -> in-app `WELCOME` + welcome email.
-- `OrderConfirmedEvent` -> in-app `ORDER_CONFIRMED` + email xác nhận đơn.
+| Event | NotificationType | Nơi publish |
+|---|---|---|
+| `UserRegisteredEvent` | `WELCOME` | `AuthenticationServiceImpl` |
+| `OrderPlacedEvent` | `ORDER_PLACED` | `OrderServiceImpl.checkout()` |
+| `OrderConfirmedEvent` | `ORDER_CONFIRMED` | `OrderServiceImpl` |
+| `OrderShippedEvent` | `ORDER_SHIPPED` | `ShipmentServiceImpl` |
+| `CustomOrderQuotedEvent` | `CUSTOM_ORDER_QUOTED` | `CustomOrderRequestServiceImpl` |
+| — (tạo trực tiếp, không qua event) | `PHOTOBOOK_PROOF_SENT` | `PhotobookProjectServiceImpl` |
+
+**Khoảng trống đã biết** (xem mục 15): `OrderFulfillmentServiceImpl` không publish event nào và `OrderServiceImpl.cancelOrder()` cũng vậy, nên khách **không nhận được thông báo** khi đơn bị huỷ, giao thành công, hoặc giao thất bại. Đây là lỗ hổng nghiệp vụ chứ không chỉ thiếu tính năng — khách bị giao hàng thất bại hiện không được báo gì.
 
 Pattern bắt buộc giữ:
 
@@ -306,17 +317,30 @@ business transaction COMMIT
 
 Notification query/mutation luôn lọc theo authenticated user ID để không đọc/đánh dấu notification của người khác.
 
-## 13. Dashboard và admin frontend hiện tại
+Cảnh báo "đơn mới" cho **admin** là cơ chế tách biệt, không dùng bảng `notifications`: `OrderPlacedEvent` -> `NotificationEventListener` gọi `AdminOrderNotificationPublisher` -> Redis pub/sub -> mỗi instance có `RedisAdminOrderNotificationSubscriber` fan-out xuống SSE client cục bộ (`AdminOrderNotificationStreamService`). Redis pub/sub ở đây là bắt buộc để nhiều instance cùng nhận, không thể thay bằng in-process event.
 
-Frontend hiện tại là **admin/operations app**, chưa phải storefront hoàn chỉnh.
+## 13. Frontend: storefront và admin
 
-Các route chính:
+`frontend/src/App.tsx` là **một route table duy nhất cho cả storefront công khai lẫn admin**. Đây là điểm tài liệu cũ mô tả sai: storefront đã hoàn chỉnh và chạy được end-to-end, không còn là "chỉ có admin app".
 
-- `/auth`, `/account`
-- `/admin/dashboard`
-- `/admin/users`
-- `/admin/categories`, `/admin/products`, `/admin/materials`, `/admin/art-sizes`, `/admin/frames`
-- `/admin/orders`, `/admin/payments`, `/admin/custom-orders`, `/admin/shipments`, `/admin/promotions`
+Storefront (tiếng Việt, slug tiếng Việt):
+
+| Route | Chức năng |
+|---|---|
+| `/` | Trang chủ |
+| `/danh-muc/:slug`, `/tranh/:slug` | Danh mục, chi tiết tranh (chọn khổ/khung, thêm giỏ) |
+| `/tim-kiem` | Tìm kiếm |
+| `/gio-hang`, `/thanh-toan` | Giỏ hàng, checkout (COD, áp coupon) |
+| `/don-hang-cua-toi`, `/don-hang-cua-toi/:orderId` | Đơn của tôi, chi tiết + huỷ đơn |
+| `/yeu-thich`, `/thong-bao` | Wishlist, notification center |
+| `/account`, `/auth`, `/dat-lai-mat-khau` | Tài khoản, đăng nhập/ký, reset mật khẩu |
+| `/dat-in` | Đặt in theo yêu cầu (custom order) |
+| `/photobook`, `/photobook/:slug` | Catalog và editor photobook |
+| `/photobook-cua-toi/:projectId[/sap-xep]` | Dự án photobook của khách, trang sắp xếp |
+| `/xem-truoc/:token` | Share preview công khai, không cần đăng nhập |
+| `/gioi-thieu`, `/kho-va-gia`, `/lien-he`, `/chinh-sach-*` | Trang tĩnh |
+
+Admin (`/admin/*`, một chunk `lazy()` riêng): `dashboard`, `users`, `categories`, `products`, `materials`, `art-sizes`, `frames`, `orders`, `payments`, `custom-orders`, `shipments`, `promotions`, `photobooks`, `photobook-templates`.
 
 Route và menu đều lọc bằng permission. Dashboard hiển thị:
 
@@ -331,48 +355,90 @@ Không bịa số dashboard: backend aggregate từ Order/Payment/Product. Reven
 
 Thiết kế frontend dùng React + TypeScript thuần, chưa có state/query library lớn. Access token được giữ phía frontend, refresh cookie đi kèm credential; wrapper HTTP tự refresh session theo contract hiện tại.
 
-## 14. Những gì đã có và những gì chưa có
+**Nợ kỹ thuật frontend cần biết trước khi sửa** (chi tiết ở mục 15):
+
+- Nhiều page được viết thành **một dòng JSX cực dài** (`NotificationsPage` 3342 ký tự/dòng, `OperationsPages` 3206, `WishlistPage` 3185; 15 file trên 400 ký tự). Diff của những dòng này gần như không review được — một bug stale-state từng ẩn trong đó suốt thời gian dài.
+- Còn 15 chỗ dùng `window.prompt/confirm/alert` (`CatalogFilterPage`, `CatalogPages`, `PromotionPages`, `StaffPages`, `OperationsFilterPages`) trong khi phần còn lại đã có modal riêng. Chúng vừa lệch design system vừa chặn test tự động.
+- **Không có test component/page nào**: 45 page + 20 component, nhưng chỉ 4 file test và đều thuộc lớp api/data (`http`, `guestCart`, `googleOAuth`, `draft`).
+
+## 14. Photobook
+
+Đây là subsystem lớn nhất và dễ nhầm lẫn nhất: **67 file backend, 13 entity, 16 migration, 29 file frontend, 7 test class**. Bốn khái niệm dưới đây gần giống nhau nhưng **không được gộp**:
+
+| Khái niệm | Bảng | Vòng đời |
+|---|---|---|
+| `PhotobookDraft` | `photobook_drafts` | State editor trước khi mua, 1 row/user+slug, ghi đè mỗi lần autosave. Chỉ metadata — file ảnh nằm client-side (IndexedDB, `frontend/src/data/photobookDraft.ts`). **Không** bao giờ được order tham chiếu. |
+| `PhotobookDesign` | `photobook_designs` (+ `_images`) | Snapshot bất biến đã upload đầy đủ, tạo ngay trước "thêm vào giỏ". `CartItem`/`OrderItem` link tới đây (`photobook_design_id`) để cái đem đi sản xuất đúng bằng cái khách thấy lúc add-to-cart. |
+| `PhotobookProject` | `photobook_projects` (+ `PhotobookSpread`/`SpreadSlot`) | Bản ghi sản xuất thật, 1 project/photobook `OrderItem`, tạo tại checkout bởi `PhotobookProjectServiceImpl.openProjectsFor()`. |
+| `PhotobookSharePreview` | `photobook_share_previews` (+ `_images`) | Snapshot read-only chia sẻ bằng token, sống 30 ngày, cho người chưa đăng nhập xem. Cùng shape `spreads` JSON với Design nhưng khác vòng đời. |
+
+State machine của project:
+
+```text
+AWAITING_PHOTOS -> PHOTOS_SUBMITTED -> PROOF_SENT -> APPROVED
+                                          └-> REVISION_REQUESTED (tối đa 2 lần miễn phí) -┘
+```
+
+Nếu order item có `PhotobookDesign` kèm theo, project được hydrate thẳng thành spreads/slots/photos và bắt đầu ở `PHOTOS_SUBMITTED`; nếu không, bắt đầu ở `AWAITING_PHOTOS` và khách phải tự upload, sau đó `PhotobookLayoutEngine` tự sinh spread từ template mặc định.
+
+Hai chỗ **bắt buộc sửa cùng lúc**, không được để lệch:
+
+- Layout archetype (`TRAN_DOI`, `DOI_CAN`, `CONTACT_SHEET`, …) phải giống hệt nhau giữa `frontend/src/data/spreadLayouts.ts` và bảng seed `photobook_layouts` — mã layout chọn ở client được dùng thẳng ở server, không có bước dịch.
+- Luật `3–4 ảnh/trang` cố ý lặp ở cả hai phía: `frontend/src/api/photobook.ts` (`photoRangeFor()`) và `PhotobookProjectServiceImpl`/`PhotobookDesignServiceImpl`.
+
+`PhotobookSpreadsPayloadValidator` là phần dùng chung giữa Design và SharePreview (parse metadata, đối chiếu image id, giới hạn kích thước).
+
+## 15. Những gì đã có và những gì chưa có
 
 ### Đã có
 
-- Backend monolith và PostgreSQL schema V1…V36.
-- IAM, JWT/refresh Redis, Google OAuth contract, password reset, RBAC động.
+- Backend monolith và PostgreSQL schema V1…V55.
+- IAM, JWT/refresh Redis, Google OAuth contract, password reset, RBAC động, rate limit cho endpoint auth.
 - Catalog, variant, material, art size, frame, media.
 - Cart, wishlist, shipping address.
 - Checkout, immutable snapshots, history, stock locking/compensation.
 - Promotion preview/reserve/consume/release/expire.
-- COD, shipment, atomic fulfillment, refund record foundation.
+- COD, shipment, atomic fulfillment, refund record + API settle thủ công.
 - Custom order end-to-end đến Order.
-- Persisted notification + email ở hai milestone.
-- Admin frontend cho catalog và operations.
-- Dashboard và quản lý nhân sự/quyền STAFF.
+- **Photobook end-to-end**: draft/design/project/share-preview, layout engine, pricing theo trang, hàng đợi xưởng, gửi proof.
+- Notification in-app + email cho 6 loại sự kiện; SSE realtime báo đơn mới cho admin qua Redis pub/sub.
+- **Storefront khách hàng hoàn chỉnh** (xem bảng route ở mục 13) — đã verify chạy thật end-to-end.
+- Admin/operations đầy đủ, dashboard, quản lý nhân sự và quyền STAFF.
+- CI (`.github/workflows/ci.yml`) chạy backend test -> frontend test -> frontend build trên mỗi PR.
 
 ### Chưa hoàn thiện / ranh giới trung thực
 
-- Storefront/customer UI đầy đủ: catalog mua hàng, product detail cho customer, cart, checkout, wishlist, my orders, notification center.
-- Online payment provider, signed webhook, reconciliation và refund provider thật.
-- Email delivery có retry queue/outbox; hiện failure sau commit chỉ được log.
-- Notification type cho shipping/delivery/payment/custom-order chưa được mở rộng.
-- E2E browser test xuyên suốt customer checkout -> staff fulfillment.
-- Production observability sâu, rate limiting, audit/security hardening, CI/CD và deployment guide hoàn chỉnh.
-- Refund processing API/background worker để đổi `PENDING` thành `SUCCESS/FAILED`.
+Xếp theo mức độ nên xử lý trước:
+
+1. **Không có test frontend cho UI.** 45 page + 20 component, 0 test component/page; 4 file test hiện có đều thuộc lớp api/data. Hai bug thật được phát hiện ngày 2026-08-18 (admin không huỷ được đơn `CONFIRMED`; stale state ở `ExistingShipmentCard`) đều là frontend và đều lọt qua CI.
+2. **Nợ định dạng che giấu bug.** 15 file frontend + 10 file backend có dòng trên 400 ký tự (tối đa 3342). Bug stale-state nêu trên nằm gọn trong một dòng 3206 ký tự.
+3. **Thiếu notification ở nhánh huỷ/giao thành công/giao thất bại** (chi tiết ở mục 12).
+4. `window.prompt/confirm/alert` còn 15 chỗ — chặn test tự động và lệch design system.
+5. Online payment provider, signed webhook, reconciliation và refund provider thật.
+6. Email delivery có retry queue/outbox; hiện failure sau commit chỉ được log. Không có bất kỳ outbox/`@Retryable` nào trong source.
+7. E2E browser test xuyên suốt customer checkout -> staff fulfillment. Chưa cài Playwright/Cypress.
+8. 27 service backend chưa có unit test (phần lớn là CRUD, rủi ro thấp hơn nhóm order/promotion/photobook vốn đã có test tốt).
+9. Production observability sâu, audit log, security hardening, deployment guide hoàn chỉnh.
 
 Không gọi dự án là production-ready cho tới khi các phần payment/webhook/reconciliation, email retry/outbox, E2E và operational hardening được xử lý.
 
-## 15. Roadmap hợp lý
+## 16. Roadmap hợp lý
 
-Thứ tự ưu tiên đề xuất:
+> Ưu tiên #1 của bản roadmap cũ ("hoàn thiện storefront") **đã xong**. Thứ tự dưới đây được viết lại ngày 2026-08-18.
 
-1. Hoàn thiện storefront/customer UI dựa trên API hiện có.
-2. Thêm E2E cho luồng customer checkout -> staff confirm -> COD/shipment -> delivery success/failure.
-3. Chọn và tích hợp online payment theo server-authoritative flow: signed webhook, amount/currency/order validation, idempotency, reconciliation.
-4. Hoàn thiện refund processor và trạng thái provider.
-5. Thêm durable outbox/retry cho notification/email và mở rộng business event.
-6. Observability, audit log, rate limit, CI/CD, backup/restore và production deployment.
+1. **Chống hồi quy frontend** — gộp ba việc cùng gốc: viết test cho các luồng admin hay đổi trạng thái nhất (order transition, shipment transition, promotion form); chạy Prettier trên đúng file đang sửa để tách các dòng nghìn ký tự (không format cả repo một lượt, tránh diff khổng lồ nuốt lịch sử git); thay `window.confirm/prompt` bằng modal có sẵn để mở khoá test tự động. Đây là chỗ vừa phát sinh 2 bug thật.
+2. **Bổ sung notification còn thiếu** cho huỷ đơn / giao thành công / giao thất bại. Việc nhỏ, giá trị nghiệp vụ cao: pattern `AFTER_COMMIT` + `ON CONFLICT(event_key)` đã có sẵn, chỉ cần thêm event + enum theo khuôn `OrderShippedEvent`.
+3. Thêm E2E cho luồng customer checkout -> staff confirm -> COD/shipment -> delivery success/failure.
+4. Chọn và tích hợp online payment theo server-authoritative flow: signed webhook, amount/currency/order validation, idempotency, reconciliation.
+5. Hoàn thiện refund processor và trạng thái provider.
+6. Thêm durable outbox/retry cho notification/email.
+7. Observability, audit log, backup/restore và production deployment.
+
+Lý do để payment (mục 4) sau lưới an toàn test: đây là hạng mục lớn và rủi ro nhất, không nên làm khi frontend chưa có test hồi quy nào.
 
 Không nên tách microservice trước khi các invariant trên được test chắc. Nếu scale thực tế xuất hiện, boundary tự nhiên có thể là media, notification hoặc payment integration; Order/Promotion/Inventory vẫn cần chiến lược consistency rõ ràng trước khi tách.
 
-## 16. Quy tắc cho AI tiếp tục code
+## 17. Quy tắc cho AI tiếp tục code
 
 Trước khi thay đổi:
 
@@ -398,7 +464,7 @@ Khi thay đổi frontend:
 - Hiển thị backend error có ích; không che lỗi thật bằng “Something went wrong” chung chung.
 - Kiểm tra responsive, loading, empty, error, disabled/busy và forbidden state.
 
-## 17. Checklist xác minh
+## 18. Checklist xác minh
 
 ```bash
 # Backend compile
@@ -428,7 +494,7 @@ Snapshot xác minh ngày 2026-08-05:
 - `frontend/npm run build`: TypeScript và Vite production build thành công.
 - Đây vẫn chưa phải browser E2E hoặc production deployment verification.
 
-## 18. Source map để bắt đầu nhanh
+## 19. Source map để bắt đầu nhanh
 
 - Tổng quan API/chạy local: `README.md`
 - Quy ước layer: `architecture.md`
@@ -441,10 +507,16 @@ Snapshot xác minh ngày 2026-08-05:
 - Notification: `service/impl/NotificationEventListener.java`, `repository/NotificationRepository.java`
 - Product filters: `repository/specification/ProductCatalogSpecifications.java`
 - Custom request: `service/impl/CustomOrderRequestServiceImpl.java`
-- Admin routes: `frontend/src/App.tsx`, `frontend/src/components/AdminLayout.tsx`
+- Photobook production: `service/impl/PhotobookProjectServiceImpl.java`, `service/impl/PhotobookLayoutEngine.java`
+- Photobook design/share: `service/impl/PhotobookDesignServiceImpl.java`, `service/impl/PhotobookSharePreviewServiceImpl.java`, `service/impl/PhotobookSpreadsPayloadValidator.java`
+- Photobook pricing: `service/impl/PhotobookPricing.java`, `service/impl/PhotobookPagePricingServiceImpl.java`
+- Layout vocab phải khớp server: `frontend/src/data/spreadLayouts.ts` ↔ bảng seed `photobook_layouts`
+- **Toàn bộ route (storefront + admin)**: `frontend/src/App.tsx`
+- Admin layout: `frontend/src/components/AdminLayout.tsx`
 - Auth frontend: `frontend/src/contexts/AuthContext.tsx`, `frontend/src/api/http.ts`
+- Photobook draft client-side: `frontend/src/data/photobookDraft.ts`, `frontend/src/api/photobook.ts`
 - Schema truth: `src/main/resources/db/migration/`
 
-## 19. Tóm tắt một đoạn cho AI
+## 20. Tóm tắt một đoạn cho AI
 
-Đây là Java 21/Spring Boot modular monolith cho shop tranh và đóng khung, dùng PostgreSQL/Flyway, Redis cho token state, Cloudinary cho media, Mailpit/SMTP cho mail, React/Vite cho admin UI. Hệ thống ưu tiên server authority, immutable order snapshot, pessimistic locking/atomic quota, state transition rõ ràng, RBAC theo permission và idempotent side effects. Backend đã có catalog/variant/frame, cart/wishlist, checkout/order, promotion, COD/shipment, custom order, notification và dashboard; frontend hiện chủ yếu phục vụ admin, storefront customer và online payment vẫn là phần tiếp theo. Mọi thay đổi phải giữ Flyway ownership, transaction/compensation, ownership/authorization và phải được xác minh bằng test + runtime phù hợp, không chỉ compile.
+Đây là Java 21/Spring Boot modular monolith cho shop tranh, đóng khung và photobook đặt làm, dùng PostgreSQL/Flyway (V1…V55), Redis cho token state và pub/sub, Cloudinary cho media, Mailpit/SMTP cho mail, React/Vite cho cả storefront lẫn admin trong một app. Hệ thống ưu tiên server authority, immutable order snapshot, pessimistic locking/atomic quota, state transition rõ ràng, RBAC theo permission và idempotent side effects. Đã có đầy đủ: catalog/variant/frame, cart/wishlist, checkout/order, promotion, COD/shipment/fulfillment, custom order, photobook end-to-end, notification, dashboard, storefront khách hàng và admin operations. Phần còn thiếu đáng kể nhất **không phải tính năng mà là lưới an toàn**: frontend chưa có test component/page nào dù bug thật gần đây đều nằm ở frontend, chưa có E2E, chưa có online payment/outbox email, và thiếu notification ở nhánh huỷ/giao-thành-công/giao-thất-bại. Mọi thay đổi phải giữ Flyway ownership, transaction/compensation, ownership/authorization và phải được xác minh bằng test + runtime phù hợp, không chỉ compile.
