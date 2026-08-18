@@ -13,6 +13,9 @@ import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.PaymentRefund;
 import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.entity.User;
+import com.example.businessstore.event.OrderDeliveredEvent;
+import com.example.businessstore.event.OrderDeliveryFailedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.OrderRepository;
@@ -26,6 +29,7 @@ import com.example.businessstore.service.OrderFulfillmentService;
 import com.example.businessstore.service.OrderStatusHistoryService;
 import com.example.businessstore.service.PromotionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +49,7 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
     private final UserRepository userRepository;
     private final PromotionService promotionService;
     private final OrderStatusHistoryService orderStatusHistoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -67,6 +72,9 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
         payment.setPaidAt(now);
         changeOrderStatus(order, OrderStatus.DELIVERED, changedBy,
                 append(request.note(), "Shipment delivered; COD payment collected"));
+        User customer = order.getUser();
+        eventPublisher.publishEvent(new OrderDeliveredEvent(customer.getId(), customer.getEmail(),
+                customer.getFirstName(), order.getId(), order.getOrderCode()));
     }
 
     @Override
@@ -98,6 +106,9 @@ public class OrderFulfillmentServiceImpl implements OrderFulfillmentService {
             note = append(note, "Coupon " + order.getPromotionCode() + " released");
         }
         changeOrderStatus(order, OrderStatus.DELIVERY_FAILED, changedBy, note);
+        User customer = order.getUser();
+        eventPublisher.publishEvent(new OrderDeliveryFailedEvent(customer.getId(), customer.getEmail(),
+                customer.getFirstName(), order.getId(), order.getOrderCode(), shipment.getFailureReason()));
     }
 
     private Order lockedOrder(UUID orderId) {

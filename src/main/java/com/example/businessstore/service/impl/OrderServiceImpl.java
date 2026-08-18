@@ -23,6 +23,7 @@ import com.example.businessstore.entity.ShippingAddress;
 import com.example.businessstore.entity.OrderShippingAddress;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.event.OrderCancelledEvent;
 import com.example.businessstore.event.OrderConfirmedEvent;
 import com.example.businessstore.event.OrderPlacedEvent;
 import com.example.businessstore.exception.AppException;
@@ -213,6 +214,7 @@ public class OrderServiceImpl implements OrderService {
             note = appendNote(note, "Coupon " + order.getPromotionCode() + " released");
         }
         changeStatus(order, OrderStatus.CANCELLED, changedBy, note == null ? "Order cancelled; pending COD payment cancelled" : note);
+        publishOrderCancelled(order);
         return toResponse(order);
     }
     private boolean allowed(OrderStatus current, OrderStatus next) { return current == OrderStatus.PENDING && next == OrderStatus.CONFIRMED; }
@@ -283,6 +285,11 @@ public class OrderServiceImpl implements OrderService {
         var user = order.getUser();
         eventPublisher.publishEvent(new OrderConfirmedEvent(user.getId(), user.getEmail(), user.getFirstName(),
                 order.getId(), order.getOrderCode(), order.getTotalAmount()));
+    }
+    private void publishOrderCancelled(Order order) {
+        var user = order.getUser();
+        eventPublisher.publishEvent(new OrderCancelledEvent(user.getId(), user.getEmail(), user.getFirstName(),
+                order.getId(), order.getOrderCode()));
     }
     private void publishOrderPlaced(Order order) {
         var user = order.getUser();

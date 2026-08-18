@@ -2,7 +2,10 @@ package com.example.businessstore.service.impl;
 
 import com.example.businessstore.constant.NotificationType;
 import com.example.businessstore.event.CustomOrderQuotedEvent;
+import com.example.businessstore.event.OrderCancelledEvent;
 import com.example.businessstore.event.OrderConfirmedEvent;
+import com.example.businessstore.event.OrderDeliveredEvent;
+import com.example.businessstore.event.OrderDeliveryFailedEvent;
 import com.example.businessstore.event.OrderPlacedEvent;
 import com.example.businessstore.event.OrderShippedEvent;
 import com.example.businessstore.event.UserRegisteredEvent;
@@ -74,6 +77,43 @@ public class NotificationEventListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrderDelivered(OrderDeliveredEvent event) {
+        runSafely("order-delivered notification", event.orderId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.ORDER_DELIVERED,
+                    "Đơn hàng " + event.orderCode() + " đã giao thành công",
+                    "Đơn hàng " + event.orderCode() + " đã được giao và khoản thanh toán khi nhận hàng đã được ghi nhận.",
+                    "/don-hang-cua-toi/" + event.orderId(), "ORDER_DELIVERED:" + event.orderId());
+            if (created) sendOrderDeliveredEmail(event);
+        });
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrderDeliveryFailed(OrderDeliveryFailedEvent event) {
+        runSafely("order-delivery-failed notification", event.orderId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.ORDER_DELIVERY_FAILED,
+                    "Giao hàng thất bại cho đơn " + event.orderCode(),
+                    "Đơn hàng " + event.orderCode() + " giao không thành công và đã được hoàn về kho. "
+                            + "Vui lòng liên hệ xưởng nếu bạn muốn giao lại.",
+                    "/don-hang-cua-toi/" + event.orderId(), "ORDER_DELIVERY_FAILED:" + event.orderId());
+            if (created) sendOrderDeliveryFailedEmail(event);
+        });
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOrderCancelled(OrderCancelledEvent event) {
+        runSafely("order-cancelled notification", event.orderId(), () -> {
+            boolean created = notificationService.createIfAbsent(
+                    event.userId(), NotificationType.ORDER_CANCELLED,
+                    "Đơn hàng " + event.orderCode() + " đã được huỷ",
+                    "Đơn hàng " + event.orderCode() + " đã được huỷ. Khoản thanh toán khi nhận hàng (nếu có) đã huỷ theo.",
+                    "/don-hang-cua-toi/" + event.orderId(), "ORDER_CANCELLED:" + event.orderId());
+            if (created) sendOrderCancelledEmail(event);
+        });
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCustomOrderQuoted(CustomOrderQuotedEvent event) {
         runSafely("custom-order quote notification", event.requestId(), () -> {
             boolean created = notificationService.createIfAbsent(
@@ -123,6 +163,30 @@ public class NotificationEventListener {
             mailService.sendOrderShippedEmail(event.email(), event.firstName(), event.orderCode(), event.carrier(), event.trackingCode());
         } catch (RuntimeException exception) {
             log.warn("Order-shipped email failed for order {}", event.orderId(), exception);
+        }
+    }
+
+    private void sendOrderDeliveredEmail(OrderDeliveredEvent event) {
+        try {
+            mailService.sendOrderDeliveredEmail(event.email(), event.firstName(), event.orderCode());
+        } catch (RuntimeException exception) {
+            log.warn("Order-delivered email failed for order {}", event.orderId(), exception);
+        }
+    }
+
+    private void sendOrderDeliveryFailedEmail(OrderDeliveryFailedEvent event) {
+        try {
+            mailService.sendOrderDeliveryFailedEmail(event.email(), event.firstName(), event.orderCode(), event.failureReason());
+        } catch (RuntimeException exception) {
+            log.warn("Order-delivery-failed email failed for order {}", event.orderId(), exception);
+        }
+    }
+
+    private void sendOrderCancelledEmail(OrderCancelledEvent event) {
+        try {
+            mailService.sendOrderCancelledEmail(event.email(), event.firstName(), event.orderCode());
+        } catch (RuntimeException exception) {
+            log.warn("Order-cancelled email failed for order {}", event.orderId(), exception);
         }
     }
 

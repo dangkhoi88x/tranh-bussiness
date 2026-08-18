@@ -14,6 +14,7 @@ import com.example.businessstore.entity.User;
 import com.example.businessstore.constant.CustomOrderRequestType;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.event.OrderCancelledEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.event.OrderConfirmedEvent;
@@ -96,6 +97,11 @@ class OrderServiceImplTest {
         verify(promotionService).release(order);
         verify(orderStatusHistoryService).record(order, OrderStatus.CONFIRMED, OrderStatus.CANCELLED, userId,
                 "Order cancelled by customer; Coupon SAVE10 released");
+        // Huỷ đơn cũng phải báo cho khách; nhánh này trước đây không phát event nào.
+        org.mockito.ArgumentCaptor<OrderCancelledEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(OrderCancelledEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().orderId()).isEqualTo(orderId);
     }
 
     @Test

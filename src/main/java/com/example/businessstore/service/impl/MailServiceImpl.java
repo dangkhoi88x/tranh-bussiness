@@ -74,6 +74,35 @@ public class MailServiceImpl implements MailService {
     }
 
     @Override
+    public void sendOrderDeliveredEmail(String recipient, String firstName, String orderCode) {
+        send(recipient, "Đơn hàng " + orderCode + " đã giao thành công",
+                "Chào " + firstName + ",\n\nĐơn hàng " + orderCode + " đã được giao thành công và khoản thanh toán "
+                        + "khi nhận hàng đã được ghi nhận.\n\nCảm ơn bạn đã tin tưởng Business Store.",
+                "order-delivered");
+    }
+
+    @Override
+    public void sendOrderDeliveryFailedEmail(String recipient, String firstName, String orderCode, String failureReason) {
+        String reason = failureReason == null || failureReason.isBlank()
+                ? ""
+                : "\nLý do: " + failureReason.trim() + ".";
+        send(recipient, "Giao hàng thất bại cho đơn " + orderCode,
+                "Chào " + firstName + ",\n\nĐơn hàng " + orderCode + " giao không thành công." + reason
+                        + "\n\nHàng đã được hoàn về kho và khoản thu hộ khi nhận hàng đã được huỷ. "
+                        + "Vui lòng liên hệ với xưởng nếu bạn muốn giao lại.",
+                "order-delivery-failed");
+    }
+
+    @Override
+    public void sendOrderCancelledEmail(String recipient, String firstName, String orderCode) {
+        send(recipient, "Đơn hàng " + orderCode + " đã được huỷ",
+                "Chào " + firstName + ",\n\nĐơn hàng " + orderCode + " đã được huỷ. "
+                        + "Khoản thanh toán khi nhận hàng (nếu có) đã được huỷ theo.\n\n"
+                        + "Nếu bạn không thực hiện thao tác này, vui lòng liên hệ với xưởng.",
+                "order-cancelled");
+    }
+
+    @Override
     public void sendCustomOrderQuoteEmail(String recipient, String firstName, String requestCode, BigDecimal quotedPrice, String staffNote) {
         String note = staffNote == null || staffNote.isBlank() ? "" : "\n\nGhi chú từ xưởng: " + staffNote.trim();
         send(recipient, "Báo giá yêu cầu in " + requestCode,

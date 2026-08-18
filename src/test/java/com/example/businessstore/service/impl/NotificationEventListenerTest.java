@@ -2,7 +2,10 @@ package com.example.businessstore.service.impl;
 
 import com.example.businessstore.constant.NotificationType;
 import com.example.businessstore.event.CustomOrderQuotedEvent;
+import com.example.businessstore.event.OrderCancelledEvent;
 import com.example.businessstore.event.OrderConfirmedEvent;
+import com.example.businessstore.event.OrderDeliveredEvent;
+import com.example.businessstore.event.OrderDeliveryFailedEvent;
 import com.example.businessstore.event.OrderPlacedEvent;
 import com.example.businessstore.event.OrderShippedEvent;
 import com.example.businessstore.event.UserRegisteredEvent;
@@ -121,5 +124,70 @@ class NotificationEventListenerTest {
         listener.onCustomOrderQuoted(new CustomOrderQuotedEvent(userId, "an@example.com", "An", requestId, "REQ-001", BigDecimal.TEN, "Khung gỗ"));
 
         verify(mailService).sendCustomOrderQuoteEmail("an@example.com", "An", "REQ-001", BigDecimal.TEN, "Khung gỗ");
+    }
+
+    @Test
+    void orderDelivered_sendsConfirmationEmailAfterCreatingNotification() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_DELIVERED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_DELIVERED:" + orderId))).thenReturn(true);
+
+        listener.onOrderDelivered(new OrderDeliveredEvent(userId, "an@example.com", "An", orderId, "ART-001"));
+
+        verify(mailService).sendOrderDeliveredEmail("an@example.com", "An", "ART-001");
+    }
+
+    @Test
+    void orderDeliveryFailed_passesFailureReasonIntoEmail() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_DELIVERY_FAILED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_DELIVERY_FAILED:" + orderId))).thenReturn(true);
+
+        listener.onOrderDeliveryFailed(new OrderDeliveryFailedEvent(
+                userId, "an@example.com", "An", orderId, "ART-001", "Khách không có nhà"));
+
+        verify(mailService).sendOrderDeliveryFailedEmail("an@example.com", "An", "ART-001", "Khách không có nhà");
+    }
+
+    @Test
+    void orderCancelled_sendsCancellationEmailAfterCreatingNotification() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_CANCELLED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_CANCELLED:" + orderId))).thenReturn(true);
+
+        listener.onOrderCancelled(new OrderCancelledEvent(userId, "an@example.com", "An", orderId, "ART-001"));
+
+        verify(mailService).sendOrderCancelledEmail("an@example.com", "An", "ART-001");
+    }
+
+    /** Cùng một event chạy lại (retry) không được gửi email lần hai — chốt chặn là event_key. */
+    @Test
+    void duplicateDeliveryFailure_doesNotSendAnotherEmail() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_DELIVERY_FAILED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_DELIVERY_FAILED:" + orderId))).thenReturn(false);
+
+        listener.onOrderDeliveryFailed(new OrderDeliveryFailedEvent(
+                userId, "an@example.com", "An", orderId, "ART-001", "Khách không có nhà"));
+
+        verify(mailService, never()).sendOrderDeliveryFailedEmail(anyString(), anyString(), anyString(), anyString());
+    }
+
+    /** Email hỏng không được biến một đơn đã lưu thành API lỗi. */
+    @Test
+    void cancellationEmailFailure_doesNotEscapeAfterCommit() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        OrderCancelledEvent event = new OrderCancelledEvent(userId, "an@example.com", "An", orderId, "ART-001");
+        when(notificationService.createIfAbsent(eq(userId), eq(NotificationType.ORDER_CANCELLED), anyString(), anyString(),
+                eq("/don-hang-cua-toi/" + orderId), eq("ORDER_CANCELLED:" + orderId))).thenReturn(true);
+        org.mockito.Mockito.doThrow(new IllegalStateException("smtp down"))
+                .when(mailService).sendOrderCancelledEmail(anyString(), anyString(), anyString());
+
+        assertThatCode(() -> listener.onOrderCancelled(event)).doesNotThrowAnyException();
     }
 }
