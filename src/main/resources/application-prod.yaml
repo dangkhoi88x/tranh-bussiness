@@ -28,6 +28,11 @@ spring:
           starttls:
             enable: true
 
+server:
+  # Chạy sau nginx: đọc X-Forwarded-For để hạn mức đếm theo IP thật của khách. Thiếu dòng
+  # này thì mọi request mang cùng IP của proxy và một người sẽ khoá được tất cả.
+  forward-headers-strategy: framework
+
 logging:
   level:
     root: info

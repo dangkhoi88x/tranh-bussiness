@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "c4-architecture": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/c4-architecture/SKILL.md",
+      "computedHash": "9192b5d6be529478a70d1a73f3d4ce83db12c2052c4e6df4accd445f21e906d4"
+    },
+    "design-doc-mermaid": {
+      "source": "spillwavesolutions/design-doc-mermaid",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "36e44f50fdbfd9e0868c1237ba879395646f42f7db780fe59f1bf4c35947869b"
+    },
+    "drawio": {
+      "source": "jgraph/drawio-mcp",
+      "sourceType": "github",
+      "skillPath": "plugins/claude-code/skills/drawio/SKILL.md",
+      "computedHash": "845059180671f05fa86fc73797eeaeb76d9b4d1e01bed4e54fe55de5c0d85e59"
+    }
+  }
+}

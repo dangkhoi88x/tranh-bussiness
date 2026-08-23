@@ -4,28 +4,38 @@ import com.example.businessstore.constant.OrderStatus;
 import com.example.businessstore.constant.PaymentMethod;
 import com.example.businessstore.constant.PaymentStatus;
 import com.example.businessstore.entity.Order;
+import com.example.businessstore.entity.Cart;
+import com.example.businessstore.entity.CartItem;
+import com.example.businessstore.entity.Category;
+import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.CustomOrderRequest;
 import com.example.businessstore.entity.ShippingAddress;
 import com.example.businessstore.entity.User;
 import com.example.businessstore.constant.CustomOrderRequestType;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.event.OrderCancelledEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.event.OrderConfirmedEvent;
+import com.example.businessstore.event.OrderPlacedEvent;
+import com.example.businessstore.dto.request.CheckoutOrderRequest;
 import com.example.businessstore.repository.CartRepository;
 import com.example.businessstore.repository.OrderRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.repository.ShipmentRepository;
 import com.example.businessstore.service.ShippingAddressService;
 import com.example.businessstore.service.OrderStatusHistoryService;
+import com.example.businessstore.service.PhotobookProjectService;
 import com.example.businessstore.service.PromotionService;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -39,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceImplTest {
@@ -46,6 +57,8 @@ class OrderServiceImplTest {
     @Mock private OrderRepository orderRepository;
     @Mock private ProductRepository productRepository;
     @Mock private ProductVariantRepository productVariantRepository;
+    @Mock private PhotobookPageTierRepository photobookPageTierRepository;
+    @Mock private PhotobookProjectService photobookProjectService;
     @Mock private PaymentRepository paymentRepository;
     @Mock private PaymentRefundRepository paymentRefundRepository;
     @Mock private ShipmentRepository shipmentRepository;
@@ -53,7 +66,16 @@ class OrderServiceImplTest {
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
     @Mock private PromotionService promotionService;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @InjectMocks private OrderServiceImpl orderService;
+    private OrderServiceImpl orderService;
+
+    @BeforeEach
+    void setUp() {
+        orderService = new OrderServiceImpl(
+                cartRepository, orderRepository, productRepository, productVariantRepository,
+                photobookProjectService, paymentRepository, paymentRefundRepository, shipmentRepository,
+                orderStatusHistoryService, shippingAddressService, promotionService,
+                new ProductSelectionPricingService(photobookPageTierRepository), eventPublisher);
+    }
 
     @Test
     void cancel_pendingCodPayment_whenOrderIsCancelledBeforeShipping() {
@@ -75,6 +97,11 @@ class OrderServiceImplTest {
         verify(promotionService).release(order);
         verify(orderStatusHistoryService).record(order, OrderStatus.CONFIRMED, OrderStatus.CANCELLED, userId,
                 "Order cancelled by customer; Coupon SAVE10 released");
+        // Huỷ đơn cũng phải báo cho khách; nhánh này trước đây không phát event nào.
+        org.mockito.ArgumentCaptor<OrderCancelledEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(OrderCancelledEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().orderId()).isEqualTo(orderId);
     }
 
     @Test
@@ -96,6 +123,67 @@ class OrderServiceImplTest {
         verify(eventPublisher).publishEvent(event.capture());
         assertThat(event.getValue().orderId()).isEqualTo(orderId);
         assertThat(event.getValue().email()).isEqualTo("customer@example.com");
+    }
+
+    @Test
+    void checkout_publishesReceiptEventWithTheFinalOrderTotal() {
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
+        User customer = new User(); customer.setId(userId); customer.setEmail("customer@example.com"); customer.setFirstName("Customer");
+        Category category = new Category(); category.setId(UUID.randomUUID());
+        Product product = new Product(); product.setId(UUID.randomUUID()); product.setName("Hoa sen"); product.setSlug("hoa-sen"); product.setStatus(com.example.businessstore.constant.ProductStatus.PUBLISHED); product.setStockQuantity(2); product.setPrice(new BigDecimal("250000")); product.setCategory(category);
+        Cart cart = new Cart(); cart.setUser(customer);
+        CartItem cartItem = new CartItem(); cartItem.setCart(cart); cartItem.setProduct(product); cartItem.setQuantity(1); cart.getItems().add(cartItem);
+        ShippingAddress address = new ShippingAddress(); address.setRecipientName("Customer"); address.setPhone("0900000000"); address.setProvince("HCM"); address.setDistrict("Q1"); address.setWard("Ben Nghe"); address.setAddressLine("1 Nguyen Hue");
+
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(shippingAddressService.getOwned(userId, addressId)).thenReturn(address);
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(product.getId())).thenReturn(Optional.of(product));
+        // Giữ chỗ tồn kho giờ là một câu UPDATE có điều kiện: trả 1 nghĩa là còn hàng và đã trừ.
+        when(productRepository.decreaseStock(product.getId(), 1)).thenReturn(1);
+        when(productVariantRepository.existsByProductId(product.getId())).thenReturn(false);
+        when(orderRepository.existsByOrderCode(any())).thenReturn(false);
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> { Order saved = invocation.getArgument(0); saved.setId(orderId); return saved; });
+
+        orderService.checkout(userId, new CheckoutOrderRequest(addressId, null));
+
+        org.mockito.ArgumentCaptor<OrderPlacedEvent> event = org.mockito.ArgumentCaptor.forClass(OrderPlacedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().orderId()).isEqualTo(orderId);
+        assertThat(event.getValue().totalAmount()).isEqualByComparingTo("250000");
+    }
+
+    @Test
+    void checkout_reservesStockWithTheConditionalUpdateAndFailsWhenItTakesNothing() {
+        UUID userId = UUID.randomUUID();
+        UUID addressId = UUID.randomUUID();
+        Category category = new Category(); category.setId(UUID.randomUUID());
+        Product product = new Product();
+        product.setId(UUID.randomUUID()); product.setName("Tranh sen"); product.setSlug("tranh-sen");
+        product.setPrice(new BigDecimal("250000")); product.setStatus(com.example.businessstore.constant.ProductStatus.PUBLISHED);
+        product.setStockQuantity(1); product.setCategory(category);
+        Cart cart = new Cart();
+        CartItem cartItem = new CartItem(); cartItem.setCart(cart); cartItem.setProduct(product); cartItem.setQuantity(1); cart.getItems().add(cartItem);
+        ShippingAddress address = new ShippingAddress(); address.setRecipientName("Customer"); address.setPhone("0900000000"); address.setProvince("HCM"); address.setDistrict("Q1"); address.setWard("Ben Nghe"); address.setAddressLine("1 Nguyen Hue");
+
+        when(cartRepository.findByUserId(userId)).thenReturn(Optional.of(cart));
+        when(shippingAddressService.getOwned(userId, addressId)).thenReturn(address);
+        when(productRepository.findById(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.findByIdForUpdate(product.getId())).thenReturn(Optional.of(product));
+        // 0 dòng bị ảnh hưởng = người khác vừa lấy mất cái cuối giữa lúc mình đang thanh toán.
+        when(productRepository.decreaseStock(product.getId(), 1)).thenReturn(0);
+
+        assertThatThrownBy(() -> orderService.checkout(userId, new CheckoutOrderRequest(addressId, null)))
+                .isInstanceOf(AppException.class)
+                .extracting(cause -> ((AppException) cause).getErrorCode())
+                .isEqualTo(ErrorCode.INSUFFICIENT_PRODUCT_STOCK);
+
+        // Đọc tồn kho rồi mới trừ là bán quá hàng khi hai phiên chạy song song; bài này chốt
+        // rằng checkout thật sự đi qua câu UPDATE có điều kiện chứ không tự tính lại số mới.
+        verify(productRepository).decreaseStock(product.getId(), 1);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 
     @Test

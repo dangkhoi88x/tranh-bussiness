@@ -39,7 +39,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .filter(expectedUserId -> expectedUserId.equals(UUID.fromString(refreshToken.getSubject())))
                 .orElseThrow(() -> invalidToken("Refresh token is missing, expired, or already used"));
         return userRepository.findWithRolesById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User no longer exists"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Người dùng này không còn tồn tại."));
     }
 
     @Transactional

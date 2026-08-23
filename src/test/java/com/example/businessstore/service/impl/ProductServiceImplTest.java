@@ -13,6 +13,7 @@ import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductImageRepository;
 import com.example.businessstore.repository.ProductRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ import static org.mockito.Mockito.when;
 class ProductServiceImplTest {
 
     @Mock private ProductRepository productRepository;
+    @Mock private ProductVariantRepository productVariantRepository;
     @Mock private ProductImageRepository productImageRepository;
     @Mock private CategoryRepository categoryRepository;
     @Mock private ProductMapper productMapper;
@@ -57,6 +59,7 @@ class ProductServiceImplTest {
         Category category = new Category();
         category.setId(UUID.randomUUID());
         category.setName("Phong cảnh");
+        category.setSlug("phong-canh");
         product = new Product();
         product.setId(UUID.randomUUID());
         product.setCategory(category);
@@ -67,11 +70,11 @@ class ProductServiceImplTest {
         product.setStatus(ProductStatus.PUBLISHED);
         // What productMapper.toResponse(product) is stubbed to return; its own primaryImageUrl/images
         // are discarded by ProductServiceImpl.toResponse, which resolves those from the image repository instead.
-        mappedResponse = new ProductResponse(product.getId(), category.getId(), category.getName(),
+        mappedResponse = new ProductResponse(product.getId(), category.getId(), category.getName(), category.getSlug(),
                 product.getName(), product.getSlug(), null, product.getPrice(), null, null,
                 product.getStockQuantity(), product.getStatus(), null, null, null, null, null, null);
         // What productService.findPublished should actually return once the (stubbed empty) image list is attached.
-        productResponse = new ProductResponse(product.getId(), category.getId(), category.getName(),
+        productResponse = new ProductResponse(product.getId(), category.getId(), category.getName(), category.getSlug(),
                 product.getName(), product.getSlug(), null, product.getPrice(), null, null,
                 product.getStockQuantity(), product.getStatus(), null, null, null, List.of(), null, null);
     }
@@ -81,8 +84,9 @@ class ProductServiceImplTest {
         when(productRepository.findAll(ArgumentMatchers.<Specification<Product>>any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(product)));
         when(productMapper.toResponse(product)).thenReturn(mappedResponse);
-        when(productImageRepository.findAllByProductIdOrderBySortOrderAscCreatedAtAsc(product.getId()))
-                .thenReturn(List.of());
+        when(productVariantRepository.findAllByProductIdIn(List.of(product.getId()))).thenReturn(List.of());
+        when(productImageRepository.findAllByProductIdInOrderByProductIdAscPrimaryImageDescSortOrderAscCreatedAtAsc(
+                List.of(product.getId()))).thenReturn(List.of());
 
         var response = productService.findPublished(new ProductCatalogFilter(null, " sơn dầu ",
                 new BigDecimal("500000"), new BigDecimal("1000000"), "Canvas",

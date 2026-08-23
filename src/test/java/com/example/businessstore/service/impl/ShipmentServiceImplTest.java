@@ -9,6 +9,8 @@ import com.example.businessstore.dto.request.UpdateShipmentStatusRequest;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.entity.User;
+import com.example.businessstore.event.OrderShippedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.OrderRepository;
@@ -21,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -29,6 +32,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +42,7 @@ class ShipmentServiceImplTest {
     @Mock private OrderRepository orderRepository;
     @Mock private PaymentRepository paymentRepository;
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @InjectMocks private ShipmentServiceImpl shipmentService;
 
     @Test
@@ -49,6 +55,7 @@ class ShipmentServiceImplTest {
 
         when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
         when(paymentRepository.findByOrderIdAndMethodAndStatus(orderId, PaymentMethod.COD, PaymentStatus.PENDING)).thenReturn(Optional.of(payment));
+        when(shipmentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
         when(shipmentRepository.save(any(Shipment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         shipmentService.create(staffId, orderId, new CreateShipmentRequest("GHN", "GHN-001", new BigDecimal("30000.00")));
@@ -59,6 +66,74 @@ class ShipmentServiceImplTest {
         assertThat(order.getTotalAmount()).isEqualByComparingTo("280000.00");
         assertThat(payment.getAmount()).isEqualByComparingTo("280000.00");
         org.mockito.Mockito.verify(orderStatusHistoryService).record(order, OrderStatus.CONFIRMED, OrderStatus.CONFIRMED, staffId, "Shipment READY created with carrier GHN");
+    }
+
+    @Test
+    void cancelReadyShipment_removesShippingFeeAndKeepsOrderConfirmed() {
+        UUID orderId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.CONFIRMED);
+        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setTotalAmount(new BigDecimal("280000.00"));
+        Payment payment = new Payment();
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setAmount(new BigDecimal("280000.00"));
+        Shipment shipment = new Shipment();
+        shipment.setId(UUID.randomUUID());
+        shipment.setOrder(order);
+        shipment.setShippingFee(new BigDecimal("30000.00"));
+        shipment.setStatus(ShipmentStatus.READY);
+
+        when(shipmentRepository.findByIdForUpdate(shipment.getId())).thenReturn(Optional.of(shipment));
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderIdAndMethodAndStatus(orderId, PaymentMethod.COD, PaymentStatus.PENDING))
+                .thenReturn(Optional.of(payment));
+
+        shipmentService.updateStatus(staffId, shipment.getId(),
+                new UpdateShipmentStatusRequest(ShipmentStatus.CANCELLED, "Sai địa chỉ bàn giao"));
+
+        assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.CANCELLED);
+        assertThat(shipment.getFailureReason()).isEqualTo("Sai địa chỉ bàn giao");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(order.getTotalAmount()).isEqualByComparingTo("250000.00");
+        assertThat(payment.getAmount()).isEqualByComparingTo("250000.00");
+    }
+
+    @Test
+    void create_reactivatesCancelledShipmentWithNewDeliveryDetails() {
+        UUID orderId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.CONFIRMED);
+        order.setDiscountAmount(BigDecimal.ZERO);
+        Payment payment = new Payment();
+        payment.setStatus(PaymentStatus.PENDING);
+        Shipment shipment = new Shipment();
+        shipment.setId(UUID.randomUUID());
+        shipment.setOrder(order);
+        shipment.setCarrier("Old carrier");
+        shipment.setTrackingCode("OLD-001");
+        shipment.setShippingFee(new BigDecimal("30000.00"));
+        shipment.setStatus(ShipmentStatus.CANCELLED);
+        shipment.setFailureReason("Cancelled before handoff");
+
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderIdAndMethodAndStatus(orderId, PaymentMethod.COD, PaymentStatus.PENDING))
+                .thenReturn(Optional.of(payment));
+        when(shipmentRepository.findByOrderId(orderId)).thenReturn(Optional.of(shipment));
+
+        var response = shipmentService.create(staffId, orderId,
+                new CreateShipmentRequest("GHTK", "NEW-001", new BigDecimal("35000.00")));
+
+        assertThat(response.id()).isEqualTo(shipment.getId());
+        assertThat(response.status()).isEqualTo(ShipmentStatus.READY);
+        assertThat(response.carrier()).isEqualTo("GHTK");
+        assertThat(response.trackingCode()).isEqualTo("NEW-001");
+        assertThat(response.failureReason()).isNull();
+        assertThat(order.getTotalAmount()).isEqualByComparingTo("285000.00");
+        assertThat(payment.getAmount()).isEqualByComparingTo("285000.00");
+        verify(shipmentRepository, never()).save(any());
+        verify(orderStatusHistoryService).record(order, OrderStatus.CONFIRMED, OrderStatus.CONFIRMED, staffId,
+                "Shipment READY reactivated with carrier GHTK");
     }
 
     @Test
@@ -92,6 +167,24 @@ class ShipmentServiceImplTest {
                 .isInstanceOf(AppException.class)
                 .extracting(error -> ((AppException) error).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_SHIPMENT_STATUS);
+    }
+
+    @Test
+    void inTransit_publishesShippingEmailEvent() {
+        UUID orderId = UUID.randomUUID();
+        UUID staffId = UUID.randomUUID();
+        Order order = order(orderId, OrderStatus.CONFIRMED);
+        User customer = new User(); customer.setId(UUID.randomUUID()); customer.setEmail("customer@example.com"); customer.setFirstName("Customer"); order.setUser(customer);
+        Shipment shipment = new Shipment(); shipment.setId(UUID.randomUUID()); shipment.setOrder(order); shipment.setCarrier("GHN"); shipment.setTrackingCode("GHN-001"); shipment.setStatus(ShipmentStatus.READY);
+        when(shipmentRepository.findByIdForUpdate(shipment.getId())).thenReturn(Optional.of(shipment));
+        when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+
+        shipmentService.updateStatus(staffId, shipment.getId(), new UpdateShipmentStatusRequest(ShipmentStatus.IN_TRANSIT, null));
+
+        ArgumentCaptor<OrderShippedEvent> event = ArgumentCaptor.forClass(OrderShippedEvent.class);
+        org.mockito.Mockito.verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().orderId()).isEqualTo(orderId);
+        assertThat(event.getValue().trackingCode()).isEqualTo("GHN-001");
     }
 
     private Order order(UUID id, OrderStatus status) {

@@ -10,6 +10,8 @@ import com.example.businessstore.dto.response.ProductImageResponse;
 import com.example.businessstore.dto.response.ProductResponse;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Product;
+import com.example.businessstore.entity.ProductImage;
+import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.mapper.ProductImageMapper;
@@ -17,7 +19,9 @@ import com.example.businessstore.mapper.ProductMapper;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.ProductImageRepository;
+import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.repository.specification.ProductCatalogSpecifications;
+import com.example.businessstore.repository.specification.ProductManagementSpecifications;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
 import com.example.businessstore.service.ProductService;
 import com.example.businessstore.util.SlugUtils;
@@ -30,8 +34,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +48,7 @@ public class ProductServiceImpl implements ProductService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
@@ -129,7 +138,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductResponse findPublishedById(UUID id) {
         Product product = productRepository.findById(id)
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         return toResponse(product);
     }
 
@@ -137,20 +146,29 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public ProductResponse findPublishedBySlug(String slug) {
         Product product = productRepository.findBySlugAndStatus(slug, ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         return toResponse(product);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ProductResponse> findAllForManagement(UUID categoryId, String name, ProductStatus status, ProductStockLevel stockLevel, int page, int size) {
-        Integer minStock = null;
-        Integer maxStock = null;
-        if (stockLevel == ProductStockLevel.OUT_OF_STOCK) { minStock = 0; maxStock = 0; }
-        else if (stockLevel == ProductStockLevel.LOW_STOCK) { minStock = 1; maxStock = 5; }
-        else if (stockLevel == ProductStockLevel.IN_STOCK) { minStock = 6; }
-        String normalizedName = name == null || name.isBlank() ? null : name.trim();
-        return toPageResponse(productRepository.searchForManagement(normalizedName, categoryId, status, minStock, maxStock, pageRequest(page, size)), page);
+    public PageResponse<ProductResponse> findAllForManagement(
+            UUID categoryId,
+            String name,
+            ProductStatus status,
+            String variantSku,
+            String material,
+            ProductStockLevel effectiveStockLevel,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            int page,
+            int size) {
+        validateManagementPriceRange(minPrice, maxPrice);
+        Page<Product> products = productRepository.findAll(ProductManagementSpecifications.matching(
+                        categoryId, normalizeFilter(name), status, normalizeFilter(variantSku),
+                        normalizeFilter(material), effectiveStockLevel, minPrice, maxPrice),
+                pageRequest(page, size));
+        return toPageResponse(products, page);
     }
 
     @Override
@@ -161,7 +179,7 @@ public class ProductServiceImpl implements ProductService {
 
     private PageResponse<ProductResponse> toPageResponse(Page<Product> products, int requestedPage) {
         return new PageResponse<>(
-                products.getContent().stream().map(this::toResponse).toList(),
+                toResponses(products.getContent()),
                 Math.max(requestedPage, 1),
                 products.getSize(),
                 products.getTotalElements(),
@@ -169,23 +187,45 @@ public class ProductServiceImpl implements ProductService {
                 products.hasNext());
     }
 
-    /** Attaches the ordered image list and primary image URL, shared by every read path. */
     private ProductResponse toResponse(Product product) {
-        ProductResponse mapped = productMapper.toResponse(product);
-        List<ProductImageResponse> images = productImageRepository
-                .findAllByProductIdOrderBySortOrderAscCreatedAtAsc(product.getId()).stream()
-                .map(productImageMapper::toResponse)
-                .toList();
-        String primaryImageUrl = images.stream()
-                .filter(ProductImageResponse::primaryImage)
-                .findFirst()
-                .or(() -> images.stream().findFirst())
-                .map(ProductImageResponse::secureUrl)
-                .orElse(null);
-        return new ProductResponse(mapped.id(), mapped.categoryId(), mapped.categoryName(), mapped.name(),
-                mapped.slug(), mapped.description(), mapped.price(), mapped.widthCm(), mapped.heightCm(),
-                mapped.stockQuantity(), mapped.status(), mapped.pageCount(), mapped.coverMaterial(),
-                primaryImageUrl, images, mapped.createdAt(), mapped.updatedAt());
+        return toResponses(List.of(product)).getFirst();
+    }
+
+    /**
+     * Attaches variant-aware stock and the ordered gallery, shared by every read path. Both are
+     * fetched per page rather than per product so a catalogue page stays at three queries.
+     */
+    private List<ProductResponse> toResponses(Collection<Product> products) {
+        if (products.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> productIds = products.stream().map(Product::getId).toList();
+        Map<UUID, List<ProductVariant>> variantsByProductId = productVariantRepository
+                .findAllByProductIdIn(productIds).stream()
+                .collect(Collectors.groupingBy(variant -> variant.getProduct().getId()));
+        Map<UUID, List<ProductImage>> imagesByProductId = productImageRepository
+                .findAllByProductIdInOrderByProductIdAscPrimaryImageDescSortOrderAscCreatedAtAsc(productIds).stream()
+                .collect(Collectors.groupingBy(image -> image.getProduct().getId()));
+
+        return products.stream().map(product -> {
+            List<ProductVariant> variants = variantsByProductId.getOrDefault(product.getId(), List.of());
+            int effectiveStock = variants.isEmpty() ? product.getStockQuantity() : variants.stream()
+                    .filter(ProductVariant::isAvailable)
+                    .mapToInt(ProductVariant::getStockQuantity)
+                    .sum();
+            // The query orders the primary image first, so it is the one to show on a card; the
+            // gallery itself follows the editor's own sort order.
+            List<ProductImage> productImages = imagesByProductId.getOrDefault(product.getId(), List.of());
+            String primaryImageUrl = productImages.isEmpty() ? null : productImages.getFirst().getSecureUrl();
+            List<ProductImageResponse> images = productImages.stream()
+                    .sorted(Comparator.comparingInt(ProductImage::getSortOrder)
+                            .thenComparing(ProductImage::getCreatedAt))
+                    .map(productImageMapper::toResponse)
+                    .toList();
+            return productMapper.toResponse(product)
+                    .withInventory(effectiveStock, !variants.isEmpty())
+                    .withImages(primaryImageUrl, images);
+        }).toList();
     }
 
     private Pageable pageRequest(int page, int size) {
@@ -207,16 +247,16 @@ public class ProductServiceImpl implements ProductService {
         if (isNegative(value.minPrice()) || isNegative(value.maxPrice())
                 || isNegative(value.widthCm()) || isNegative(value.heightCm())) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
-                    "Price and dimensions must not be negative");
+                    "Giá và kích thước không được là số âm.");
         }
         if (value.minPrice() != null && value.maxPrice() != null
                 && value.minPrice().compareTo(value.maxPrice()) > 0) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
-                    "minPrice must be less than or equal to maxPrice");
+                    "Giá thấp nhất phải nhỏ hơn hoặc bằng giá cao nhất.");
         }
         if (isZero(value.widthCm()) || isZero(value.heightCm())) {
             throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER,
-                    "Dimensions must be greater than zero");
+                    "Kích thước phải lớn hơn 0.");
         }
         return value;
     }
@@ -231,18 +271,18 @@ public class ProductServiceImpl implements ProductService {
 
     private Category getCategory(UUID id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Không tìm thấy danh mục."));
     }
 
     private Product getProduct(UUID id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
     }
 
     private String generateUniqueSlug(String name, UUID currentProductId) {
         String baseSlug = SlugUtils.toSlug(name);
         if (baseSlug.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_PRODUCT_NAME, "Product name must contain letters or numbers");
+            throw new AppException(ErrorCode.INVALID_PRODUCT_NAME, "Tên sản phẩm phải có chữ hoặc số.");
         }
         String slug = baseSlug;
         int suffix = 2;
@@ -262,5 +302,16 @@ public class ProductServiceImpl implements ProductService {
 
     private String normalizeCoverMaterial(String coverMaterial) {
         return coverMaterial == null || coverMaterial.isBlank() ? null : coverMaterial.trim();
+    }
+
+    private String normalizeFilter(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void validateManagementPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
+        if (isNegative(minPrice) || isNegative(maxPrice)
+                || minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+            throw new AppException(ErrorCode.INVALID_PRODUCT_CATALOG_FILTER, "Khoảng giá lọc không hợp lệ.");
+        }
     }
 }

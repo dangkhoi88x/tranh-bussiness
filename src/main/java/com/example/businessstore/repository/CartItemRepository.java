@@ -8,9 +8,9 @@ import java.util.UUID;
 
 public interface CartItemRepository extends JpaRepository<CartItem, UUID> {
 
-    Optional<CartItem> findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionId(UUID cartId, UUID productId, UUID productVariantId, UUID productFrameOptionId);
-
-    Optional<CartItem> findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(UUID cartId, UUID productId, UUID productVariantId);
+    // Sáu derived query đối chiếu khoá gộp dòng đã bị bỏ: khoá có sáu chiều nullable nên mỗi
+    // chiều thêm vào lại nhân đôi số phương thức. CartServiceImpl.findExistingItem đối chiếu
+    // thẳng trên cart.getItems() — xem chú thích ở đó.
 
     Optional<CartItem> findByIdAndCartUserId(UUID id, UUID userId);
 }

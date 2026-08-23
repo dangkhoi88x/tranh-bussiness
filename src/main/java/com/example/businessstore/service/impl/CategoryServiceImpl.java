@@ -31,7 +31,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse create(CreateCategoryRequest request) {
         String name = normalizeName(request.name());
         if (categoryRepository.existsByNameIgnoreCase(name)) {
-            throw new AppException(ErrorCode.CATEGORY_NAME_ALREADY_EXISTS, "A category already uses this name");
+            throw new AppException(ErrorCode.CATEGORY_NAME_ALREADY_EXISTS, "Đã có danh mục dùng tên này.");
         }
 
         Category category = new Category();
@@ -59,7 +59,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     public CategoryResponse findBySlug(String slug) {
         Category category = categoryRepository.findBySlug(slug)
-                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Không tìm thấy danh mục."));
         return categoryMapper.toResponse(category);
     }
 
@@ -70,7 +70,7 @@ public class CategoryServiceImpl implements CategoryService {
         if (request.name() != null) {
             String name = normalizeName(request.name());
             if (categoryRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
-                throw new AppException(ErrorCode.CATEGORY_NAME_ALREADY_EXISTS, "A category already uses this name");
+                throw new AppException(ErrorCode.CATEGORY_NAME_ALREADY_EXISTS, "Đã có danh mục dùng tên này.");
             }
             if (!category.getName().equalsIgnoreCase(name)) {
                 category.setName(name);
@@ -88,20 +88,20 @@ public class CategoryServiceImpl implements CategoryService {
     public void delete(UUID id) {
         Category category = getCategory(id);
         if (productRepository.existsByCategoryId(id)) {
-            throw new AppException(ErrorCode.CATEGORY_HAS_PRODUCTS, "Delete or move products before deleting this category");
+            throw new AppException(ErrorCode.CATEGORY_HAS_PRODUCTS, "Hãy xoá hoặc chuyển sản phẩm sang danh mục khác trước khi xoá danh mục này.");
         }
         categoryRepository.delete(category);
     }
 
     private Category getCategory(UUID id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Category not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND, "Không tìm thấy danh mục."));
     }
 
     private String generateUniqueSlug(String name) {
         String baseSlug = SlugUtils.toSlug(name);
         if (baseSlug.isBlank()) {
-            throw new AppException(ErrorCode.INVALID_CATEGORY_NAME, "Category name must contain letters or numbers");
+            throw new AppException(ErrorCode.INVALID_CATEGORY_NAME, "Tên danh mục phải có chữ hoặc số.");
         }
 
         String slug = baseSlug;

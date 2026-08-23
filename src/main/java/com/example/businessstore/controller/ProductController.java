@@ -6,10 +6,13 @@ import com.example.businessstore.constant.ProductStockLevel;
 import com.example.businessstore.constant.SecurityExpressions;
 import com.example.businessstore.dto.request.CreateProductRequest;
 import com.example.businessstore.dto.request.ProductCatalogFilter;
+import com.example.businessstore.dto.request.SavePhotobookPagePricingRequest;
 import com.example.businessstore.dto.request.UpdateProductRequest;
 import com.example.businessstore.dto.response.ApiResponse;
 import com.example.businessstore.dto.response.PageResponse;
+import com.example.businessstore.dto.response.PhotobookPagePricingResponse;
 import com.example.businessstore.dto.response.ProductResponse;
+import com.example.businessstore.service.PhotobookPagePricingService;
 import com.example.businessstore.service.ProductService;
 import com.example.businessstore.service.MaterialService;
 import jakarta.validation.Valid;
@@ -37,6 +40,7 @@ public class ProductController {
 
     private final ProductService productService;
     private final MaterialService materialService;
+    private final PhotobookPagePricingService photobookPagePricingService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> findPublished(
@@ -92,11 +96,27 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success(productService.findForManagement(id)));
     }
 
+    /** Bảng giá theo trang: bốn trường cấu hình cộng các mức niêm yết của từng khổ. */
+    @GetMapping("/management/{id}/page-pricing")
+    @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
+    public ResponseEntity<ApiResponse<PhotobookPagePricingResponse>> pagePricing(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success(photobookPagePricingService.get(id)));
+    }
+
+    @PutMapping("/{id}/page-pricing")
+    @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
+    public ResponseEntity<ApiResponse<PhotobookPagePricingResponse>> savePagePricing(
+            @PathVariable UUID id,
+            @Valid @RequestBody SavePhotobookPagePricingRequest request) {
+        return ResponseEntity.ok(
+                ApiResponse.success(photobookPagePricingService.save(id, request), "Đã cập nhật bảng giá theo trang."));
+    }
+
     @PostMapping
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_PRODUCTS)
     public ResponseEntity<ApiResponse<ProductResponse>> create(@Valid @RequestBody CreateProductRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(productService.create(request), "Product created"));
+                .body(ApiResponse.success(productService.create(request), "Đã tạo sản phẩm."));
     }
 
     @PutMapping("/{id}")
@@ -104,7 +124,7 @@ public class ProductController {
     public ResponseEntity<ApiResponse<ProductResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProductRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(productService.update(id, request), "Product updated"));
+        return ResponseEntity.ok(ApiResponse.success(productService.update(id, request), "Đã cập nhật sản phẩm."));
     }
 
     @DeleteMapping("/{id}")

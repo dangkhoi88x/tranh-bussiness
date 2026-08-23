@@ -7,9 +7,12 @@ import com.example.businessstore.constant.ProductCatalogSort;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.constant.ProductStockLevel;
 import com.example.businessstore.constant.NotificationType;
+import com.example.businessstore.constant.PermissionName;
 import com.example.businessstore.constant.PromotionStatus;
 import com.example.businessstore.constant.PromotionType;
 import com.example.businessstore.dto.request.ProductCatalogFilter;
+import com.example.businessstore.dto.request.UpdateRolePermissionsRequest;
+import com.example.businessstore.service.UserManagementService;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Order;
 import com.example.businessstore.entity.OrderItem;
@@ -21,6 +24,7 @@ import com.example.businessstore.entity.User;
 import com.example.businessstore.entity.WishlistItem;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.OrderRepository;
+import com.example.businessstore.repository.PaymentRefundRepository;
 import com.example.businessstore.repository.PaymentRepository;
 import com.example.businessstore.repository.NotificationRepository;
 import com.example.businessstore.repository.PromotionRepository;
@@ -49,6 +53,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -73,11 +78,13 @@ class BusinessStoreApplicationTests {
     @Autowired ProductVariantRepository productVariantRepository;
     @Autowired OrderRepository orderRepository;
     @Autowired PaymentRepository paymentRepository;
+    @Autowired PaymentRefundRepository paymentRefundRepository;
     @Autowired DashboardService dashboardService;
     @Autowired ProductService productService;
     @Autowired NotificationRepository notificationRepository;
     @Autowired WishlistItemRepository wishlistItemRepository;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired UserManagementService userManagementService;
 
     @Test
     void contextLoads() {
@@ -94,6 +101,8 @@ class BusinessStoreApplicationTests {
                 Instant.parse("9999-12-31T23:59:59.999999Z"), page).getContent()).isNotNull();
         assertThat(orderRepository.searchForManagement(null, null, null, Instant.EPOCH,
                 Instant.parse("9999-12-31T23:59:59.999999Z"), page).getContent()).isNotNull();
+        assertThat(paymentRefundRepository.searchForManagement(null, null, page).getContent()).isNotNull();
+        assertThat(paymentRefundRepository.searchForManagement(null, "no-match", page).getContent()).isEmpty();
     }
 
     @Test
@@ -124,6 +133,38 @@ class BusinessStoreApplicationTests {
         }
 
         assertThat(promotionRepository.findById(saved.getId()).orElseThrow().getReservedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void atomicStockDecrement_letsOnlyOneCheckoutTakeTheLastUnit() {
+        String suffix = Long.toString(System.nanoTime());
+        Category category = new Category();
+        category.setName("Race category " + suffix); category.setSlug("race-category-" + suffix);
+        Category savedCategory = categoryRepository.saveAndFlush(category);
+        Product product = savePublishedProduct(savedCategory, "Race product " + suffix, "race-product-" + suffix,
+                new BigDecimal("100000"));
+        product.setStockQuantity(1);
+        Product saved = productRepository.saveAndFlush(product);
+
+        TransactionTemplate transactions = new TransactionTemplate(transactionManager);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                start.await();
+                return transactions.execute(status -> productRepository.decreaseStock(saved.getId(), 1));
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return transactions.execute(status -> productRepository.decreaseStock(saved.getId(), 1));
+            });
+            start.countDown();
+            // Đúng một bên được trừ; bên kia thấy 0 dòng đổi được và checkout sẽ báo hết hàng.
+            assertThat(first.get() + second.get()).isEqualTo(1);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+
+        assertThat(productRepository.findById(saved.getId()).orElseThrow().getStockQuantity()).isZero();
     }
 
     @Test
@@ -288,6 +329,26 @@ class BusinessStoreApplicationTests {
             assertThat(item.material()).isEqualTo("Canvas");
             assertThat(item.stockQuantity()).isZero();
         });
+    }
+
+    @Test
+    void updateStaffPermissionsSupportsRemovingKeepingAndReAddingInSuccessiveCalls() {
+        // Repro cho lỗi: clear() toàn bộ collection rồi insert lại kể cả những quyền không
+        // đổi khiến Hibernate delete+insert cùng khoá (role_id, permission_id) trong một
+        // flush, gây ObjectOptimisticLockingFailureException / unique constraint violation.
+        userManagementService.updateStaffPermissions(new UpdateRolePermissionsRequest(Set.of(
+                PermissionName.CATEGORY_MANAGE, PermissionName.PRODUCT_MANAGE, PermissionName.ORDER_MANAGE)));
+
+        var afterFirst = userManagementService.getRoles().stream()
+                .filter(role -> role.name().equals("STAFF")).findFirst().orElseThrow();
+        assertThat(afterFirst.permissions()).containsExactlyInAnyOrder("CATEGORY_MANAGE", "PRODUCT_MANAGE", "ORDER_MANAGE");
+
+        userManagementService.updateStaffPermissions(new UpdateRolePermissionsRequest(Set.of(
+                PermissionName.CATEGORY_MANAGE, PermissionName.PRODUCT_MANAGE, PermissionName.PROMOTION_MANAGE)));
+
+        var afterSecond = userManagementService.getRoles().stream()
+                .filter(role -> role.name().equals("STAFF")).findFirst().orElseThrow();
+        assertThat(afterSecond.permissions()).containsExactlyInAnyOrder("CATEGORY_MANAGE", "PRODUCT_MANAGE", "PROMOTION_MANAGE");
     }
 
     private Product savePublishedProduct(Category category, String name, String slug, BigDecimal price) {

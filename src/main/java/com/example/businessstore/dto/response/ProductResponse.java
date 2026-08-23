@@ -11,6 +11,7 @@ public record ProductResponse(
         UUID id,
         UUID categoryId,
         String categoryName,
+        String categorySlug,
         String name,
         String slug,
         String description,
@@ -27,22 +28,37 @@ public record ProductResponse(
         Instant updatedAt,
         int effectiveStockQuantity,
         boolean hasVariants,
-        String primaryImageUrl) {
+        /** True khi sản phẩm bán theo số trang (photobook) — giá lấy từ /photobook-pricing. */
+        boolean pagePriced) {
 
-    public ProductResponse(UUID id, UUID categoryId, String categoryName, String name, String slug, String description,
+    /** Shape produced by ProductMapper, before the service attaches inventory and media. */
+    public ProductResponse(UUID id, UUID categoryId, String categoryName, String categorySlug,
+                           String name, String slug, String description,
                            BigDecimal price, BigDecimal widthCm, BigDecimal heightCm, int stockQuantity,
-                           ProductStatus status, Instant createdAt, Instant updatedAt) {
-        this(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm, stockQuantity,
-                status, createdAt, updatedAt, stockQuantity, false, null);
+                           ProductStatus status, Integer pageCount, String coverMaterial, String primaryImageUrl,
+                           List<ProductImageResponse> images, Instant createdAt, Instant updatedAt) {
+        this(id, categoryId, categoryName, categorySlug, name, slug, description, price, widthCm, heightCm, stockQuantity,
+                status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt, stockQuantity, false, false);
     }
 
+    /** Variant-aware stock: the sum over sellable variants, or the product's own stock when it has none. */
     public ProductResponse withInventory(int effectiveStockQuantity, boolean hasVariants) {
-        return new ProductResponse(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm,
-                stockQuantity, status, createdAt, updatedAt, effectiveStockQuantity, hasVariants, primaryImageUrl);
+        return new ProductResponse(id, categoryId, categoryName, categorySlug, name, slug, description, price, widthCm, heightCm,
+                stockQuantity, status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt,
+                effectiveStockQuantity, hasVariants, pagePriced);
     }
 
-    public ProductResponse addManagementPreview(String primaryImageUrl) {
-        return new ProductResponse(id, categoryId, categoryName, name, slug, description, price, widthCm, heightCm,
-                stockQuantity, status, createdAt, updatedAt, effectiveStockQuantity, hasVariants, primaryImageUrl);
+    /** The ordered gallery plus the URL callers show when they only render one image. */
+    public ProductResponse withImages(String primaryImageUrl, List<ProductImageResponse> images) {
+        return new ProductResponse(id, categoryId, categoryName, categorySlug, name, slug, description, price, widthCm, heightCm,
+                stockQuantity, status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt,
+                effectiveStockQuantity, hasVariants, pagePriced);
+    }
+
+    /** Photobook hay không — suy từ bốn cột giá theo trang trên Product. */
+    public ProductResponse withPagePricing(boolean pagePriced) {
+        return new ProductResponse(id, categoryId, categoryName, categorySlug, name, slug, description, price, widthCm, heightCm,
+                stockQuantity, status, pageCount, coverMaterial, primaryImageUrl, images, createdAt, updatedAt,
+                effectiveStockQuantity, hasVariants, pagePriced);
     }
 }

@@ -1,6 +1,7 @@
 package com.example.businessstore.controller;
 
 import com.example.businessstore.constant.SecurityExpressions;
+import com.example.businessstore.dto.request.UpdateProfileRequest;
 import com.example.businessstore.dto.request.UpdateManagedUserEnabledRequest;
 import com.example.businessstore.dto.request.UpdateManagedUserRolesRequest;
 import com.example.businessstore.dto.request.UpdateRolePermissionsRequest;
@@ -42,6 +43,14 @@ public class CurrentUserController {
         return ResponseEntity.ok(ApiResponse.success(user));
     }
 
+    @PutMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateProfileRequest request) {
+        UserResponse user = authenticationService.updateProfile(UUID.fromString(jwt.getSubject()), request);
+        return ResponseEntity.ok(ApiResponse.success(user, "Đã cập nhật hồ sơ."));
+    }
+
     @GetMapping
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_USERS)
     public ResponseEntity<ApiResponse<PageResponse<ManagedUserResponse>>> users(
@@ -62,7 +71,7 @@ public class CurrentUserController {
     public ResponseEntity<ApiResponse<ManagedUserResponse>> updateRoles(
             @AuthenticationPrincipal Jwt jwt, @PathVariable UUID userId,
             @Valid @RequestBody UpdateManagedUserRolesRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(userManagementService.updateRoles(UUID.fromString(jwt.getSubject()), userId, request), "User roles updated"));
+        return ResponseEntity.ok(ApiResponse.success(userManagementService.updateRoles(UUID.fromString(jwt.getSubject()), userId, request), "Đã cập nhật vai trò người dùng."));
     }
 
     @PatchMapping("/{userId}/enabled")
@@ -70,13 +79,13 @@ public class CurrentUserController {
     public ResponseEntity<ApiResponse<ManagedUserResponse>> updateEnabled(
             @AuthenticationPrincipal Jwt jwt, @PathVariable UUID userId,
             @RequestBody UpdateManagedUserEnabledRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(userManagementService.updateEnabled(UUID.fromString(jwt.getSubject()), userId, request), "User status updated"));
+        return ResponseEntity.ok(ApiResponse.success(userManagementService.updateEnabled(UUID.fromString(jwt.getSubject()), userId, request), "Đã cập nhật trạng thái tài khoản."));
     }
 
     @PutMapping("/roles/STAFF/permissions")
     @PreAuthorize(SecurityExpressions.CAN_MANAGE_USERS)
     public ResponseEntity<ApiResponse<ManagedRoleResponse>> updateStaffPermissions(
             @Valid @RequestBody UpdateRolePermissionsRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(userManagementService.updateStaffPermissions(request), "STAFF permissions updated"));
+        return ResponseEntity.ok(ApiResponse.success(userManagementService.updateStaffPermissions(request), "Đã cập nhật quyền của nhân viên."));
     }
 }

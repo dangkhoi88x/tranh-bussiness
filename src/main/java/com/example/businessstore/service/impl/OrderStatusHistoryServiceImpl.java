@@ -26,7 +26,7 @@ public class OrderStatusHistoryServiceImpl implements OrderStatusHistoryService 
     public void record(Order order, OrderStatus fromStatus, OrderStatus toStatus, UUID changedBy, String note) {
         OrderStatusHistory history = new OrderStatusHistory();
         history.setOrder(order); history.setFromStatus(fromStatus); history.setToStatus(toStatus);
-        history.setChangedBy(userRepository.findById(changedBy).orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Changed-by user was not found")));
+        history.setChangedBy(userRepository.findById(changedBy).orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy người thực hiện thay đổi.")));
         history.setNote(normalize(note));
         historyRepository.save(history);
     }

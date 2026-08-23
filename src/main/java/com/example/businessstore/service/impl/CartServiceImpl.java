@@ -1,6 +1,5 @@
 package com.example.businessstore.service.impl;
 
-import com.example.businessstore.constant.FrameStatus;
 import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.dto.request.AddCartItemRequest;
 import com.example.businessstore.dto.request.UpdateCartItemRequest;
@@ -10,6 +9,7 @@ import com.example.businessstore.dto.response.ProductFrameOptionResponse;
 import com.example.businessstore.dto.response.ProductVariantResponse;
 import com.example.businessstore.entity.Cart;
 import com.example.businessstore.entity.CartItem;
+import com.example.businessstore.entity.PhotobookDesign;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ProductVariant;
@@ -19,11 +19,14 @@ import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.mapper.ProductFrameOptionMapper;
 import com.example.businessstore.repository.CartItemRepository;
 import com.example.businessstore.repository.CartRepository;
+import com.example.businessstore.repository.PhotobookDesignRepository;
+import com.example.businessstore.repository.PhotobookTemplateRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductRepository;
 import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.repository.ProductVariantRepository;
 import com.example.businessstore.service.CartService;
+import com.example.businessstore.service.ProductSelectionPricingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +46,9 @@ public class CartServiceImpl implements CartService {
     private final ProductFrameOptionRepository productFrameOptionRepository;
     private final ProductFrameOptionMapper productFrameOptionMapper;
     private final ProductVariantRepository productVariantRepository;
+    private final PhotobookDesignRepository photobookDesignRepository;
+    private final PhotobookTemplateRepository photobookTemplateRepository;
+    private final ProductSelectionPricingService selectionPricingService;
 
     @Override
     @Transactional
@@ -59,12 +65,17 @@ public class CartServiceImpl implements CartService {
         ProductFrameOption frameOption = request.productFrameOptionId() == null
                 ? null
                 : getAvailableFrameOption(product.getId(), request.productFrameOptionId());
-        validateFrameCompatibility(frameOption, variant);
+        selectionPricingService.validateFrameCompatibility(frameOption, variant);
+        ProductSelectionPricingService.SelectionQuote quote = selectionPricingService
+                .quote(product, variant, frameOption, request.pageCount());
+        Integer pageCount = quote.pageCount();
+        PhotobookDesign design = resolveDesign(userId, product, pageCount, request.photobookDesignId());
+        String templateCode = resolveTemplateCode(product, pageCount, request.photobookTemplateCode());
 
-        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId())
-                .orElseGet(() -> createItem(cart, product, variant, frameOption));
+        CartItem item = findExistingItem(cart, product.getId(), variant == null ? null : variant.getId(), frameOption == null ? null : frameOption.getId(), pageCount, design == null ? null : design.getId(), templateCode)
+                .orElseGet(() -> createItem(cart, product, variant, frameOption, pageCount, design, templateCode));
         int requestedQuantity = item.getQuantity() + request.quantity();
-        validateStock(product, variant, requestedQuantity);
+        selectionPricingService.requireAvailableStock(product, variant, requestedQuantity);
         item.setQuantity(requestedQuantity);
         if (item.getId() == null) {
             cartItemRepository.save(item);
@@ -80,9 +91,9 @@ public class CartServiceImpl implements CartService {
         ProductVariant variant = item.getProductVariant() == null ? null : getSelectedVariant(product, item.getProductVariant().getId());
         if (item.getProductFrameOption() != null) {
             ProductFrameOption frameOption = getAvailableFrameOption(product.getId(), item.getProductFrameOption().getId());
-            validateFrameCompatibility(frameOption, variant);
+            selectionPricingService.validateFrameCompatibility(frameOption, variant);
         }
-        validateStock(product, variant, request.quantity());
+        selectionPricingService.requireAvailableStock(product, variant, request.quantity());
         item.setQuantity(request.quantity());
         return toResponse(getOrCreateCart(userId));
     }
@@ -102,7 +113,7 @@ public class CartServiceImpl implements CartService {
     private Cart getOrCreateCart(UUID userId) {
         return cartRepository.findByUserId(userId).orElseGet(() -> {
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Authenticated user was not found"));
+                    .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED, "Không tìm thấy tài khoản của phiên đăng nhập này."));
             Cart cart = new Cart();
             cart.setUser(user);
             return cartRepository.save(cart);
@@ -112,31 +123,76 @@ public class CartServiceImpl implements CartService {
     private Product getPurchasableProduct(UUID productId) {
         return productRepository.findById(productId)
                 .filter(product -> product.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Product is not available for purchase"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_AVAILABLE, "Sản phẩm này hiện không bán."));
     }
 
     private ProductFrameOption getAvailableFrameOption(UUID productId, UUID optionId) {
         ProductFrameOption option = productFrameOptionRepository.findByIdAndProductId(optionId, productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Product frame option not found"));
-        if (!option.isAvailable() || option.getFrame().getStatus() != FrameStatus.ACTIVE) {
-            throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Product frame option is not available");
-        }
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Không tìm thấy lựa chọn khung của sản phẩm."));
         return option;
     }
 
-    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId) {
-        if (frameOptionId == null) {
-            return cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionIsNull(cart.getId(), productId, variantId);
-        }
-        return cartItemRepository.findByCartIdAndProductIdAndProductVariantIdAndProductFrameOptionId(cart.getId(), productId, variantId, frameOptionId);
+    /**
+     * Cùng sản phẩm nhưng khác khổ, khung, số trang, bản thiết kế hay mẫu là những dòng giỏ hàng
+     * riêng biệt — hai bản thiết kế khác nhau ở cùng khổ/số trang không được gộp làm một, nếu
+     * không cuốn sẽ in nhầm theo bản thiết kế còn lại.
+     *
+     * Đối chiếu ngay trên cart.getItems() thay vì hỏi repository: khoá gộp có sáu chiều nullable
+     * nên derived query phải liệt kê đủ tổ hợp IsNull, và mỗi chiều thêm vào lại nhân đôi số
+     * phương thức. Danh sách item đã nạp sẵn trong cùng transaction (toResponse duyệt nó ngay
+     * sau đây), lại thấy được cả dòng vừa thêm chưa flush — điều derived query không làm được.
+     */
+    private java.util.Optional<CartItem> findExistingItem(Cart cart, UUID productId, UUID variantId, UUID frameOptionId, Integer pageCount, UUID designId, String templateCode) {
+        return cart.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId)
+                        && java.util.Objects.equals(item.getProductVariant() == null ? null : item.getProductVariant().getId(), variantId)
+                        && java.util.Objects.equals(item.getProductFrameOption() == null ? null : item.getProductFrameOption().getId(), frameOptionId)
+                        && java.util.Objects.equals(item.getPageCount(), pageCount)
+                        && java.util.Objects.equals(item.getPhotobookDesign() == null ? null : item.getPhotobookDesign().getId(), designId)
+                        && java.util.Objects.equals(item.getPhotobookTemplateCode(), templateCode))
+                .findFirst();
     }
 
-    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption) {
+    /** Design phải khớp đúng sản phẩm và số trang khách vừa chọn — không tin liên kết từ client. */
+    private PhotobookDesign resolveDesign(UUID userId, Product product, Integer pageCount, UUID designId) {
+        if (designId == null) return null;
+        PhotobookDesign design = photobookDesignRepository.findByIdAndUserId(designId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_DESIGN_NOT_FOUND, "Không tìm thấy thiết kế photobook."));
+        if (!design.getProductSlug().equals(product.getSlug())
+                || pageCount == null || design.getPageCount() != pageCount) {
+            throw new AppException(ErrorCode.PHOTOBOOK_DESIGN_MISMATCH,
+                    "Thiết kế không khớp với sản phẩm hoặc số trang đã chọn.");
+        }
+        return design;
+    }
+
+    /**
+     * Mẫu chỉ có nghĩa với cuốn bán theo trang, và phải là mã có thật trong thư viện — client
+     * gửi mã lạ thì báo lỗi ngay thay vì để dòng đơn mang mã chết tới tận lúc xưởng dựng spread.
+     */
+    private String resolveTemplateCode(Product product, Integer pageCount, String requested) {
+        if (requested == null || requested.isBlank()) return null;
+        if (!product.isPagePriced() || pageCount == null) {
+            throw new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_ALLOWED,
+                    "Sản phẩm này không bán kèm mẫu photobook.");
+        }
+        // Lọc theo active: chủ đề đã ẩn khỏi thư viện thì khách không chọn mới được nữa, dù cuốn
+        // đã đặt theo nó trước đó vẫn dựng bình thường.
+        return photobookTemplateRepository.findByCodeAndActiveTrue(requested)
+                .orElseThrow(() -> new AppException(ErrorCode.PHOTOBOOK_TEMPLATE_NOT_FOUND,
+                        "Không tìm thấy mẫu photobook: " + requested))
+                .getCode();
+    }
+
+    private CartItem createItem(Cart cart, Product product, ProductVariant variant, ProductFrameOption frameOption, Integer pageCount, PhotobookDesign design, String templateCode) {
         CartItem item = new CartItem();
         item.setCart(cart);
         item.setProduct(product);
         item.setProductVariant(variant);
         item.setProductFrameOption(frameOption);
+        item.setPageCount(pageCount);
+        item.setPhotobookDesign(design);
+        item.setPhotobookTemplateCode(templateCode);
         item.setQuantity(0);
         cart.getItems().add(item);
         return item;
@@ -144,14 +200,7 @@ public class CartServiceImpl implements CartService {
 
     private CartItem getOwnedItem(UUID userId, UUID itemId) {
         return cartItemRepository.findByIdAndCartUserId(itemId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.CART_ITEM_NOT_FOUND, "Cart item not found"));
-    }
-
-    private void validateStock(Product product, ProductVariant variant, int quantity) {
-        int availableStock = variant == null ? product.getStockQuantity() : variant.getStockQuantity();
-        if (quantity > availableStock) {
-            throw new AppException(ErrorCode.INSUFFICIENT_PRODUCT_STOCK, "Requested quantity exceeds available stock");
-        }
+                .orElseThrow(() -> new AppException(ErrorCode.CART_ITEM_NOT_FOUND, "Không tìm thấy sản phẩm này trong giỏ hàng."));
     }
 
     private CartResponse toResponse(Cart cart) {
@@ -168,11 +217,10 @@ public class CartServiceImpl implements CartService {
                 ? null
                 : productFrameOptionMapper.toResponse(item.getProductFrameOption());
         ProductVariant variant = item.getProductVariant();
-        BigDecimal basePrice = variant == null ? item.getProduct().getPrice() : variant.getPrice();
-        BigDecimal unitPrice = basePrice;
-        if (item.getProductFrameOption() != null) {
-            unitPrice = unitPrice.add(item.getProductFrameOption().getPriceAdjustment());
-        }
+        ProductSelectionPricingService.SelectionQuote quote = selectionPricingService.quote(
+                item.getProduct(), variant, item.getProductFrameOption(), item.getPageCount());
+        BigDecimal basePrice = quote.basePrice();
+        BigDecimal unitPrice = quote.unitPrice();
         return new CartItemResponse(
                 item.getId(),
                 item.getProduct().getId(),
@@ -181,6 +229,9 @@ public class CartServiceImpl implements CartService {
                 toVariantResponse(variant),
                 basePrice,
                 frameOption,
+                item.getPageCount(),
+                item.getPhotobookDesign() == null ? null : item.getPhotobookDesign().getId(),
+                item.getPhotobookTemplateCode(),
                 unitPrice,
                 item.getQuantity(),
                 unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
@@ -189,21 +240,12 @@ public class CartServiceImpl implements CartService {
     private ProductVariant getSelectedVariant(Product product, UUID variantId) {
         boolean hasVariants = productVariantRepository.existsByProductId(product.getId());
         if (variantId == null) {
-            if (hasVariants) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Select a product variant before adding this product to cart");
+            if (hasVariants) throw new AppException(ErrorCode.PRODUCT_VARIANT_REQUIRED, "Hãy chọn phiên bản sản phẩm trước khi thêm vào giỏ.");
             return null;
         }
         return productVariantRepository.findByIdAndProductId(variantId, product.getId())
                 .filter(variant -> variant.isAvailable() && variant.getStockQuantity() > 0)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Product variant is not available"));
-    }
-
-    private void validateFrameCompatibility(ProductFrameOption option, ProductVariant variant) {
-        if (option == null || variant == null) return;
-        boolean compatible = (option.getMinWidthCm() == null || variant.getWidthCm().compareTo(option.getMinWidthCm()) >= 0)
-                && (option.getMaxWidthCm() == null || variant.getWidthCm().compareTo(option.getMaxWidthCm()) <= 0)
-                && (option.getMinHeightCm() == null || variant.getHeightCm().compareTo(option.getMinHeightCm()) >= 0)
-                && (option.getMaxHeightCm() == null || variant.getHeightCm().compareTo(option.getMaxHeightCm()) <= 0);
-        if (!compatible) throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_AVAILABLE, "Frame is not compatible with the selected variant");
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_AVAILABLE, "Phiên bản sản phẩm này hiện không bán."));
     }
 
     private ProductVariantResponse toVariantResponse(ProductVariant variant) {

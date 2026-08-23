@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    actor U as Khách hàng
+    participant FE as business-store-frontend
+    participant C as OrderController
+    participant O as OrderServiceImpl
+    participant DB as PostgreSQL
+    participant P as PromotionServiceImpl
+    participant PB as PhotobookProjectServiceImpl
+    participant L as NotificationEventListener
+    participant R as Redis pub/sub
+    U->>FE: Xác nhận checkout
+    FE->>C: POST /api/v1/orders/checkout (JSON/HTTPS, Bearer JWT)
+    C->>O: checkout(userId, CheckoutOrderRequest)
+    O->>DB: Đọc Cart, địa chỉ, Product/Variant và khóa tồn kho (JPA/JDBC)
+    DB-->>O: Dữ liệu và tồn kho hợp lệ
+    O->>DB: Ghi Order/OrderItem, giảm stock, xóa Cart (transaction)
+    opt Có couponCode
+        O->>P: reserve(userId, order, couponCode)
+        P->>DB: Ghi reservation giảm giá (JPA/JDBC)
+    end
+    opt Có OrderItem photobook
+        O->>PB: openProjectsFor(order)
+        PB->>DB: Ghi PhotobookProject (JPA/JDBC)
+    end
+    O-->>C: OrderResponse
+    Note over O,L: Sau khi transaction commit
+    O->>L: OrderPlacedEvent (Spring event)
+    L->>R: Publish thông báo đơn mới (Redis pub/sub)
+    C-->>FE: 201 Created + OrderResponse

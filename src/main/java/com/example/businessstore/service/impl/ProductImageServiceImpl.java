@@ -58,7 +58,7 @@ public class ProductImageServiceImpl implements ProductImageService {
     public List<ProductImageResponse> findPublishedByProductId(UUID productId) {
         Product product = productRepository.findById(productId)
                 .filter(item -> item.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         return findImages(product.getId());
     }
 
@@ -83,7 +83,7 @@ public class ProductImageServiceImpl implements ProductImageService {
             } else {
                 throw new AppException(
                         ErrorCode.INVALID_REQUEST,
-                        "Set another image as primary before unsetting the current primary image");
+                        "Hãy chọn ảnh khác làm ảnh chính trước khi bỏ ảnh chính hiện tại.");
             }
         }
         if (request.sortOrder() != null) {
@@ -118,14 +118,14 @@ public class ProductImageServiceImpl implements ProductImageService {
 
     private Product getProduct(UUID productId) {
         return productRepository.findById(productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
     }
 
     private ProductImage getProductImage(UUID productId, UUID imageId) {
         ProductImage image = productImageRepository.findById(imageId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND, "Product image not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND, "Không tìm thấy ảnh sản phẩm."));
         if (!image.getProduct().getId().equals(productId)) {
-            throw new AppException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND, "Product image not found");
+            throw new AppException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND, "Không tìm thấy ảnh sản phẩm.");
         }
         return image;
     }

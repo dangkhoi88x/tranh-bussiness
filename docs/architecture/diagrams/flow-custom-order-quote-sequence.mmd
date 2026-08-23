@@ -1,0 +1,39 @@
+sequenceDiagram
+    autonumber
+    actor U as Khách hàng
+    actor S as Nhân viên
+    participant FE as business-store-frontend
+    participant C as CustomOrderRequestController
+    participant CO as CustomOrderRequestServiceImpl
+    participant M as CloudinaryMediaStorageService
+    participant CL as Cloudinary
+    participant DB as PostgreSQL
+    participant N as NotificationEventListener
+    participant SMTP as SMTP
+    participant O as OrderServiceImpl
+    U->>FE: Tạo yêu cầu đặt riêng
+    FE->>C: POST /api/v1/custom-order-requests (JSON/HTTPS)
+    C->>CO: create(userId, request)
+    CO->>DB: Ghi CustomOrderRequest status NEW (JPA/JDBC)
+    opt Có ảnh tham khảo
+        FE->>C: POST /mine/{id}/images (multipart/HTTPS)
+        C->>CO: uploadImage(userId, id, file)
+        CO->>M: uploadCustomOrderImage
+        M->>CL: Upload ảnh authenticated (HTTPS API)
+        CO->>DB: Ghi CustomOrderImage (JPA/JDBC)
+    end
+    S->>C: PUT /{id}/quote (JSON/HTTPS)
+    C->>CO: quote(id, QuoteCustomOrderRequest)
+    CO->>DB: Khóa request, ghi giá và status QUOTED
+    Note over CO,N: Sau transaction commit
+    CO->>N: CustomOrderQuotedEvent (Spring event)
+    N->>SMTP: Gửi email báo giá (SMTP, @Async)
+    U->>C: PUT /mine/{id}/quote-decision (JSON/HTTPS)
+    C->>CO: decideQuote(userId, id, accepted)
+    alt Từ chối
+        CO->>DB: Đổi request sang CANCELLED (JPA/JDBC)
+    else Đồng ý có shippingAddressId
+        CO->>O: createFromCustomRequest(userId, addressId, request)
+        O->>DB: Ghi Order và snapshot địa chỉ (JPA/JDBC)
+        CO->>DB: Liên kết Order, đổi request sang CONFIRMED
+    end

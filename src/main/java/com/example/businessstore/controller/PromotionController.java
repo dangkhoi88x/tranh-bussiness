@@ -80,7 +80,7 @@ public class PromotionController {
     public ResponseEntity<ApiResponse<PromotionResponse>> create(
             @Valid @RequestBody CreatePromotionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(promotionService.create(request), "Promotion created"));
+                .body(ApiResponse.success(promotionService.create(request), "Đã tạo chương trình khuyến mãi."));
     }
 
     @PutMapping("/{id}")
@@ -88,7 +88,7 @@ public class PromotionController {
     public ResponseEntity<ApiResponse<PromotionResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePromotionRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(promotionService.update(id, request), "Promotion updated"));
+        return ResponseEntity.ok(ApiResponse.success(promotionService.update(id, request), "Đã cập nhật chương trình khuyến mãi."));
     }
 
     @PatchMapping("/{id}/status")
@@ -97,7 +97,7 @@ public class PromotionController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdatePromotionStatusRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
-                promotionService.updateStatus(id, request.status()), "Promotion status updated"));
+                promotionService.updateStatus(id, request.status()), "Đã cập nhật trạng thái chương trình khuyến mãi."));
     }
 
     @DeleteMapping("/{id}")

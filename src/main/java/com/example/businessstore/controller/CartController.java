@@ -39,7 +39,7 @@ public class CartController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody AddCartItemRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(cartService.addItem(userId(jwt), request), "Item added to cart"));
+                .body(ApiResponse.success(cartService.addItem(userId(jwt), request), "Đã thêm vào giỏ hàng."));
     }
 
     @PutMapping("/items/{itemId}")
@@ -47,7 +47,7 @@ public class CartController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID itemId,
             @Valid @RequestBody UpdateCartItemRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(cartService.updateItem(userId(jwt), itemId, request), "Cart item updated"));
+        return ResponseEntity.ok(ApiResponse.success(cartService.updateItem(userId(jwt), itemId, request), "Đã cập nhật giỏ hàng."));
     }
 
     @DeleteMapping("/items/{itemId}")

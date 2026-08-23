@@ -25,4 +25,103 @@
   [data-grid="cols"] > * + * { border-top: 2px solid var(--color-divider); }
   [data-split] { grid-template-columns: minmax(0, 1fr) !important; }
   [data-split] > * { border-right: 0 !important; }
+  [data-split] > [data-tpl-img] { order: -1 !important; border-left: 0 !important; }
+
+  /* Breadcrumb 46px cố định sẽ tràn chữ khi tên sản phẩm xuống dòng. */
+  [data-breadcrumb] {
+    height: auto !important;
+    flex-wrap: wrap;
+    padding-top: var(--space-2) !important;
+    padding-bottom: var(--space-2) !important;
+  }
+  [data-breadcrumb] [data-breadcrumb-back] { display: none; }
+
+  /* Nhãn KHỔ/KHUNG/SỐ LƯỢNG lên trên chip thay vì chen cột 84px. */
+  [data-option-row] { grid-template-columns: minmax(0, 1fr) !important; align-items: start !important; }
+}
+
+@media (max-width: 560px) {
+  [data-site-header] {
+    gap: var(--space-2) !important;
+    padding-inline: var(--space-4) !important;
+  }
+  [data-header-actions] { gap: var(--space-2) !important; }
+  [data-print-cta] { display: none !important; }
+  [data-site-header] > a:first-child { font-size: 18px !important; }
+  [data-header-actions] { gap: var(--space-1) !important; }
+}
+
+/* ── Photobook wizard: mobile-first responsive ───────────────────────── */
+
+@media (max-width: 720px) {
+  /* Step indicator: shrink gap, hide labels, compact padding */
+  [data-pb-step-bar] {
+    gap: var(--space-2) !important;
+    padding: var(--space-3) var(--space-4) !important;
+  }
+  [data-pb-step-bar] button { font-size: 0 !important; gap: 0 !important; }
+  [data-pb-step-bar] button > span { font-size: 11px !important; }
+
+  /* Step 1: buy panel — reduce padding */
+  [data-pb-buy] { padding: var(--space-5) var(--space-4) !important; }
+  [data-pb-buy] h1 { font-size: 24px !important; }
+  [data-pb-price-table] { padding: var(--space-4) !important; }
+
+  /* Step 2: reduce padding */
+  [data-pb-arrange] { padding: var(--space-5) var(--space-4) !important; }
+
+  /* Step 2: layout picker — horizontal scroll */
+  [data-pb-layout-picker] {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--space-2);
+  }
+  [data-pb-layout-thumb] {
+    width: 60px !important;
+    flex-shrink: 0;
+  }
+
+  /* Step 3: reduce padding */
+  [data-pb-review] { padding: var(--space-5) var(--space-4) !important; }
+
+  /* Step 3: review grid — smaller cards */
+  [data-pb-review-grid] {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    gap: var(--space-3) !important;
+  }
+
+  /* Step 3: book demo — smaller perspective for narrower viewport */
+  [data-pb-book-scene] {
+    perspective: 1000px !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Step indicator: even more compact */
+  [data-pb-step-bar] { padding: var(--space-2) var(--space-3) !important; }
+
+  /* Step 1 */
+  [data-pb-buy] { padding: var(--space-4) var(--space-3) !important; gap: var(--space-3) !important; }
+  [data-pb-buy] h1 { font-size: 20px !important; }
+  [data-pb-price-table] { padding: var(--space-3) !important; }
+
+  /* Step 2 */
+  [data-pb-arrange] { padding: var(--space-4) var(--space-3) !important; gap: var(--space-4) !important; }
+  [data-pb-layout-thumb] { width: 52px !important; }
+
+  /* Step 3 */
+  [data-pb-review] { padding: var(--space-4) var(--space-3) !important; gap: var(--space-4) !important; }
+  [data-pb-review-grid] {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 380px) {
+  [data-account-link], [data-notifications-link] { display: none !important; }
+}
+@keyframes photobook-skeleton {
+  0% { background-position: 100% 50%; }
+  100% { background-position: -100% 50%; }
 }

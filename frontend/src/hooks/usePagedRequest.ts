@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { apiRequest } from "../api/http";
-import type { Page } from "../types/api";
+import { useCallback, useEffect, useState } from 'react';
+import { apiRequest } from '../api/http';
+import type { Page } from '../types/api';
 
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : "Đã có lỗi xảy ra.";
+const errorText = (error: unknown) => (error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
 
 export function usePagedRequest<T>(path: string) {
   const [data, setData] = useState<Page<T> | null>(null);

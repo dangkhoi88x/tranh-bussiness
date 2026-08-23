@@ -4,6 +4,7 @@ import com.example.businessstore.constant.CustomOrderRequestStatus;
 import com.example.businessstore.constant.CustomOrderRequestType;
 import com.example.businessstore.constant.OrderStatus;
 import com.example.businessstore.dto.request.DecideCustomOrderQuoteRequest;
+import com.example.businessstore.dto.request.QuoteCustomOrderRequest;
 import com.example.businessstore.dto.response.OrderResponse;
 import com.example.businessstore.entity.CustomOrderRequest;
 import com.example.businessstore.entity.Order;
@@ -15,11 +16,13 @@ import com.example.businessstore.repository.UserRepository;
 import com.example.businessstore.service.MediaStorageService;
 import com.example.businessstore.service.MediaTransactionSynchronizer;
 import com.example.businessstore.service.OrderService;
+import com.example.businessstore.event.CustomOrderQuotedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -41,6 +44,7 @@ class CustomOrderRequestServiceImplTest {
     @Mock private OrderService orderService;
     @Mock private MediaStorageService mediaStorageService;
     @Mock private MediaTransactionSynchronizer mediaTransactionSynchronizer;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @InjectMocks private CustomOrderRequestServiceImpl service;
 
     @Test
@@ -76,6 +80,22 @@ class CustomOrderRequestServiceImplTest {
 
         assertThat(request.getStatus()).isEqualTo(CustomOrderRequestStatus.CANCELLED);
         org.mockito.Mockito.verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void quote_publishesQuoteEmailEvent() {
+        UUID userId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        User user = new User(); user.setId(userId); user.setEmail("an@example.com"); user.setFirstName("An");
+        CustomOrderRequest request = new CustomOrderRequest(); request.setId(requestId); request.setUser(user); request.setRequestCode("REQ-001"); request.setStatus(CustomOrderRequestStatus.NEW);
+        when(requestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(request));
+
+        service.quote(requestId, new QuoteCustomOrderRequest(new BigDecimal("900000"), null, "Khung gỗ", CustomOrderRequestStatus.QUOTED));
+
+        org.mockito.ArgumentCaptor<CustomOrderQuotedEvent> event = org.mockito.ArgumentCaptor.forClass(CustomOrderQuotedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().requestId()).isEqualTo(requestId);
+        assertThat(event.getValue().quotedPrice()).isEqualByComparingTo("900000");
     }
 
     private CustomOrderRequest quotedRequest(UUID requestId, UUID userId) {

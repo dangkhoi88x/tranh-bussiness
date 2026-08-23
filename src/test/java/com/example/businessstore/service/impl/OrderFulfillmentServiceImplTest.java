@@ -11,6 +11,9 @@ import com.example.businessstore.entity.OrderItem;
 import com.example.businessstore.entity.Payment;
 import com.example.businessstore.entity.ProductVariant;
 import com.example.businessstore.entity.Shipment;
+import com.example.businessstore.entity.User;
+import com.example.businessstore.event.OrderDeliveredEvent;
+import com.example.businessstore.event.OrderDeliveryFailedEvent;
 import com.example.businessstore.exception.AppException;
 import com.example.businessstore.exception.ErrorCode;
 import com.example.businessstore.repository.OrderRepository;
@@ -24,6 +27,7 @@ import com.example.businessstore.service.OrderStatusHistoryService;
 import com.example.businessstore.service.PromotionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -49,6 +53,7 @@ class OrderFulfillmentServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private PromotionService promotionService;
     @Mock private OrderStatusHistoryService orderStatusHistoryService;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
     @InjectMocks private OrderFulfillmentServiceImpl fulfillmentService;
 
     @Test
@@ -71,6 +76,11 @@ class OrderFulfillmentServiceImplTest {
         assertThat(payment.getPaidAt()).isNotNull();
         verify(orderStatusHistoryService).record(order, OrderStatus.SHIPPING, OrderStatus.DELIVERED, staffId,
                 "Đã giao tận tay; Shipment delivered; COD payment collected");
+        // Khách phải được báo là đơn đã giao xong; trước đây nhánh này im lặng hoàn toàn.
+        ArgumentCaptor<OrderDeliveredEvent> captor = ArgumentCaptor.forClass(OrderDeliveredEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().orderCode()).isEqualTo("ART-001");
+        assertThat(captor.getValue().email()).isEqualTo("an@example.com");
     }
 
     @Test
@@ -87,12 +97,11 @@ class OrderFulfillmentServiceImplTest {
         order.getItems().add(item);
         Shipment shipment = inTransitShipment(order);
         Payment payment = pendingCod(order);
-        ProductVariant variant = new ProductVariant();
-        variant.setStockQuantity(3);
         when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
         when(shipmentRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(shipment));
         when(paymentRepository.findFirstByOrderIdForUpdate(orderId)).thenReturn(Optional.of(payment));
-        when(productVariantRepository.findByIdForUpdate(variantId)).thenReturn(Optional.of(variant));
+        // Hoàn kho là UPDATE atomic; 1 dòng đổi được nghĩa là variant còn tồn tại.
+        when(productVariantRepository.increaseStock(variantId, 2)).thenReturn(1);
 
         fulfillmentService.failDelivery(staffId, orderId,
                 new DeliveryFailureRequest("Khách không nhận hàng", true));
@@ -100,10 +109,15 @@ class OrderFulfillmentServiceImplTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERY_FAILED);
         assertThat(shipment.getStatus()).isEqualTo(ShipmentStatus.DELIVERY_FAILED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
-        assertThat(variant.getStockQuantity()).isEqualTo(5);
+        verify(productVariantRepository).increaseStock(variantId, 2);
         verify(promotionService).release(order);
         verify(orderStatusHistoryService).record(order, OrderStatus.SHIPPING, OrderStatus.DELIVERY_FAILED, staffId,
                 "Shipment delivery failed: Khách không nhận hàng; Pending COD payment cancelled; Inventory restocked; Coupon SAVE10 released");
+        // Đây là ca khách cần biết nhất: hàng không giao được và đã quay về kho.
+        ArgumentCaptor<OrderDeliveryFailedEvent> captor = ArgumentCaptor.forClass(OrderDeliveryFailedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().orderCode()).isEqualTo("ART-001");
+        assertThat(captor.getValue().failureReason()).isEqualTo("Khách không nhận hàng");
     }
 
     @Test
@@ -129,7 +143,18 @@ class OrderFulfillmentServiceImplTest {
         order.setStatus(OrderStatus.SHIPPING);
         order.setSubtotalAmount(BigDecimal.TEN);
         order.setTotalAmount(BigDecimal.TEN);
+        // Order.user là optional = false ở JPA và NOT NULL dưới DB, nên đơn không có chủ là trạng
+        // thái không thể tồn tại thật. Fixture phải gắn user thì thông báo cho khách mới gửi được.
+        order.setUser(customer());
         return order;
+    }
+
+    private User customer() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("an@example.com");
+        user.setFirstName("An");
+        return user;
     }
 
     private Shipment inTransitShipment(Order order) {

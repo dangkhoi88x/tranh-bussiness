@@ -1,0 +1,27 @@
+C4Container
+title Sơ đồ container — Business Store
+
+Person(customer, "Khách hàng", "Người mua")
+Person(staff, "Nhân viên / quản trị viên", "Vận hành")
+
+System_Boundary(store, "Business Store") {
+  Container(frontend, "business-store-frontend", "React 19, Vite, Nginx", "SPA/storefront và UI quản trị")
+  Container(api, "business-store", "Spring Boot 4, Java 21", "REST API, xác thực, nghiệp vụ và SSE")
+  ContainerDb(postgres, "PostgreSQL", "PostgreSQL 17", "Dữ liệu nghiệp vụ, schema do Flyway quản lý")
+  ContainerDb(redis, "Redis", "Redis 7.4", "Token TTL, rate-limit và pub/sub thông báo")
+}
+
+System_Ext(google, "Google OAuth", "OAuth 2.0")
+System_Ext(cloudinary, "Cloudinary", "Media storage API")
+System_Ext(smtp, "SMTP / Mailpit", "Email transport")
+
+Rel(customer, frontend, "Dùng cửa hàng", "HTTPS")
+Rel(staff, frontend, "Dùng trang quản trị", "HTTPS")
+Rel(frontend, api, "Gọi /api/v1", "JSON/HTTPS hoặc reverse proxy")
+Rel(frontend, api, "Nhận đơn mới", "SSE/HTTPS")
+Rel(api, postgres, "Đọc/ghi dữ liệu", "JPA/JDBC")
+Rel(api, redis, "Đọc/ghi token và rate-limit", "Redis")
+Rel(api, redis, "Publish/subscribe admin order notification", "Redis pub/sub")
+Rel(api, google, "Đổi code và xác minh token", "HTTPS/OAuth 2.0")
+Rel(api, cloudinary, "Lưu và ký URL media", "HTTPS API")
+Rel(api, smtp, "Gửi mail sau commit", "SMTP")

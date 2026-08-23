@@ -30,6 +30,6 @@ public class ApiAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         ApiError error = new ApiError(ErrorCode.UNAUTHORIZED.value(), request.getRequestURI(), Map.of());
-        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(error, "Authentication is required"));
+        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(error, "Vui lòng đăng nhập để tiếp tục."));
     }
 }

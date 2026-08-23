@@ -1,0 +1,21 @@
+flowchart TD
+    start([Nhân viên tạo vận đơn]) --> confirmed{Order = CONFIRMED\nvà COD = PENDING?}
+    confirmed -- Không --> createError[Trả SHIPMENT_NOT_READY hoặc COD_PAYMENT_REQUIRED]
+    confirmed -- Có --> ready[Ghi Shipment READY và cập nhật tổng tiền]
+    ready --> transit[Đổi Shipment sang IN_TRANSIT]
+    transit --> shipping[Đổi Order sang SHIPPING\nvà phát OrderShippedEvent]
+    shipping --> result{Kết quả giao?}
+    result -- Giao thành công --> complete[Khóa Order/Shipment/Payment]
+    complete --> payable{COD PENDING\nvà Shipment IN_TRANSIT?}
+    payable -- Không --> completeError[Trả lỗi fulfillment không hợp lệ]
+    payable -- Có --> delivered[Shipment DELIVERED, Payment SUCCESS, Order DELIVERED]
+    result -- Giao thất bại --> failed[Shipment DELIVERY_FAILED]
+    failed --> payment{Thanh toán COD pending?}
+    payment -- Có --> cancelPayment[Hủy Payment COD]
+    payment -- Không --> refund{Payment SUCCESS?}
+    refund -- Có --> refundPending[Tạo PaymentRefund PENDING]
+    refund -- Không --> restock
+    cancelPayment --> restock[Hoàn tồn kho, release coupon, Order DELIVERY_FAILED]
+    refundPending --> restock
+    delivered --> finish([Kết thúc])
+    restock --> finish

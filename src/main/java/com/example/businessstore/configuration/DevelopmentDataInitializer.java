@@ -5,6 +5,7 @@ import com.example.businessstore.constant.ProductStatus;
 import com.example.businessstore.constant.RoleName;
 import com.example.businessstore.entity.Category;
 import com.example.businessstore.entity.Frame;
+import com.example.businessstore.entity.PhotobookPageTier;
 import com.example.businessstore.entity.Product;
 import com.example.businessstore.entity.ProductFrameOption;
 import com.example.businessstore.entity.ProductImage;
@@ -14,6 +15,7 @@ import com.example.businessstore.entity.User;
 import com.example.businessstore.repository.CategoryRepository;
 import com.example.businessstore.repository.FrameRepository;
 import com.example.businessstore.repository.MaterialRepository;
+import com.example.businessstore.repository.PhotobookPageTierRepository;
 import com.example.businessstore.repository.ProductFrameOptionRepository;
 import com.example.businessstore.repository.ProductImageRepository;
 import com.example.businessstore.repository.ProductRepository;
@@ -53,6 +55,7 @@ public class DevelopmentDataInitializer implements ApplicationRunner {
     private final ProductVariantRepository productVariantRepository;
     private final ProductImageRepository productImageRepository;
     private final ProductFrameOptionRepository productFrameOptionRepository;
+    private final PhotobookPageTierRepository photobookPageTierRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -111,7 +114,81 @@ public class DevelopmentDataInitializer implements ApplicationRunner {
                         new VariantSeed("TBS-DL-5075", "50 × 75 cm", "50", "75", "Canvas", "1800000", 15)),
                 List.of(oak, black));
 
+        Category photobook = seedCategory(
+                "photobook", "Photobook", "Sách ảnh in theo yêu cầu, layout do xưởng thiết kế.");
+        seedPhotobook(photobook);
+
         log.info("Development seed is ready. Admin account: {}", adminEmail);
+    }
+
+    /**
+     * Template photobook Eco Matte / Eco Silk, số liệu lấy nguyên từ bảng giá của xưởng:
+     * ba khổ S/M/L, neo giá ở 20 và 30 trang, phụ thu 80.000đ mỗi 2 trang tới tối đa 150 trang.
+     * Giá gốc của Product là mức thấp nhất bán được — dùng cho thẻ sản phẩm ở danh sách ("Từ …").
+     */
+    private void seedPhotobook(Category category) {
+        String slug = "photobook-eco-matte";
+        if (productRepository.existsBySlug(slug)) {
+            return;
+        }
+
+        Product product = new Product();
+        product.setSlug(slug);
+        product.setName("Photobook Eco Matte");
+        product.setCategory(category);
+        product.setDescription("Bìa cứng in hình, áo bọc in hình, mở phẳng 180 độ. "
+                + "Khách gửi ảnh, xưởng lên layout và gửi duyệt trước khi in.");
+        product.setPrice(money("1119000"));
+        product.setWidthCm(money("14"));
+        product.setHeightCm(money("19"));
+        product.setStockQuantity(50);
+        product.setStatus(ProductStatus.PUBLISHED);
+        product.setCoverMaterial("Bìa cứng in hình, áo bọc in hình");
+        product.setMinPages(20);
+        product.setMaxPages(150);
+        product.setPageStep(2);
+        product.setPricePerStep(money("80000"));
+        Product saved = productRepository.save(product);
+
+        seedPhotobookSize(saved, "PB-ECO-S", "Size S (14 × 19 cm)", "14", "19", "1119000", "1399000");
+        seedPhotobookSize(saved, "PB-ECO-M", "Size M (20 × 25 cm)", "20", "25", "1399000", "1799000");
+        seedPhotobookSize(saved, "PB-ECO-L", "Size L (20 × 30 cm)", "20", "30", "1599000", "1999000");
+
+        ProductImage image = new ProductImage();
+        image.setProduct(saved);
+        image.setPublicId("development-seed/products/" + slug);
+        image.setSecureUrl("https://placehold.co/1200x900/f5f0e8/30241f?text=" + slug);
+        image.setAltText(saved.getName());
+        image.setSortOrder(1);
+        image.setPrimaryImage(true);
+        productImageRepository.save(image);
+    }
+
+    private void seedPhotobookSize(Product product, String sku, String name, String widthCm, String heightCm,
+                                   String priceAt20Pages, String priceAt30Pages) {
+        ProductVariant variant = new ProductVariant();
+        variant.setProduct(product);
+        variant.setSku(sku);
+        variant.setName(name);
+        variant.setWidthCm(money(widthCm));
+        variant.setHeightCm(money(heightCm));
+        variant.setMaterial("Eco Matte");
+        // Giá variant là mức 20 trang; giá thật của một cuốn luôn đi qua PhotobookPricing.
+        variant.setPrice(money(priceAt20Pages));
+        variant.setStockQuantity(50);
+        variant.setAvailable(true);
+        ProductVariant savedVariant = productVariantRepository.save(variant);
+
+        savePageTier(savedVariant, 20, priceAt20Pages);
+        savePageTier(savedVariant, 30, priceAt30Pages);
+    }
+
+    private void savePageTier(ProductVariant variant, int pageCount, String price) {
+        PhotobookPageTier tier = new PhotobookPageTier();
+        tier.setProductVariant(variant);
+        tier.setPageCount(pageCount);
+        tier.setPrice(money(price));
+        photobookPageTierRepository.save(tier);
     }
 
     private void seedAdmin(Role adminRole) {

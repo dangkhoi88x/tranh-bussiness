@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Modal } from "../components/admin/Modal";
-import { Pagination } from "../components/admin/Pagination";
-import { apiRequest } from "../api/http";
-import { useAuth } from "../contexts/AuthContext";
-import type { Page } from "../types/api";
+import { useEffect, useState, type FormEvent } from 'react';
+import { Modal } from '../components/admin/Modal';
+import { Pagination } from '../components/admin/Pagination';
+import { apiRequest } from '../api/http';
+import { useAuth } from '../contexts/AuthContext';
+import type { Page } from '../types/api';
 
 type ManagedUser = {
   id: string;
@@ -15,7 +15,7 @@ type ManagedUser = {
   roles: RoleName[];
   createdAt: string;
 };
-type RoleName = "CUSTOMER" | "STAFF" | "ADMIN";
+type RoleName = 'CUSTOMER' | 'STAFF' | 'ADMIN';
 type ManagedRole = {
   name: RoleName;
   description: string | null;
@@ -23,46 +23,45 @@ type ManagedRole = {
   permissions: PermissionName[];
 };
 type PermissionName =
-  | "DASHBOARD_VIEW"
-  | "USER_MANAGE"
-  | "CATEGORY_MANAGE"
-  | "PRODUCT_MANAGE"
-  | "FRAME_MANAGE"
-  | "ORDER_MANAGE"
-  | "PAYMENT_MANAGE"
-  | "CUSTOM_ORDER_MANAGE"
-  | "SHIPMENT_MANAGE"
-  | "PROMOTION_MANAGE";
+  | 'DASHBOARD_VIEW'
+  | 'USER_MANAGE'
+  | 'CATEGORY_MANAGE'
+  | 'PRODUCT_MANAGE'
+  | 'FRAME_MANAGE'
+  | 'ORDER_MANAGE'
+  | 'PAYMENT_MANAGE'
+  | 'CUSTOM_ORDER_MANAGE'
+  | 'SHIPMENT_MANAGE'
+  | 'PROMOTION_MANAGE';
 
-const roles: RoleName[] = ["CUSTOMER", "STAFF", "ADMIN"];
+const roles: RoleName[] = ['CUSTOMER', 'STAFF', 'ADMIN'];
 const permissionLabels: Record<PermissionName, string> = {
-  DASHBOARD_VIEW: "Xem dashboard",
-  USER_MANAGE: "Quản lý nhân sự",
-  CATEGORY_MANAGE: "Quản lý danh mục",
-  PRODUCT_MANAGE: "Quản lý sản phẩm",
-  FRAME_MANAGE: "Quản lý khung",
-  ORDER_MANAGE: "Quản lý đơn hàng",
-  PAYMENT_MANAGE: "Quản lý thanh toán COD",
-  CUSTOM_ORDER_MANAGE: "Quản lý đơn đặt theo yêu cầu",
-  SHIPMENT_MANAGE: "Quản lý vận chuyển",
-  PROMOTION_MANAGE: "Quản lý khuyến mãi",
+  DASHBOARD_VIEW: 'Xem dashboard',
+  USER_MANAGE: 'Quản lý nhân sự',
+  CATEGORY_MANAGE: 'Quản lý danh mục',
+  PRODUCT_MANAGE: 'Quản lý sản phẩm',
+  FRAME_MANAGE: 'Quản lý khung',
+  ORDER_MANAGE: 'Quản lý đơn hàng',
+  PAYMENT_MANAGE: 'Quản lý thanh toán COD',
+  CUSTOM_ORDER_MANAGE: 'Quản lý đơn đặt theo yêu cầu',
+  SHIPMENT_MANAGE: 'Quản lý vận chuyển',
+  PROMOTION_MANAGE: 'Quản lý khuyến mãi',
 };
-const staffPermissions = (
-  Object.keys(permissionLabels) as PermissionName[]
-).filter((permission) => permission !== "USER_MANAGE");
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : "Đã có lỗi xảy ra.";
-const dateTime = new Intl.DateTimeFormat("vi-VN", {
-  dateStyle: "medium",
-  timeStyle: "short",
+const staffPermissions = (Object.keys(permissionLabels) as PermissionName[]).filter(
+  (permission) => permission !== 'USER_MANAGE',
+);
+const errorText = (error: unknown) => (error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
+const dateTime = new Intl.DateTimeFormat('vi-VN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
 });
 
 export function StaffPage() {
   const { session } = useAuth();
   const [data, setData] = useState<Page<ManagedUser> | null>(null);
   const [managedRoles, setManagedRoles] = useState<ManagedRole[]>([]);
-  const [queryInput, setQueryInput] = useState("");
-  const [query, setQuery] = useState("");
+  const [queryInput, setQueryInput] = useState('');
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [editingPermissions, setEditingPermissions] = useState(false);
@@ -72,10 +71,10 @@ export function StaffPage() {
   async function load() {
     setLoading(true);
     try {
-      const suffix = query ? `&query=${encodeURIComponent(query)}` : "";
+      const suffix = query ? `&query=${encodeURIComponent(query)}` : '';
       const [users, roleData] = await Promise.all([
         apiRequest<Page<ManagedUser>>(`/users?page=${page}&size=15${suffix}`),
-        apiRequest<ManagedRole[]>("/users/roles"),
+        apiRequest<ManagedRole[]>('/users/roles'),
       ]);
       setData(users);
       setManagedRoles(roleData);
@@ -90,7 +89,7 @@ export function StaffPage() {
   }, [page, query]);
 
   async function toggleEnabled(user: ManagedUser) {
-    const action = user.enabled ? "khóa" : "mở lại";
+    const action = user.enabled ? 'khóa' : 'mở lại';
     if (
       !window.confirm(
         `${action[0].toUpperCase()}${action.slice(1)} tài khoản ${user.email}? Các phiên đăng nhập sẽ bị thu hồi.`,
@@ -99,8 +98,8 @@ export function StaffPage() {
       return;
     try {
       await apiRequest<ManagedUser>(`/users/${user.id}/enabled`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !user.enabled }),
       });
       setMessage(`Đã ${action} tài khoản.`);
@@ -109,21 +108,16 @@ export function StaffPage() {
       setMessage(errorText(cause));
     }
   }
-  const staffRole = managedRoles.find((role) => role.name === "STAFF");
+  const staffRole = managedRoles.find((role) => role.name === 'STAFF');
   return (
     <>
       <header className="catalog-header staff-header">
         <div>
           <p className="eyebrow">ACCESS CONTROL</p>
           <h2>Nhân sự & phân quyền</h2>
-          <p>
-            Gán role cho tài khoản và thiết lập quyền vận hành cho nhóm STAFF.
-          </p>
+          <p>Gán role cho tài khoản và thiết lập quyền vận hành cho nhóm STAFF.</p>
         </div>
-        <button
-          className="ghost-button"
-          onClick={() => setEditingPermissions(true)}
-        >
+        <button className="ghost-button" onClick={() => setEditingPermissions(true)}>
           Quyền STAFF
         </button>
       </header>
@@ -175,8 +169,8 @@ export function StaffPage() {
                       </strong>
                       <small>
                         {user.email}
-                        {user.phone ? ` · ${user.phone}` : ""}
-                        {user.id === session?.userId ? " · Bạn" : ""}
+                        {user.phone ? ` · ${user.phone}` : ''}
+                        {user.id === session?.userId ? ' · Bạn' : ''}
                       </small>
                     </td>
                     <td>
@@ -187,24 +181,20 @@ export function StaffPage() {
                       </div>
                     </td>
                     <td>
-                      <span
-                        className={`status ${user.enabled ? "status--active" : "status--cancelled"}`}
-                      >
-                        {user.enabled ? "ACTIVE" : "LOCKED"}
+                      <span className={`status ${user.enabled ? 'status--active' : 'status--cancelled'}`}>
+                        {user.enabled ? 'ACTIVE' : 'LOCKED'}
                       </span>
                     </td>
                     <td>{dateTime.format(new Date(user.createdAt))}</td>
                     <td className="table-actions">
                       {user.id !== session?.userId ? (
                         <>
-                          <button onClick={() => setEditing(user)}>
-                            Phân quyền
-                          </button>
+                          <button onClick={() => setEditing(user)}>Phân quyền</button>
                           <button
-                            className={user.enabled ? "danger-text" : ""}
+                            className={user.enabled ? 'danger-text' : ''}
                             onClick={() => void toggleEnabled(user)}
                           >
-                            {user.enabled ? "Khóa" : "Mở khóa"}
+                            {user.enabled ? 'Khóa' : 'Mở khóa'}
                           </button>
                         </>
                       ) : (
@@ -216,9 +206,7 @@ export function StaffPage() {
                 {data?.items.length === 0 && (
                   <tr>
                     <td colSpan={5}>
-                      <p className="empty-state">
-                        Không tìm thấy tài khoản phù hợp.
-                      </p>
+                      <p className="empty-state">Không tìm thấy tài khoản phù hợp.</p>
                     </td>
                   </tr>
                 )}
@@ -246,7 +234,7 @@ export function StaffPage() {
           onSaved={() => {
             setEditingPermissions(false);
             setMessage(
-              "Đã cập nhật quyền cho role STAFF. Các phiên đang mở sẽ tự đồng bộ trong tối đa 60 giây, hoặc ngay khi gặp 403.",
+              'Đã cập nhật quyền cho role STAFF. Các phiên đang mở sẽ tự đồng bộ trong tối đa 60 giây, hoặc ngay khi gặp 403.',
             );
             void load();
           }}
@@ -269,16 +257,12 @@ function UserRolesModal({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   function toggle(role: RoleName) {
-    setSelected((current) =>
-      current.includes(role)
-        ? current.filter((value) => value !== role)
-        : [...current, role],
-    );
+    setSelected((current) => (current.includes(role) ? current.filter((value) => value !== role) : [...current, role]));
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (selected.length === 0) {
-      setError("Tài khoản phải có ít nhất một role.");
+      setError('Tài khoản phải có ít nhất một role.');
       return;
     }
     setBusy(true);
@@ -286,8 +270,8 @@ function UserRolesModal({
     try {
       onSaved(
         await apiRequest<ManagedUser>(`/users/${user.id}/roles`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ roles: selected }),
         }),
       );
@@ -301,24 +285,19 @@ function UserRolesModal({
     <Modal title={`Phân quyền: ${user.email}`} onClose={onClose}>
       <form className="admin-form" onSubmit={(event) => void submit(event)}>
         <p className="role-help">
-          Một tài khoản có thể có nhiều role. ADMIN có toàn bộ quyền; CUSTOMER
-          không có quyền quản trị.
+          Một tài khoản có thể có nhiều role. ADMIN có toàn bộ quyền; CUSTOMER không có quyền quản trị.
         </p>
         <div className="role-options">
           {roles.map((role) => (
             <label key={role} className="check-label">
-              <input
-                type="checkbox"
-                checked={selected.includes(role)}
-                onChange={() => toggle(role)}
-              />
+              <input type="checkbox" checked={selected.includes(role)} onChange={() => toggle(role)} />
               {role}
               <small>
-                {role === "ADMIN"
-                  ? "Toàn quyền, gồm quản lý nhân sự."
-                  : role === "STAFF"
-                    ? "Quyền vận hành cấu hình ở màn Quyền STAFF."
-                    : "Tài khoản khách hàng thông thường."}
+                {role === 'ADMIN'
+                  ? 'Toàn quyền, gồm quản lý nhân sự.'
+                  : role === 'STAFF'
+                    ? 'Quyền vận hành cấu hình ở màn Quyền STAFF.'
+                    : 'Tài khoản khách hàng thông thường.'}
               </small>
             </label>
           ))}
@@ -329,7 +308,7 @@ function UserRolesModal({
             Hủy
           </button>
           <button className="primary-button compact" disabled={busy}>
-            {busy ? "Đang lưu…" : "Lưu role"}
+            {busy ? 'Đang lưu…' : 'Lưu role'}
           </button>
         </footer>
       </form>
@@ -347,15 +326,13 @@ function StaffPermissionsModal({
   onSaved: () => void;
 }) {
   const [selected, setSelected] = useState<PermissionName[]>(
-    role.permissions.filter((permission) => permission !== "USER_MANAGE"),
+    role.permissions.filter((permission) => permission !== 'USER_MANAGE'),
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   function toggle(permission: PermissionName) {
     setSelected((current) =>
-      current.includes(permission)
-        ? current.filter((value) => value !== permission)
-        : [...current, permission],
+      current.includes(permission) ? current.filter((value) => value !== permission) : [...current, permission],
     );
   }
   async function submit(event: FormEvent) {
@@ -363,9 +340,9 @@ function StaffPermissionsModal({
     setBusy(true);
     setError(null);
     try {
-      await apiRequest<ManagedRole>("/users/roles/STAFF/permissions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+      await apiRequest<ManagedRole>('/users/roles/STAFF/permissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permissions: selected }),
       });
       onSaved();
@@ -379,17 +356,12 @@ function StaffPermissionsModal({
     <Modal title="Quyền của STAFF" onClose={onClose}>
       <form className="admin-form" onSubmit={(event) => void submit(event)}>
         <p className="role-help">
-          Chọn các quyền vận hành cho mọi người thuộc role STAFF. USER_MANAGE
-          chỉ dành cho ADMIN để tránh tự nâng quyền.
+          Chọn các quyền vận hành cho mọi người thuộc role STAFF. USER_MANAGE chỉ dành cho ADMIN để tránh tự nâng quyền.
         </p>
         <div className="permission-options">
           {staffPermissions.map((permission) => (
             <label key={permission} className="check-label">
-              <input
-                type="checkbox"
-                checked={selected.includes(permission)}
-                onChange={() => toggle(permission)}
-              />
+              <input type="checkbox" checked={selected.includes(permission)} onChange={() => toggle(permission)} />
               {permissionLabels[permission]}
               <small>{permission}</small>
             </label>
@@ -401,7 +373,7 @@ function StaffPermissionsModal({
             Hủy
           </button>
           <button className="primary-button compact" disabled={busy}>
-            {busy ? "Đang lưu…" : "Lưu quyền STAFF"}
+            {busy ? 'Đang lưu…' : 'Lưu quyền STAFF'}
           </button>
         </footer>
       </form>

@@ -39,7 +39,7 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
         Product product = getProduct(productId);
         Frame frame = getFrame(request.frameId());
         if (productFrameOptionRepository.existsByProductIdAndFrameId(productId, frame.getId())) {
-            throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_ALREADY_EXISTS, "This frame is already available for the product");
+            throw new AppException(ErrorCode.PRODUCT_FRAME_OPTION_ALREADY_EXISTS, "Sản phẩm này đã có sẵn khung đó.");
         }
 
         ProductFrameOption option = new ProductFrameOption();
@@ -56,7 +56,7 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
     public List<ProductFrameOptionResponse> findPublishedByProductId(UUID productId) {
         productRepository.findById(productId)
                 .filter(product -> product.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         return productFrameOptionRepository
                 .findAllByProductIdAndAvailableTrueAndFrameStatusOrderByPriceAdjustmentAsc(productId, FrameStatus.ACTIVE)
                 .stream()
@@ -68,10 +68,10 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
     @Transactional(readOnly = true)
     public List<ProductFrameOptionResponse> findPublishedByProductVariantId(UUID productId, UUID variantId) {
         productRepository.findById(productId).filter(product -> product.getStatus() == ProductStatus.PUBLISHED)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
         var variant = productVariantRepository.findByIdAndProductId(variantId, productId)
                 .filter(item -> item.isAvailable())
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND, "Product variant not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_VARIANT_NOT_FOUND, "Không tìm thấy phiên bản sản phẩm."));
         return productFrameOptionRepository.findAllByProductIdAndAvailableTrueAndFrameStatusOrderByPriceAdjustmentAsc(productId, FrameStatus.ACTIVE).stream()
                 .filter(option -> compatible(option, variant.getWidthCm(), variant.getHeightCm()))
                 .map(productFrameOptionMapper::toResponse).toList();
@@ -106,22 +106,22 @@ public class ProductFrameOptionServiceImpl implements ProductFrameOptionService 
 
     private Product getProduct(UUID productId) {
         return productRepository.findById(productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_NOT_FOUND, "Không tìm thấy sản phẩm."));
     }
 
     private Frame getFrame(UUID frameId) {
         return frameRepository.findById(frameId)
-                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Frame not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.FRAME_NOT_FOUND, "Không tìm thấy khung tranh."));
     }
 
     private ProductFrameOption getOption(UUID productId, UUID optionId) {
         return productFrameOptionRepository.findByIdAndProductId(optionId, productId)
-                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Product frame option not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.PRODUCT_FRAME_OPTION_NOT_FOUND, "Không tìm thấy lựa chọn khung của sản phẩm."));
     }
     private void applyCompatibility(ProductFrameOption option, java.math.BigDecimal minWidth, java.math.BigDecimal maxWidth, java.math.BigDecimal minHeight, java.math.BigDecimal maxHeight) {
         if (minWidth != null) option.setMinWidthCm(minWidth); if (maxWidth != null) option.setMaxWidthCm(maxWidth); if (minHeight != null) option.setMinHeightCm(minHeight); if (maxHeight != null) option.setMaxHeightCm(maxHeight);
-        if (option.getMinWidthCm() != null && option.getMaxWidthCm() != null && option.getMinWidthCm().compareTo(option.getMaxWidthCm()) > 0) throw new AppException(ErrorCode.INVALID_FRAME_COMPATIBILITY, "Minimum width cannot exceed maximum width");
-        if (option.getMinHeightCm() != null && option.getMaxHeightCm() != null && option.getMinHeightCm().compareTo(option.getMaxHeightCm()) > 0) throw new AppException(ErrorCode.INVALID_FRAME_COMPATIBILITY, "Minimum height cannot exceed maximum height");
+        if (option.getMinWidthCm() != null && option.getMaxWidthCm() != null && option.getMinWidthCm().compareTo(option.getMaxWidthCm()) > 0) throw new AppException(ErrorCode.INVALID_FRAME_COMPATIBILITY, "Chiều rộng tối thiểu không được lớn hơn chiều rộng tối đa.");
+        if (option.getMinHeightCm() != null && option.getMaxHeightCm() != null && option.getMinHeightCm().compareTo(option.getMaxHeightCm()) > 0) throw new AppException(ErrorCode.INVALID_FRAME_COMPATIBILITY, "Chiều cao tối thiểu không được lớn hơn chiều cao tối đa.");
     }
     private boolean compatible(ProductFrameOption option, java.math.BigDecimal width, java.math.BigDecimal height) {
         return (option.getMinWidthCm() == null || width.compareTo(option.getMinWidthCm()) >= 0)

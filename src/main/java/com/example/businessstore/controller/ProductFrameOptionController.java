@@ -52,7 +52,7 @@ public class ProductFrameOptionController {
             @PathVariable UUID productId,
             @Valid @RequestBody CreateProductFrameOptionRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(productFrameOptionService.create(productId, request), "Product frame option created"));
+                .body(ApiResponse.success(productFrameOptionService.create(productId, request), "Đã thêm lựa chọn khung cho sản phẩm."));
     }
 
     @PutMapping("/{productId}/frame-options/{optionId}")
@@ -63,7 +63,7 @@ public class ProductFrameOptionController {
             @Valid @RequestBody UpdateProductFrameOptionRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 productFrameOptionService.update(productId, optionId, request),
-                "Product frame option updated"));
+                "Đã cập nhật lựa chọn khung của sản phẩm."));
     }
 
     @DeleteMapping("/{productId}/frame-options/{optionId}")

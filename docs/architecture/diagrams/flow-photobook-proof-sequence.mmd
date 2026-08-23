@@ -1,0 +1,31 @@
+sequenceDiagram
+    autonumber
+    actor U as Khách hàng
+    actor S as Nhân viên
+    participant FE as business-store-frontend
+    participant C as PhotobookProjectController
+    participant P as PhotobookProjectServiceImpl
+    participant DB as PostgreSQL
+    participant M as CloudinaryMediaStorageService
+    participant CL as Cloudinary
+    participant N as NotificationServiceImpl
+    U->>FE: Tải ảnh và submit cuốn photobook
+    FE->>C: POST /api/v1/photobook-projects/{id}/photos (multipart/HTTPS)
+    C->>P: addPhoto(userId, id, file)
+    P->>M: uploadPhotobookPhoto
+    M->>CL: Upload ảnh private (HTTPS API)
+    CL-->>M: publicId / secureUrl
+    P->>DB: Ghi PhotobookProjectPhoto (JPA/JDBC)
+    FE->>C: POST /api/v1/photobook-projects/{id}/submit (JSON/HTTPS)
+    C->>P: submit(userId, id, note)
+    P->>DB: Ghi status PHOTOS_SUBMITTED và spreads
+    S->>FE: Tải proof
+    FE->>C: POST /api/v1/photobook-projects/{id}/proofs (multipart/HTTPS)
+    C->>P: uploadProof(staffId, id, file, note)
+    P->>M: uploadPhotobookProof
+    M->>CL: Upload proof private (HTTPS API)
+    P->>DB: Ghi PhotobookProof, status PROOF_SENT
+    P->>N: Tạo notification proof đã sẵn sàng
+    U->>C: PUT /api/v1/photobook-projects/{id}/proof-decision (JSON/HTTPS)
+    C->>P: decideProof(userId, id, approved, note)
+    P->>DB: APPROVED hoặc REVISION_REQUESTED

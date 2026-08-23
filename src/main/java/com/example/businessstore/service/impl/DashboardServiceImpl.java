@@ -110,10 +110,10 @@ public class DashboardServiceImpl implements DashboardService {
 
     private void validateRange(LocalDate from, LocalDate to) {
         if (from.isAfter(to)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Dashboard start date must not be after end date");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Ngày bắt đầu không được sau ngày kết thúc.");
         }
         if (from.plusDays(MAX_RANGE_DAYS - 1L).isBefore(to)) {
-            throw new AppException(ErrorCode.INVALID_REQUEST, "Dashboard date range cannot exceed " + MAX_RANGE_DAYS + " days");
+            throw new AppException(ErrorCode.INVALID_REQUEST, "Khoảng thời gian không được vượt quá " + MAX_RANGE_DAYS + " ngày.");
         }
     }
 

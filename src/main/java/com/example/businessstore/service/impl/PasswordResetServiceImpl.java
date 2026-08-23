@@ -10,6 +10,8 @@ import com.example.businessstore.service.MailService;
 import com.example.businessstore.service.PasswordResetService;
 import com.example.businessstore.service.TokenStore;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PasswordResetServiceImpl implements PasswordResetService {
@@ -45,11 +48,19 @@ public class PasswordResetServiceImpl implements PasswordResetService {
             Instant expiresAt = Instant.now().plus(passwordResetProperties.ttl());
             tokenStore.storePasswordResetToken(hash(rawToken), user.getId(), expiresAt);
             String resetUrl = UriComponentsBuilder.fromUriString(applicationProperties.frontendUrl())
-                    .path("/reset-password")
+                    .path("/dat-lai-mat-khau")
                     .queryParam("token", rawToken)
                     .build()
                     .toUriString();
-            mailService.sendPasswordResetEmail(user.getEmail(), resetUrl);
+            try {
+                mailService.sendPasswordResetEmail(user.getEmail(), resetUrl);
+            } catch (RuntimeException mailFailure) {
+                // Endpoint phải trả lời y hệt nhau dù email có tài khoản hay không. Để lỗi
+                // thoát ra ngoài là tự tố cáo đúng những địa chỉ đã đăng ký, vì email không
+                // tồn tại thì không bao giờ gửi thư nên không bao giờ lỗi. Việc gửi đã chạy
+                // nền, nên ở đây chỉ còn bắt trường hợp hàng đợi mail đầy.
+                log.warn("Could not queue the password reset email; the request still reports success", mailFailure);
+            }
         });
     }
 
@@ -57,9 +68,9 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     @Transactional
     public void resetPassword(String rawToken, String newPassword) {
         UUID userId = tokenStore.consumePasswordResetToken(hash(rawToken))
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PASSWORD_RESET_TOKEN, "Password reset token is invalid or expired"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PASSWORD_RESET_TOKEN, "Liên kết đặt lại mật khẩu đã hết hạn hoặc đã được dùng."));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PASSWORD_RESET_TOKEN, "Password reset token is invalid"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PASSWORD_RESET_TOKEN, "Liên kết đặt lại mật khẩu không hợp lệ."));
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         tokenStore.revokeAllRefreshTokens(userId);
     }

@@ -47,7 +47,7 @@ public class ProductImageController {
             @PathVariable UUID productId,
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file,
             @RequestParam(required = false) String altText) {
-        return ResponseEntity.ok(ApiResponse.success(productImageService.upload(productId, file, altText), "Image uploaded"));
+        return ResponseEntity.ok(ApiResponse.success(productImageService.upload(productId, file, altText), "Đã tải lên ảnh."));
     }
 
     @PatchMapping("/{productId}/images/{imageId}")
@@ -56,7 +56,7 @@ public class ProductImageController {
             @PathVariable UUID productId,
             @PathVariable UUID imageId,
             @Valid @org.springframework.web.bind.annotation.RequestBody UpdateProductImageRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(productImageService.update(productId, imageId, request), "Image updated"));
+        return ResponseEntity.ok(ApiResponse.success(productImageService.update(productId, imageId, request), "Đã cập nhật ảnh."));
     }
 
     @DeleteMapping("/{productId}/images/{imageId}")

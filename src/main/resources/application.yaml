@@ -9,7 +9,7 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      max-request-size: 10MB
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:50MB}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -31,11 +31,20 @@ info:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  # Chỉ có tác dụng ngoài profile dev; dev đã có admin từ DevelopmentDataInitializer.
+  # Bỏ trống email là tắt hẳn phần bootstrap này.
+  bootstrap-admin:
+    email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    first-name: ${BOOTSTRAP_ADMIN_FIRST_NAME:}
+    last-name: ${BOOTSTRAP_ADMIN_LAST_NAME:}
+    reset-password: ${BOOTSTRAP_ADMIN_RESET_PASSWORD:false}
   promotion:
     reservation-ttl: ${PROMOTION_RESERVATION_TTL:PT30M}
     expiry-scan-ms: ${PROMOTION_EXPIRY_SCAN_MS:60000}
   media:
     max-image-size-bytes: ${MEDIA_MAX_IMAGE_SIZE_BYTES:10485760}
+    max-proof-size-bytes: ${MEDIA_MAX_PROOF_SIZE_BYTES:52428800}
     cloudinary:
       cloud-name: ${CLOUDINARY_CLOUD_NAME:}
       api-key: ${CLOUDINARY_API_KEY:}
@@ -43,6 +52,22 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   security:
+    # Hạn mức tính theo IP trong cửa sổ cố định, đếm trên Redis nên dùng chung cho mọi
+    # instance. Redis lỗi thì cho request đi tiếp thay vì khoá cửa đăng nhập.
+    auth-rate-limit:
+      enabled: ${AUTH_RATE_LIMIT_ENABLED:true}
+      login:
+        limit: ${AUTH_RATE_LIMIT_LOGIN:10}
+        window: ${AUTH_RATE_LIMIT_LOGIN_WINDOW:PT5M}
+      register:
+        limit: ${AUTH_RATE_LIMIT_REGISTER:10}
+        window: ${AUTH_RATE_LIMIT_REGISTER_WINDOW:PT15M}
+      password-forgot:
+        limit: ${AUTH_RATE_LIMIT_PASSWORD_FORGOT:5}
+        window: ${AUTH_RATE_LIMIT_PASSWORD_FORGOT_WINDOW:PT15M}
+      password-reset:
+        limit: ${AUTH_RATE_LIMIT_PASSWORD_RESET:10}
+        window: ${AUTH_RATE_LIMIT_PASSWORD_RESET_WINDOW:PT15M}
     cookie:
       secure: ${COOKIE_SECURE:false}
     jwt:

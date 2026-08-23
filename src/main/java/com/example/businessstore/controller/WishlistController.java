@@ -37,7 +37,7 @@ public class WishlistController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody AddWishlistItemRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(wishlistService.add(userId(jwt), request), "Item added to wishlist"));
+                .body(ApiResponse.success(wishlistService.add(userId(jwt), request), "Đã thêm vào danh sách yêu thích."));
     }
 
     @DeleteMapping("/{itemId}")

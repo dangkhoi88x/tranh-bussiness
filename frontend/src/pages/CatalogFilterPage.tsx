@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { DataTable } from "../components/admin/DataTable";
-import { Pagination } from "../components/admin/Pagination";
-import { apiRequest } from "../api/http";
-import type { Page } from "../types/api";
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { DataTable } from '../components/admin/DataTable';
+import { Pagination } from '../components/admin/Pagination';
+import { apiRequest } from '../api/http';
+import type { Page } from '../types/api';
 
 type Category = { id: string; name: string };
 type Material = { id: string; name: string };
-type ProductStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+type ProductStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 type Product = {
   id: string;
   categoryId: string;
@@ -24,41 +24,35 @@ type Product = {
   primaryImageUrl: string | null;
   status: ProductStatus;
 };
-const money = new Intl.NumberFormat("vi-VN", {
-  style: "currency",
-  currency: "VND",
+const money = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
   maximumFractionDigits: 0,
 });
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : "Đã có lỗi xảy ra.";
+const errorText = (error: unknown) => (error instanceof Error ? error.message : 'Đã có lỗi xảy ra.');
 
-type PageMessage = { tone: "success" | "error"; text: string };
+type PageMessage = { tone: 'success' | 'error'; text: string };
 
 const productStatus = (item: Product) => {
-  if (item.status === "DRAFT") return { label: "Bản nháp", tone: "draft" };
-  if (item.status === "ARCHIVED") return { label: "Đã lưu trữ", tone: "archived" };
-  if (item.effectiveStockQuantity === 0) return { label: "Hết hàng", tone: "sold-out" };
-  return { label: "Đang bán", tone: "published" };
+  if (item.status === 'DRAFT') return { label: 'Bản nháp', tone: 'draft' };
+  if (item.status === 'ARCHIVED') return { label: 'Đã lưu trữ', tone: 'archived' };
+  if (item.effectiveStockQuantity === 0) return { label: 'Hết hàng', tone: 'sold-out' };
+  return { label: 'Đang bán', tone: 'published' };
 };
 
 const stockStatus = (quantity: number) => {
-  if (quantity === 0) return { label: "Hết hàng", tone: "empty" };
-  if (quantity <= 5) return { label: "Sắp hết", tone: "low" };
-  return { label: "Sẵn sàng", tone: "available" };
+  if (quantity === 0) return { label: 'Hết hàng', tone: 'empty' };
+  if (quantity <= 5) return { label: 'Sắp hết', tone: 'low' };
+  return { label: 'Sẵn sàng', tone: 'available' };
 };
 
 function ProductThumbnail({ item }: { item: Product }) {
   const [failed, setFailed] = useState(false);
-  const initial = item.name.trim().charAt(0).toUpperCase() || "T";
+  const initial = item.name.trim().charAt(0).toUpperCase() || 'T';
   return (
     <div className="product-thumbnail">
       {item.primaryImageUrl && !failed ? (
-        <img
-          src={item.primaryImageUrl}
-          alt={`Ảnh ${item.name}`}
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
+        <img src={item.primaryImageUrl} alt={`Ảnh ${item.name}`} loading="lazy" onError={() => setFailed(true)} />
       ) : (
         <span aria-label={`Chưa có ảnh cho ${item.name}`}>{initial}</span>
       )}
@@ -66,8 +60,8 @@ function ProductThumbnail({ item }: { item: Product }) {
   );
 }
 
-function NoticeIcon({ tone }: { tone: PageMessage["tone"] }) {
-  return tone === "error" ? (
+function NoticeIcon({ tone }: { tone: PageMessage['tone'] }) {
+  return tone === 'error' ? (
     <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
       <path d="M10 5.2v5.3M10 14.2v.1" />
       <circle cx="10" cy="10" r="7.2" />
@@ -88,20 +82,20 @@ export function ProductsSearchPage() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
-    name: "",
-    categoryId: "",
-    status: "",
-    variantSku: "",
-    materialId: "",
-    effectiveStockLevel: "",
-    minPrice: "",
-    maxPrice: "",
+    name: '',
+    categoryId: '',
+    status: '',
+    variantSku: '',
+    materialId: '',
+    effectiveStockLevel: '',
+    minPrice: '',
+    maxPrice: '',
   });
   const [draft, setDraft] = useState(filters);
   const [message, setMessage] = useState<PageMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const query = useMemo(() => {
-    const value = new URLSearchParams({ page: String(page), size: "12" });
+    const value = new URLSearchParams({ page: String(page), size: '12' });
     Object.entries(filters).forEach(([key, item]) => {
       if (item) value.set(key, item);
     });
@@ -112,17 +106,15 @@ export function ProductsSearchPage() {
     try {
       const [products, groups, availableMaterials] = await Promise.all([
         apiRequest<Page<Product>>(`/products/management?${query}`),
-        apiRequest<Category[]>("/categories"),
-        apiRequest<Material[]>("/materials?scope=ARTWORK_SURFACE"),
+        apiRequest<Category[]>('/categories'),
+        apiRequest<Material[]>('/materials?scope=ARTWORK_SURFACE'),
       ]);
       setData(products);
       setCategories(groups);
       setMaterials(availableMaterials);
-      setMessage((current) =>
-        current?.tone === "error" ? null : current,
-      );
+      setMessage((current) => (current?.tone === 'error' ? null : current));
     } catch (error) {
-      setMessage({ tone: "error", text: errorText(error) });
+      setMessage({ tone: 'error', text: errorText(error) });
     } finally {
       setLoading(false);
     }
@@ -137,32 +129,27 @@ export function ProductsSearchPage() {
   }
   function reset() {
     const empty = {
-      name: "",
-      categoryId: "",
-      status: "",
-      variantSku: "",
-      materialId: "",
-      effectiveStockLevel: "",
-      minPrice: "",
-      maxPrice: "",
+      name: '',
+      categoryId: '',
+      status: '',
+      variantSku: '',
+      materialId: '',
+      effectiveStockLevel: '',
+      minPrice: '',
+      maxPrice: '',
     };
     setDraft(empty);
     setFilters(empty);
     setPage(1);
   }
   async function remove(product: Product) {
-    if (
-      !window.confirm(
-        `Xóa sản phẩm “${product.name}”? Ảnh và variants cũng sẽ bị xóa.`,
-      )
-    )
-      return;
+    if (!window.confirm(`Xóa sản phẩm “${product.name}”? Ảnh và variants cũng sẽ bị xóa.`)) return;
     try {
-      await apiRequest<void>(`/products/${product.id}`, { method: "DELETE" });
-      setMessage({ tone: "success", text: "Đã xóa sản phẩm." });
+      await apiRequest<void>(`/products/${product.id}`, { method: 'DELETE' });
+      setMessage({ tone: 'success', text: 'Đã xóa sản phẩm.' });
       void load();
     } catch (error) {
-      setMessage({ tone: "error", text: errorText(error) });
+      setMessage({ tone: 'error', text: errorText(error) });
     }
   }
   return (
@@ -171,23 +158,22 @@ export function ProductsSearchPage() {
         <div>
           <h2>Sản phẩm</h2>
           <p>
-            Bộ sưu tập đang vận hành, từ tranh treo tường đến khung tranh. Ảnh,
-            giá và tồn kho được đặt cạnh nhau để bạn ra quyết định nhanh hơn.
+            Bộ sưu tập đang vận hành, từ tranh treo tường đến khung tranh. Ảnh, giá và tồn kho được đặt cạnh nhau để bạn
+            ra quyết định nhanh hơn.
           </p>
         </div>
-        <button
-          className="primary-button compact"
-          onClick={() => setEditing(null)}
-        >
+        <button className="primary-button compact" onClick={() => setEditing(null)}>
           + Thêm sản phẩm
         </button>
       </header>
       {message && (
         <p
           className={`catalog-message catalog-message--${message.tone}`}
-          role={message.tone === "error" ? "alert" : "status"}
+          role={message.tone === 'error' ? 'alert' : 'status'}
         >
-          <span className="catalog-message__icon"><NoticeIcon tone={message.tone} /></span>
+          <span className="catalog-message__icon">
+            <NoticeIcon tone={message.tone} />
+          </span>
           {message.text}
         </p>
       )}
@@ -199,9 +185,7 @@ export function ProductsSearchPage() {
               <input
                 value={draft.name}
                 placeholder="Tên tranh hoặc tên bộ sưu tập"
-                onChange={(event) =>
-                  setDraft({ ...draft, name: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
               />
             </label>
           </div>
@@ -211,9 +195,7 @@ export function ProductsSearchPage() {
               Danh mục
               <select
                 value={draft.categoryId}
-                onChange={(event) =>
-                  setDraft({ ...draft, categoryId: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, categoryId: event.target.value })}
               >
                 <option value="">Tất cả danh mục</option>
                 {categories.map((item) => (
@@ -225,12 +207,7 @@ export function ProductsSearchPage() {
             </label>
             <label>
               Trạng thái
-              <select
-                value={draft.status}
-                onChange={(event) =>
-                  setDraft({ ...draft, status: event.target.value })
-                }
-              >
+              <select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}>
                 <option value="">Tất cả trạng thái</option>
                 <option value="PUBLISHED">Đang bán</option>
                 <option value="DRAFT">Bản nháp</option>
@@ -249,9 +226,7 @@ export function ProductsSearchPage() {
                 inputMode="numeric"
                 value={draft.minPrice}
                 placeholder="0"
-                onChange={(event) =>
-                  setDraft({ ...draft, minPrice: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, minPrice: event.target.value })}
               />
             </label>
             <label>
@@ -263,9 +238,7 @@ export function ProductsSearchPage() {
                 inputMode="numeric"
                 value={draft.maxPrice}
                 placeholder="Không giới hạn"
-                onChange={(event) =>
-                  setDraft({ ...draft, maxPrice: event.target.value })
-                }
+                onChange={(event) => setDraft({ ...draft, maxPrice: event.target.value })}
               />
             </label>
           </fieldset>
@@ -277,30 +250,28 @@ export function ProductsSearchPage() {
                 <input
                   value={draft.variantSku}
                   placeholder="VD: TBS-4060"
-                  onChange={(event) =>
-                    setDraft({ ...draft, variantSku: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, variantSku: event.target.value })}
                 />
               </label>
               <label>
                 Chất liệu
                 <select
                   value={draft.materialId}
-                  onChange={(event) =>
-                    setDraft({ ...draft, materialId: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, materialId: event.target.value })}
                 >
                   <option value="">Tất cả chất liệu</option>
-                  {materials.map((material) => <option key={material.id} value={material.id}>{material.name}</option>)}
+                  {materials.map((material) => (
+                    <option key={material.id} value={material.id}>
+                      {material.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>
                 Tồn kho có thể bán
                 <select
                   value={draft.effectiveStockLevel}
-                  onChange={(event) =>
-                    setDraft({ ...draft, effectiveStockLevel: event.target.value })
-                  }
+                  onChange={(event) => setDraft({ ...draft, effectiveStockLevel: event.target.value })}
                 >
                   <option value="">Tất cả mức tồn</option>
                   <option value="OUT_OF_STOCK">Hết hàng (0)</option>
@@ -328,102 +299,100 @@ export function ProductsSearchPage() {
                 </p>
                 <span>Chọn một hàng để xem và chỉnh sửa chi tiết</span>
               </div>
-            <DataTable>
-              <thead>
-                <tr>
-                  <th>Tác phẩm</th>
-                  <th>Danh mục</th>
-                  <th>Giá</th>
-                  <th>Tồn kho</th>
-                  <th>Trạng thái</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data?.items.map((item) => (
-                  <tr
-                    className="product-row"
-                    key={item.id}
-                    tabIndex={0}
-                    onClick={() => navigate(`/admin/products/${item.id}`)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        navigate(`/admin/products/${item.id}`);
-                      }
-                    }}
-                  >
-                    <td data-label="Tác phẩm">
-                      <div className="product-row__identity">
-                        <ProductThumbnail item={item} />
-                        <div>
-                          <strong>{item.name}</strong>
-                          <small>
-                            {item.hasVariants ? "Có lựa chọn biến thể" : "Sản phẩm đơn"}
-                            {item.widthCm && item.heightCm
-                              ? ` · ${item.widthCm} × ${item.heightCm} cm`
-                              : ""}
-                          </small>
-                        </div>
-                      </div>
-                    </td>
-                    <td data-label="Danh mục">
-                      <span className="product-category">{item.categoryName}</span>
-                    </td>
-                    <td data-label="Giá" className="product-price">
-                      <strong>{money.format(item.price)}</strong>
-                      <small>{item.hasVariants ? "Giá khởi điểm" : "Giá niêm yết"}</small>
-                    </td>
-                    <td data-label="Tồn kho">
-                      <div className="product-stock">
-                        <strong>{item.effectiveStockQuantity}</strong>
-                        <span className={`stock-pill stock-pill--${stockStatus(item.effectiveStockQuantity).tone}`}>
-                          {stockStatus(item.effectiveStockQuantity).label}
-                        </span>
-                      </div>
-                    </td>
-                    <td data-label="Trạng thái">
-                      <span
-                        className={`status status--${productStatus(item).tone}`}
-                      >
-                        {productStatus(item).label}
-                      </span>
-                    </td>
-                    <td className="table-actions" data-label="Thao tác">
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          navigate(`/admin/products/${item.id}`);
-                        }}
-                      >
-                        Chi tiết
-                      </button>
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setEditing(item);
-                        }}
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        className="danger-text"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void remove(item);
-                        }}
-                      >
-                        Xóa
-                      </button>
-                    </td>
+              <DataTable>
+                <thead>
+                  <tr>
+                    <th>Tác phẩm</th>
+                    <th>Danh mục</th>
+                    <th>Giá</th>
+                    <th>Tồn kho</th>
+                    <th>Trạng thái</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </DataTable>
+                </thead>
+                <tbody>
+                  {data?.items.map((item) => (
+                    <tr
+                      className="product-row"
+                      key={item.id}
+                      tabIndex={0}
+                      onClick={() => navigate(`/admin/products/${item.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          navigate(`/admin/products/${item.id}`);
+                        }
+                      }}
+                    >
+                      <td data-label="Tác phẩm">
+                        <div className="product-row__identity">
+                          <ProductThumbnail item={item} />
+                          <div>
+                            <strong>{item.name}</strong>
+                            <small>
+                              {item.hasVariants ? 'Có lựa chọn biến thể' : 'Sản phẩm đơn'}
+                              {item.widthCm && item.heightCm ? ` · ${item.widthCm} × ${item.heightCm} cm` : ''}
+                            </small>
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Danh mục">
+                        <span className="product-category">{item.categoryName}</span>
+                      </td>
+                      <td data-label="Giá" className="product-price">
+                        <strong>{money.format(item.price)}</strong>
+                        <small>{item.hasVariants ? 'Giá khởi điểm' : 'Giá niêm yết'}</small>
+                      </td>
+                      <td data-label="Tồn kho">
+                        <div className="product-stock">
+                          <strong>{item.effectiveStockQuantity}</strong>
+                          <span className={`stock-pill stock-pill--${stockStatus(item.effectiveStockQuantity).tone}`}>
+                            {stockStatus(item.effectiveStockQuantity).label}
+                          </span>
+                        </div>
+                      </td>
+                      <td data-label="Trạng thái">
+                        <span className={`status status--${productStatus(item).tone}`}>
+                          {productStatus(item).label}
+                        </span>
+                      </td>
+                      <td className="table-actions" data-label="Thao tác">
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/admin/products/${item.id}`);
+                          }}
+                        >
+                          Chi tiết
+                        </button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setEditing(item);
+                          }}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          className="danger-text"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void remove(item);
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </DataTable>
             </div>
             {data?.items.length === 0 && (
               <section className="product-empty-state">
-                <div aria-hidden="true" className="product-empty-state__mark">TB</div>
+                <div aria-hidden="true" className="product-empty-state__mark">
+                  TB
+                </div>
                 <div>
                   <h3>Chưa tìm thấy tác phẩm phù hợp</h3>
                   <p>Hãy thử nới khoảng giá hoặc xóa bộ lọc để xem lại toàn bộ danh mục.</p>
@@ -444,7 +413,7 @@ export function ProductsSearchPage() {
           onClose={() => setEditing(undefined)}
           onSaved={(savedMessage) => {
             setEditing(undefined);
-            setMessage({ tone: "success", text: savedMessage ?? "Đã lưu sản phẩm." });
+            setMessage({ tone: 'success', text: savedMessage ?? 'Đã lưu sản phẩm.' });
             void load();
           }}
         />
@@ -465,28 +434,27 @@ function ProductForm({
   onSaved: (message?: string) => void;
 }) {
   const [form, setForm] = useState({
-    categoryId: item?.categoryId ?? "",
-    name: item?.name ?? "",
-    description: item?.description ?? "",
-    price: String(item?.price ?? ""),
-    widthCm: item?.widthCm == null ? "" : String(item.widthCm),
-    heightCm: item?.heightCm == null ? "" : String(item.heightCm),
+    categoryId: item?.categoryId ?? '',
+    name: item?.name ?? '',
+    description: item?.description ?? '',
+    price: String(item?.price ?? ''),
+    widthCm: item?.widthCm == null ? '' : String(item.widthCm),
+    heightCm: item?.heightCm == null ? '' : String(item.heightCm),
     stockQuantity: String(item?.stockQuantity ?? 0),
-    status: item?.status ?? "DRAFT",
+    status: item?.status ?? 'DRAFT',
   });
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const change = (key: keyof typeof form, value: string) =>
-    setForm({ ...form, [key]: value });
+  const change = (key: keyof typeof form, value: string) => setForm({ ...form, [key]: value });
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const saved = await apiRequest<Product>(item ? `/products/${item.id}` : "/products", {
-        method: item ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
+      const saved = await apiRequest<Product>(item ? `/products/${item.id}` : '/products', {
+        method: item ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
           price: Number(form.price),
@@ -497,10 +465,10 @@ function ProductForm({
       });
       if (file) {
         const body = new FormData();
-        body.append("file", file);
+        body.append('file', file);
         try {
           await apiRequest(`/products/${saved.id}/images`, {
-            method: "POST",
+            method: 'POST',
             body,
           });
         } catch (uploadError) {
@@ -519,14 +487,9 @@ function ProductForm({
   }
   return (
     <div className="modal-backdrop">
-      <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={item ? "Sửa sản phẩm" : "Thêm sản phẩm"}
-      >
+      <section className="modal" role="dialog" aria-modal="true" aria-label={item ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}>
         <header>
-          <h3>{item ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h3>
+          <h3>{item ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}</h3>
           <button type="button" className="icon-button" onClick={onClose}>
             ×
           </button>
@@ -535,11 +498,7 @@ function ProductForm({
           <div className="form-grid">
             <label>
               Danh mục
-              <select
-                value={form.categoryId}
-                onChange={(event) => change("categoryId", event.target.value)}
-                required
-              >
+              <select value={form.categoryId} onChange={(event) => change('categoryId', event.target.value)} required>
                 <option value="">Chọn danh mục</option>
                 {categories.map((category) => (
                   <option value={category.id} key={category.id}>
@@ -550,20 +509,16 @@ function ProductForm({
             </label>
             <label>
               Tên sản phẩm
-              <input
-                value={form.name}
-                onChange={(event) => change("name", event.target.value)}
-                required
-              />
+              <input value={form.name} onChange={(event) => change('name', event.target.value)} required />
             </label>
             <label>
               Giá gốc
               <input
                 type="number"
-                min="1"
+                min="0"
                 step="1000"
                 value={form.price}
-                onChange={(event) => change("price", event.target.value)}
+                onChange={(event) => change('price', event.target.value)}
                 required
               />
             </label>
@@ -573,9 +528,7 @@ function ProductForm({
                 type="number"
                 min="0"
                 value={form.stockQuantity}
-                onChange={(event) =>
-                  change("stockQuantity", event.target.value)
-                }
+                onChange={(event) => change('stockQuantity', event.target.value)}
                 required
               />
             </label>
@@ -586,7 +539,7 @@ function ProductForm({
                 min="0.01"
                 step="0.01"
                 value={form.widthCm}
-                onChange={(event) => change("widthCm", event.target.value)}
+                onChange={(event) => change('widthCm', event.target.value)}
               />
             </label>
             <label>
@@ -596,15 +549,12 @@ function ProductForm({
                 min="0.01"
                 step="0.01"
                 value={form.heightCm}
-                onChange={(event) => change("heightCm", event.target.value)}
+                onChange={(event) => change('heightCm', event.target.value)}
               />
             </label>
             <label>
               Trạng thái
-              <select
-                value={form.status}
-                onChange={(event) => change("status", event.target.value)}
-              >
+              <select value={form.status} onChange={(event) => change('status', event.target.value)}>
                 <option value="DRAFT">DRAFT</option>
                 <option value="PUBLISHED">PUBLISHED</option>
                 <option value="ARCHIVED">ARCHIVED</option>
@@ -616,7 +566,7 @@ function ProductForm({
             <textarea
               rows={4}
               value={form.description}
-              onChange={(event) => change("description", event.target.value)}
+              onChange={(event) => change('description', event.target.value)}
             />
           </label>
           <label>
@@ -633,7 +583,7 @@ function ProductForm({
               Hủy
             </button>
             <button className="primary-button compact" disabled={busy}>
-              {busy ? "Đang lưu…" : "Lưu sản phẩm"}
+              {busy ? 'Đang lưu…' : 'Lưu sản phẩm'}
             </button>
           </footer>
         </form>

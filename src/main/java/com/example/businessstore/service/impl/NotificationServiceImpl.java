@@ -41,7 +41,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public NotificationResponse markRead(UUID userId, UUID notificationId) {
         Notification notification = notificationRepository.findByIdAndUserId(notificationId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.NOTIFICATION_NOT_FOUND, "Notification not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.NOTIFICATION_NOT_FOUND, "Không tìm thấy thông báo."));
         if (notification.getReadAt() == null) {
             notification.setReadAt(Instant.now());
         }

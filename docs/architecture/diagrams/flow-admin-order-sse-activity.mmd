@@ -1,0 +1,13 @@
+flowchart TD
+    start([Admin mở trang đơn hàng]) --> authorized{Có CAN_MANAGE_ORDERS?}
+    authorized -- Không --> forbidden[Trả 403]
+    authorized -- Có --> subscribe[Tạo SseEmitter local và gửi event connected]
+    subscribe --> wait[Chờ OrderPlacedEvent đã commit]
+    wait --> publish[AdminOrderNotificationPublisher publish Redis channel]
+    publish --> available{Redis pub/sub khả dụng?}
+    available -- Không --> log[Log warning; checkout không thất bại]
+    available -- Có --> consume[Redis subscriber đọc payload]
+    consume --> broadcast[Broadcast event new-order tới SseEmitter local]
+    broadcast --> client[Frontend cập nhật thông báo admin]
+    client --> wait
+    log --> wait

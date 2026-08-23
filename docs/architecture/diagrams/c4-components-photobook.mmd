@@ -1,0 +1,26 @@
+C4Component
+title Thành phần — PhotobookProjectServiceImpl
+
+Person(customer, "Khách hàng", "Tải ảnh và duyệt proof")
+Person(staff, "Nhân viên", "Tải proof và xử lý revision")
+Container(frontend, "business-store-frontend", "React", "Trang photobook")
+ContainerDb(postgres, "PostgreSQL", "PostgreSQL", "Project, photo, spread, slot, proof")
+System_Ext(cloudinary, "Cloudinary", "Media storage API")
+
+Container_Boundary(api, "business-store") {
+  Component(controller, "PhotobookProjectController", "Spring MVC", "Endpoint project/ảnh/proof")
+  Component(project, "PhotobookProjectServiceImpl", "Spring Service", "Vòng đời ảnh, layout, proof và approval")
+  Component(layout, "PhotobookLayoutEngine", "Spring component", "Sinh storyboard/spread khi submit")
+  Component(media, "CloudinaryMediaStorageService", "Cloudinary SDK", "Tải file, xóa file, ký URL private")
+  Component(notification, "NotificationServiceImpl", "Spring Service", "Tạo notification proof")
+}
+
+Rel(customer, frontend, "Tải ảnh, submit và quyết định proof", "HTTPS")
+Rel(staff, frontend, "Tải proof cho dự án", "HTTPS")
+Rel(frontend, controller, "Gọi API photobook", "JSON/multipart/HTTPS")
+Rel(controller, project, "Gọi nghiệp vụ project", "in-process")
+Rel(project, postgres, "Đọc/ghi project, ảnh, spread, proof", "JPA/JDBC")
+Rel(project, layout, "Sinh spread khi submit ảnh", "in-process")
+Rel(project, media, "Lưu/xóa media, tạo signed URL", "in-process")
+Rel(media, cloudinary, "Upload/destroy/signed URL", "HTTPS API")
+Rel(project, notification, "Tạo thông báo proof đã sẵn sàng", "in-process")
