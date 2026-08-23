@@ -48,7 +48,10 @@ import {
   newImageId,
   pickNewerDraft,
   slotCapacityOf,
+  spreadHasPlacedImages,
   suggestPageCountForTemplate,
+  uploadableImages,
+  uploadableSpreads,
   variantSnapshot,
 } from './photobook/draft';
 
@@ -95,50 +98,33 @@ export function PhotobookDetailPage() {
   const [busy, setBusy] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
 
-  const hydrateFromDraft = useCallback(
-    async (draft: StoredPhotobookDraft, fromServer: boolean, isCurrent: () => boolean) => {
-      const images = await readPhotobookDraftImages(draft);
-      if (!isCurrent()) return false;
-      const hasUnavailableImages = draft.spreads.some((spread) =>
-        spread.slots.some((slot) => slot.imageId !== null && !images.has(slot.imageId)),
-      );
-      const restored = hydrateDraftSpreads(draft, images, (url) => previewUrlsRef.current.add(url));
-      spreadsRef.current = restored;
-      setSpreads(restored);
-      setSizeId(draft.sizeId);
-      setPageIndex(Math.max(0, draft.pageIndex));
-      setFinish(FINISHES.includes(draft.finish) ? draft.finish : FINISHES[0]);
-      setQty(Math.max(1, draft.qty));
-      setPhotoCount(draft.photoCount);
-      setTemplateId(draft.templateId ?? 'free');
-      setStepRaw(clamp(draft.step, 0, 2));
-      setCurrentSpreadIdx(Math.max(0, draft.currentSpreadIdx));
-      // This flag is intentionally sticky for the current page session. Layout
-      // or template changes must not silently authorize overwriting image
-      // metadata that only exists on another device.
-      setServerDraftReadOnly(hasUnavailableImages);
-      if (hasUnavailableImages) {
-        setDraftNotice(
-          '\u0110\u00e3 kh\u00f4i ph\u1ee5c b\u1ed1 c\u1ee5c. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.',
-        );
-      } else if (fromServer) {
-        setDraftNotice(
-          images.size
-            ? 'Đã khôi phục bản nháp từ tài khoản và ảnh trên thiết bị này.'
-            : 'Đã khôi phục bản nháp từ tài khoản. Hãy chọn lại ảnh.',
-        );
-      } else {
-        setDraftNotice(
-          images.size
-            ? 'Đã khôi phục bản nháp và ảnh trên thiết bị này.'
-            : 'Đã khôi phục bố cục bản nháp. Hãy chọn lại ảnh bị thiếu.',
-        );
-      }
-      setDraftHydrated(true);
-      return true;
-    },
-    [],
-  );
+  const hydrateFromDraft = useCallback(async (draft: StoredPhotobookDraft, isCurrent: () => boolean) => {
+    const images = await readPhotobookDraftImages(draft);
+    if (!isCurrent()) return false;
+    const hasUnavailableImages = draft.spreads.some((spread) =>
+      spread.slots.some((slot) => slot.imageId !== null && !images.has(slot.imageId)),
+    );
+    const restored = hydrateDraftSpreads(draft, images, (url) => previewUrlsRef.current.add(url));
+    spreadsRef.current = restored;
+    setSpreads(restored);
+    setSizeId(draft.sizeId);
+    setPageIndex(Math.max(0, draft.pageIndex));
+    setFinish(FINISHES.includes(draft.finish) ? draft.finish : FINISHES[0]);
+    setQty(Math.max(1, draft.qty));
+    setPhotoCount(draft.photoCount);
+    setTemplateId(draft.templateId ?? 'free');
+    setStepRaw(clamp(draft.step, 0, 2));
+    setCurrentSpreadIdx(Math.max(0, draft.currentSpreadIdx));
+    // This flag is intentionally sticky for the current page session. Layout
+    // or template changes must not silently authorize overwriting image
+    // metadata that only exists on another device.
+    setServerDraftReadOnly(hasUnavailableImages);
+    // Không đặt thông báo ở đây: autosave ghi đè draftNotice ngay sau 500ms nên khách chưa
+    // bao giờ đọc kịp. Chuyện thiếu ảnh và tạm ngưng đồng bộ do DraftStatusNotice kể, dựa
+    // trên state hiện tại nên nó tự biến mất khi khách chọn lại đủ ảnh.
+    setDraftHydrated(true);
+    return true;
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -176,7 +162,7 @@ export function PhotobookDetailPage() {
         if (!alive) return;
         const winner = pickNewerDraft(savedDraft, serverDraft);
         if (winner) {
-          await hydrateFromDraft(winner.draft, winner.source === 'server', () => alive);
+          await hydrateFromDraft(winner.draft, () => alive);
         } else {
           setDraftHydrated(true);
         }
@@ -184,7 +170,7 @@ export function PhotobookDetailPage() {
       } catch {
         if (!alive) return;
         if (savedDraft) {
-          await hydrateFromDraft(savedDraft, false, () => alive);
+          await hydrateFromDraft(savedDraft, () => alive);
         } else {
           setDraftHydrated(true);
         }
@@ -232,7 +218,7 @@ export function PhotobookDetailPage() {
       if (!alive) return;
       const winner = pickNewerDraft(readPhotobookDraft(slug), serverDraft);
       if (winner?.source === 'server') {
-        await hydrateFromDraft(winner.draft, true, () => alive);
+        await hydrateFromDraft(winner.draft, () => alive);
       }
       if (!alive) return;
       serverDraftUserRef.current = userId;
@@ -266,7 +252,7 @@ export function PhotobookDetailPage() {
       const cycle = tpl.layoutCycle;
       const colors = tpl.spreadColors;
       const next = prev.map((spread, i) => {
-        const hasImages = spread.slots.some((s) => s.file !== null);
+        const hasImages = spreadHasPlacedImages(spread);
         const code = hasImages ? spread.layoutCode : cycle[i % cycle.length];
         const layout = layoutByCode(code);
         const slots = hasImages ? spread.slots : layout.slots.map(emptyDraftSlot);
@@ -353,15 +339,15 @@ export function PhotobookDetailPage() {
             sessionUserId && serverDraftReady && !serverDraftReadOnly ? await saveDraftToServer(draft) : false;
           if (version === draftSaveVersionRef.current) {
             setDraftNotice(
-              !sessionUserId
+              // Lý do không đồng bộ được (ảnh gốc ở thiết bị khác) do DraftStatusNotice nói,
+              // một lần và luôn hiển thị — ở đây chỉ báo đã lưu được tới đâu.
+              !sessionUserId || serverDraftReadOnly
                 ? 'Bản nháp đã được lưu trên thiết bị này.'
-                : serverDraftReadOnly
-                  ? '\u0110\u00e3 l\u01b0u b\u1ea3n nh\u00e1p tr\u00ean thi\u1ebft b\u1ecb n\u00e0y. \u1ea2nh g\u1ed1c n\u1eb1m tr\u00ean thi\u1ebft b\u1ecb kh\u00e1c n\u00ean kh\u00f4ng ghi \u0111\u00e8 b\u1ea3n nh\u00e1p \u0111\u1ed3ng b\u1ed9.'
-                  : synced
-                    ? 'Bản nháp đã được lưu và đồng bộ lên tài khoản.'
-                    : serverDraftReady
-                      ? 'Bản nháp đã được lưu trên thiết bị này, nhưng chưa đồng bộ được lên tài khoản.'
-                      : 'Bản nháp đã được lưu trên thiết bị này. Đang kiểm tra bản nháp trên tài khoản.',
+                : synced
+                  ? 'Bản nháp đã được lưu và đồng bộ lên tài khoản.'
+                  : serverDraftReady
+                    ? 'Bản nháp đã được lưu trên thiết bị này, nhưng chưa đồng bộ được lên tài khoản.'
+                    : 'Bản nháp đã được lưu trên thiết bị này. Đang kiểm tra bản nháp trên tài khoản.',
             );
           }
         })
@@ -638,12 +624,7 @@ export function PhotobookDetailPage() {
    */
   async function saveDesign(): Promise<string | null> {
     if (!selected) return null;
-    const images = new Map<string, File>();
-    for (const spread of spreads) {
-      for (const slot of spread.slots) {
-        if (slot.imageId && slot.file && !images.has(slot.imageId)) images.set(slot.imageId, slot.file);
-      }
-    }
+    const images = uploadableImages(spreads);
     if (!images.size) return null;
 
     const compressedImages = new Map<string, File>();
@@ -658,23 +639,7 @@ export function PhotobookDetailPage() {
       pageCount: selected.pageCount,
       finish,
       templateId,
-      spreads: spreads.map((s) => ({
-        position: s.position,
-        layoutCode: s.layoutCode,
-        backgroundColor: s.backgroundColor,
-        slots: s.slots.map((sl) => ({ imageId: sl.imageId, zoom: sl.zoom, panX: sl.panX, panY: sl.panY })),
-        captions: s.captions.map((c) => ({
-          id: c.id,
-          text: c.text,
-          x: c.x,
-          y: c.y,
-          fontSize: c.fontSize,
-          color: c.color,
-          bold: c.bold,
-          align: c.align,
-          fontFamily: c.fontFamily,
-        })),
-      })),
+      spreads: uploadableSpreads(spreads),
     };
     const { id } = await createPhotobookDesign(metadata, compressedImages);
     return id;
@@ -866,7 +831,7 @@ export function PhotobookDetailPage() {
           templates={templates}
           templateId={templateId}
           setTemplateId={setTemplateId}
-          spreadsHaveImages={spreads.some((s) => s.slots.some((sl) => sl.file !== null))}
+          spreadsHaveImages={spreads.some(spreadHasPlacedImages)}
           onApplyTemplate={() => applyTemplateToSpreads(template)}
           onNext={() => setStep(1)}
         />
@@ -891,6 +856,7 @@ export function PhotobookDetailPage() {
           onAutoFillFiles={autoFillFiles}
           onMoveSpread={moveSpread}
           draftNotice={draftNotice}
+          syncPaused={serverDraftReadOnly}
           onBack={() => setStep(0)}
           onNext={() => setStep(2)}
         />
@@ -912,6 +878,7 @@ export function PhotobookDetailPage() {
           cartError={cartError}
           slug={slug}
           templateId={templateId}
+          syncPaused={serverDraftReadOnly}
           onEdit={(idx) => {
             setCurrentSpreadIdx(idx);
             setStep(1);

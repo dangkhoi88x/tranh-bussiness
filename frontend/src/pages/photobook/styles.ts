@@ -45,3 +45,12 @@ export const chipGrid: React.CSSProperties = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))',
   gap: 6,
 };
+
+/**
+ * Ô ảnh mà máy này không có tệp. Vạch chéo để ở cỡ thumbnail vẫn phân biệt được ngay với ô
+ * trống (nền xám trơn) — nhìn lướt qua phải thấy "chỗ này thiếu thứ gì đó", không phải "chỗ
+ * này chưa đặt ảnh".
+ */
+export const missingImageFill: React.CSSProperties = {
+  background: 'repeating-linear-gradient(-45deg, var(--color-accent-100) 0 6px, var(--color-accent-200) 6px 12px)',
+};

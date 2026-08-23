@@ -6,7 +6,8 @@ import { compressSharePreviewImage } from '../../data/imageCompression';
 import { Link } from 'react-router-dom';
 import { BookDemo } from './BookDemo';
 import { SpreadOrderGrid } from './SpreadOrderGrid';
-import { DraftSpread } from './draft';
+import { DraftSpread, missingImageIds, uploadableImages, uploadableSpreads } from './draft';
+import { DraftStatusNotice } from './DraftStatusNotice';
 import { chipStyle } from './styles';
 
 export function UpsellSuggestions({
@@ -141,6 +142,20 @@ export function UpsellSuggestions({
    Step 3 — Xem lại
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Lỗi 4xx của /photobook-share-previews mô tả đúng vấn đề (thiếu ảnh, payload quá lớn, ...),
+ * nên hiển thị nguyên văn thay vì "thử lại" — khách bấm lại bao nhiêu lần cũng hỏng như nhau.
+ */
+function shareErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 401) {
+      return 'Vui lòng đăng nhập để tạo link chia sẻ. Người nhận link vẫn xem được mà không cần đăng nhập.';
+    }
+    if (error.status >= 400 && error.status < 500 && error.message) return error.message;
+  }
+  return 'Không thể tạo link chia sẻ. Vui lòng thử lại.';
+}
+
 export function StepReview({
   spreads,
   price,
@@ -156,6 +171,7 @@ export function StepReview({
   cartError,
   slug,
   templateId,
+  syncPaused,
   onEdit,
   onMoveSpread,
   onBack,
@@ -177,6 +193,7 @@ export function StepReview({
   cartError: string | null;
   slug: string;
   templateId: string;
+  syncPaused: boolean;
   onEdit: (idx: number) => void;
   onBack: () => void;
   onAddToCart: () => void;
@@ -191,15 +208,8 @@ export function StepReview({
   const [copied, setCopied] = useState(false);
   const [shareProgress, setShareProgress] = useState<{ completed: number; total: number } | null>(null);
 
-  const shareableImages = useMemo(() => {
-    const images = new Map<string, File>();
-    for (const spread of spreads) {
-      for (const slot of spread.slots) {
-        if (slot.imageId && slot.file && !images.has(slot.imageId)) images.set(slot.imageId, slot.file);
-      }
-    }
-    return images;
-  }, [spreads]);
+  const shareableImages = useMemo(() => uploadableImages(spreads), [spreads]);
+  const missingCount = useMemo(() => missingImageIds(spreads).length, [spreads]);
 
   const handleShare = useCallback(async () => {
     if (!shareableImages.size) return;
@@ -208,31 +218,13 @@ export function StepReview({
     setShareLink(null);
     setShareProgress({ completed: 0, total: shareableImages.size });
     try {
-      const storedSpreads = spreads.map((s) => ({
-        position: s.position,
-        layoutCode: s.layoutCode,
-        backgroundColor: s.backgroundColor,
-        slots: s.slots.map((sl) => ({ imageId: sl.imageId, zoom: sl.zoom, panX: sl.panX, panY: sl.panY })),
-        captions: s.captions.map((c) => ({
-          id: c.id,
-          text: c.text,
-          x: c.x,
-          y: c.y,
-          fontSize: c.fontSize,
-          color: c.color,
-          bold: c.bold,
-          align: c.align,
-          fontFamily: c.fontFamily,
-        })),
-      }));
-
       const metadata = {
         productSlug: slug,
         sizeLabel: size?.name ?? null,
         pageCount: selected ? String(selected.pageCount) : null,
         finish,
         templateId,
-        spreads: storedSpreads,
+        spreads: uploadableSpreads(spreads),
       };
 
       const formData = new FormData();
@@ -258,11 +250,7 @@ export function StepReview({
       const link = `${window.location.origin}/xem-truoc/${token}`;
       setShareLink(link);
     } catch (error) {
-      setShareError(
-        error instanceof ApiRequestError && error.status === 401
-          ? 'Vui lòng đăng nhập để tạo link chia sẻ. Người nhận link vẫn xem được mà không cần đăng nhập.'
-          : 'Không thể tạo link chia sẻ. Vui lòng thử lại.',
-      );
+      setShareError(shareErrorMessage(error));
     } finally {
       setSharing(false);
       setShareProgress(null);
@@ -315,6 +303,8 @@ export function StepReview({
         )}
       </div>
 
+      <DraftStatusNotice spreads={spreads} syncPaused={syncPaused} onPickMissing={onEdit} />
+
       {/* View mode toggle */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
         <button type="button" onClick={() => setViewMode('grid')} style={chipStyle(viewMode === 'grid')}>
@@ -362,8 +352,15 @@ export function StepReview({
                 : 'Tạo link chia sẻ'}
             </button>
             {!shareableImages.size && (
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
-                Thêm ít nhất một ảnh trước khi tạo link.
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)', textAlign: 'center' }}>
+                {missingCount > 0
+                  ? 'Không có ảnh nào trên máy này để tạo link. Chọn lại ảnh, hoặc mở bản nháp trên thiết bị đã tải ảnh lên.'
+                  : 'Thêm ít nhất một ảnh trước khi tạo link.'}
+              </p>
+            )}
+            {!!shareableImages.size && missingCount > 0 && (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)', textAlign: 'center' }}>
+                Link sẽ thiếu {missingCount} ô ảnh không có trên máy này.
               </p>
             )}
             {shareError && (
@@ -487,6 +484,20 @@ export function StepReview({
         {cartError && (
           <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-accent-700)' }}>
             {cartError}
+          </p>
+        )}
+        {missingCount > 0 && (
+          <p
+            style={{
+              margin: 0,
+              maxWidth: '50ch',
+              fontSize: 12,
+              textAlign: 'center',
+              color: 'var(--color-accent-700)',
+            }}
+          >
+            {missingCount} ô ảnh sẽ trống trong bản gửi xưởng vì máy này không có tệp. Bạn vẫn đặt hàng được và bổ sung
+            ảnh sau, nhưng chọn lại ngay bây giờ thì xưởng nhận đúng bản bạn đã dựng.
           </p>
         )}
         <p

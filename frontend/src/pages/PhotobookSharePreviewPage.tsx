@@ -576,6 +576,10 @@ function PreviewBookDemo({ spreads, images }: { spreads: PreviewSpread[]; images
               inset: 0,
               borderRadius: '2px 6px 6px 2px',
               overflow: 'hidden',
+              // Caption bên trong một trang nằm ở z-index 5. Không có stacking context riêng,
+              // nó vượt qua cả trang đang lật (z-index 2) và hiện đè lên bìa.
+              isolation: 'isolate',
+              zIndex: 1,
               background: isBack
                 ? 'linear-gradient(135deg, var(--color-neutral-300) 0%, var(--color-neutral-200) 100%)'
                 : '#fff',

@@ -5,8 +5,14 @@ import {
   hydrateDraftSpreads,
   makeSpreads,
   pickNewerDraft,
+  firstSpreadWithMissingImage,
+  missingImageIds,
   slotCapacityOf,
+  slotImageMissing,
+  spreadHasPlacedImages,
   suggestPageCountForTemplate,
+  uploadableImages,
+  uploadableSpreads,
 } from './draft';
 import { PHOTOBOOK_TEMPLATES, type PhotobookTemplate } from '../../data/photobookTemplates';
 import { layoutByCode } from '../../data/spreadLayouts';
@@ -209,5 +215,107 @@ describe('clamp', () => {
     expect(clamp(5, 1, 3)).toBe(3);
     expect(clamp(-5, 1, 3)).toBe(1);
     expect(clamp(2, 1, 3)).toBe(2);
+  });
+});
+
+describe('uploadableSpreads / uploadableImages', () => {
+  const file = new File(['x'], 'a.jpg');
+  const spreads = [
+    {
+      position: 1,
+      layoutCode: 'duo',
+      captions: [
+        {
+          id: 'c1',
+          text: 'Gia đình mình',
+          x: 0.5,
+          y: 0.5,
+          fontSize: 4,
+          color: '#1a1a1a',
+          bold: false,
+          align: 'center' as const,
+          fontFamily: 'Lora',
+        },
+      ],
+      backgroundColor: '#fff',
+      slots: [
+        { imageId: 'co-tep', file, preview: null, zoom: 2, panX: 0.5, panY: -0.5 },
+        { imageId: 'may-nay-khong-co-blob', file: null, preview: null, zoom: 1, panX: 0, panY: 0 },
+      ],
+    },
+  ];
+
+  it('bỏ tham chiếu ảnh mà máy này không còn giữ tệp', () => {
+    const payload = uploadableSpreads(spreads);
+
+    expect(payload[0].slots.map((slot) => slot.imageId)).toEqual(['co-tep', null]);
+    expect(payload[0].captions[0].text).toBe('Gia đình mình');
+    expect(payload[0].backgroundColor).toBe('#fff');
+  });
+
+  it('tập imageId trong metadata trùng khít tập ảnh tải lên — điều kiện backend bắt buộc', () => {
+    const referenced = uploadableSpreads(spreads)
+      .flatMap((spread) => spread.slots)
+      .flatMap((slot) => (slot.imageId ? [slot.imageId] : []));
+
+    expect(new Set(referenced)).toEqual(new Set(uploadableImages(spreads).keys()));
+  });
+
+  it('gộp ảnh dùng lại ở nhiều ô thành một lần tải lên', () => {
+    const reused = [
+      {
+        ...spreads[0],
+        slots: [
+          { imageId: 'chung', file, preview: null, zoom: 1, panX: 0, panY: 0 },
+          { imageId: 'chung', file, preview: null, zoom: 1, panX: 0, panY: 0 },
+        ],
+      },
+    ];
+
+    expect([...uploadableImages(reused).keys()]).toEqual(['chung']);
+  });
+});
+
+describe('ảnh không có trên thiết bị này', () => {
+  const file = new File(['x'], 'a.jpg');
+  const slot = (imageId: string | null, withFile: boolean) => ({
+    imageId,
+    file: withFile ? file : null,
+    preview: null,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+  });
+  const spread = (...slots: ReturnType<typeof slot>[]) => ({
+    position: 1,
+    layoutCode: 'duo',
+    captions: [],
+    backgroundColor: '#fff',
+    slots,
+  });
+
+  it('phân biệt ô thiếu tệp với ô thật sự trống', () => {
+    expect(slotImageMissing(slot('a', false))).toBe(true);
+    expect(slotImageMissing(slot('a', true))).toBe(false);
+    expect(slotImageMissing(slot(null, false))).toBe(false);
+  });
+
+  it('đếm ảnh thiếu theo id, không đếm trùng khi một ảnh nằm ở nhiều ô', () => {
+    const spreads = [spread(slot('a', false), slot('a', false)), spread(slot('b', false), slot('c', true))];
+
+    expect(missingImageIds(spreads).sort()).toEqual(['a', 'b']);
+  });
+
+  it('chỉ tới spread đầu tiên còn ô thiếu tệp', () => {
+    const spreads = [spread(slot('a', true)), spread(slot(null, false)), spread(slot('b', false))];
+
+    expect(firstSpreadWithMissingImage(spreads)).toBe(2);
+    expect(firstSpreadWithMissingImage([spread(slot('a', true))])).toBe(-1);
+  });
+
+  it('spread có ảnh đã đặt vẫn tính là "có ảnh" dù máy này không giữ tệp', () => {
+    // Nếu xét theo file, đổi chủ đề ở thiết bị khác sẽ dựng lại bố cục và xoá sạch imageId.
+    expect(spreadHasPlacedImages(spread(slot('a', false)))).toBe(true);
+    expect(spreadHasPlacedImages(spread(slot(null, false)))).toBe(false);
   });
 });

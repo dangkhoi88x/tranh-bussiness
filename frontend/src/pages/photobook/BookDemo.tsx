@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { layoutByCode } from '../../data/spreadLayouts';
 import { SlotImage } from './SlotImage';
-import { CAPTION_FONTS, DraftSpread } from './draft';
+import { CAPTION_FONTS, DraftSpread, slotImageMissing } from './draft';
+import { missingImageFill } from './styles';
 import { chipStyle } from './styles';
 
 export function BookDemo({ spreads, onEdit }: { spreads: DraftSpread[]; onEdit: (idx: number) => void }) {
@@ -93,6 +94,10 @@ export function BookDemo({ spreads, onEdit }: { spreads: DraftSpread[]; onEdit: 
               inset: 0,
               borderRadius: '2px 6px 6px 2px',
               overflow: 'hidden',
+              // Caption bên trong một trang nằm ở z-index 5. Không có stacking context riêng,
+              // nó vượt qua cả trang đang lật (z-index 2) và hiện đè lên bìa.
+              isolation: 'isolate',
+              zIndex: 1,
               background: isBack
                 ? 'linear-gradient(135deg, var(--color-neutral-300) 0%, var(--color-neutral-200) 100%)'
                 : '#fff',
@@ -256,6 +261,7 @@ export function SpreadPage({ spread }: { spread: DraftSpread }) {
       />
       {layout.slots.map((slot, i) => {
         const data = spread.slots[i];
+        const missing = !!data && slotImageMissing(data);
         return (
           <div
             key={i}
@@ -265,10 +271,12 @@ export function SpreadPage({ spread }: { spread: DraftSpread }) {
               top: `${slot.y * 100}%`,
               width: `${slot.w * 100}%`,
               height: `${slot.h * 100}%`,
-              background: data?.preview ? 'transparent' : 'var(--color-neutral-100)',
               borderRadius: slot.bleed ? 0 : 2,
               overflow: 'hidden',
-              border: `1px solid ${data?.preview ? 'transparent' : 'var(--color-neutral-200)'}`,
+              border: `1px solid ${missing ? 'var(--color-accent-400)' : data?.preview ? 'transparent' : 'var(--color-neutral-200)'}`,
+              ...(missing
+                ? missingImageFill
+                : { background: data?.preview ? 'transparent' : 'var(--color-neutral-100)' }),
             }}
           >
             {data?.preview ? (
@@ -280,11 +288,15 @@ export function SpreadPage({ spread }: { spread: DraftSpread }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   height: '100%',
-                  fontSize: 18,
-                  color: 'var(--color-neutral-300)',
+                  padding: 4,
+                  textAlign: 'center',
+                  fontSize: missing ? 10 : 18,
+                  fontWeight: missing ? 600 : 400,
+                  lineHeight: 1.25,
+                  color: missing ? 'var(--color-accent-700)' : 'var(--color-neutral-300)',
                 }}
               >
-                +
+                {missing ? 'Ảnh ở máy khác' : '+'}
               </div>
             )}
           </div>

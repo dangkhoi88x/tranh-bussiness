@@ -5,7 +5,18 @@ import { CaptionEditor } from './CaptionEditor';
 import { CropEditor } from './CropEditor';
 import { SlotImage } from './SlotImage';
 import { SpreadOrderGrid } from './SpreadOrderGrid';
-import { AutoFillResult, CAPTION_FONTS, DraftCaption, DraftSlot, DraftSpread, SpreadHistory, clamp } from './draft';
+import {
+  AutoFillResult,
+  CAPTION_FONTS,
+  DraftCaption,
+  DraftSlot,
+  DraftSpread,
+  SpreadHistory,
+  clamp,
+  slotImageMissing,
+} from './draft';
+import { missingImageFill } from './styles';
+import { DraftStatusNotice } from './DraftStatusNotice';
 
 export function StepArrange({
   spreads,
@@ -25,6 +36,7 @@ export function StepArrange({
   onAutoFillFiles,
   onMoveSpread,
   draftNotice,
+  syncPaused,
   onBack,
   onNext,
 }: {
@@ -45,6 +57,7 @@ export function StepArrange({
   onAutoFillFiles: (files: File[]) => AutoFillResult;
   onMoveSpread: (fromIdx: number, toIdx: number) => void;
   draftNotice: string | null;
+  syncPaused: boolean;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -299,11 +312,12 @@ export function StepArrange({
         <span style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>Ctrl/Cmd + Z</span>
       </div>
 
-      {draftNotice && (
-        <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-700)', textAlign: 'center' }}>
-          {draftNotice}
-        </p>
-      )}
+      <DraftStatusNotice
+        spreads={spreads}
+        syncPaused={syncPaused}
+        saveNotice={draftNotice}
+        onPickMissing={navigateSpread}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)' }}>
         <button type="button" className="btn btn-secondary" onClick={() => folderInputRef.current?.click()}>
@@ -390,6 +404,7 @@ export function StepArrange({
         )}
         {layout.slots.map((slot, i) => {
           const data = spread.slots[i];
+          const missing = !!data && slotImageMissing(data);
           return (
             <button
               key={i}
@@ -405,7 +420,9 @@ export function StepArrange({
               aria-label={
                 data?.preview
                   ? `Ô ảnh ${i + 1}. Nhấn Enter để chỉnh khung ảnh.`
-                  : `Ô ảnh ${i + 1}. Nhấn Enter để thêm ảnh.`
+                  : missing
+                    ? `Ô ảnh ${i + 1}. Ảnh của ô này không có trên thiết bị này. Nhấn Enter để chọn lại ảnh.`
+                    : `Ô ảnh ${i + 1}. Nhấn Enter để thêm ảnh.`
               }
               draggable={!!data?.preview}
               onDragStart={(e) => {
@@ -448,8 +465,12 @@ export function StepArrange({
                 top: `${slot.y * 100}%`,
                 width: `${slot.w * 100}%`,
                 height: `${slot.h * 100}%`,
-                border: data?.preview ? '2px solid var(--color-accent)' : '2px dashed var(--color-neutral-400)',
-                background: data?.preview ? 'transparent' : 'var(--color-neutral-200)',
+                border: data?.preview
+                  ? '2px solid var(--color-accent)'
+                  : `2px dashed ${missing ? 'var(--color-accent-600)' : 'var(--color-neutral-400)'}`,
+                ...(missing
+                  ? missingImageFill
+                  : { background: data?.preview ? 'transparent' : 'var(--color-neutral-200)' }),
                 cursor: 'pointer',
                 padding: 0,
                 overflow: 'hidden',
@@ -465,6 +486,19 @@ export function StepArrange({
             >
               {data?.preview ? (
                 <SlotImage slot={data} alt={`Slot ${i + 1}`} />
+              ) : missing ? (
+                <span
+                  style={{
+                    padding: 4,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    lineHeight: 1.25,
+                    textAlign: 'center',
+                    color: 'var(--color-accent-700)',
+                  }}
+                >
+                  Ảnh ở máy khác — chọn lại
+                </span>
               ) : (
                 <span style={{ fontSize: 24, color: 'var(--color-neutral-400)', fontWeight: 300 }}>+</span>
               )}

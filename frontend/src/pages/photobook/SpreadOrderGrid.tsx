@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { STORE_LABEL_STYLE } from '../../components/StoreShell';
 import { layoutByCode, type SpreadLayout } from '../../data/spreadLayouts';
 import { SlotImage } from './SlotImage';
-import { CAPTION_FONTS, DraftSpread } from './draft';
+import { CAPTION_FONTS, DraftSpread, slotImageMissing } from './draft';
+import { missingImageFill } from './styles';
 
 export function SpreadOrderGrid({
   spreads,
@@ -237,19 +238,23 @@ export function SpreadMini({ spread, layout }: { spread: DraftSpread; layout: Sp
       />
       {layout.slots.map((slot, i) => {
         const data = spread.slots[i];
+        const missing = !!data && slotImageMissing(data);
         return (
           <div
             key={i}
+            title={missing ? 'Ảnh này không có trên thiết bị bạn đang dùng' : undefined}
             style={{
               position: 'absolute',
               left: `${slot.x * 100}%`,
               top: `${slot.y * 100}%`,
               width: `${slot.w * 100}%`,
               height: `${slot.h * 100}%`,
-              background: data?.preview ? 'transparent' : 'var(--color-neutral-200)',
               borderRadius: slot.bleed ? 0 : 2,
               overflow: 'hidden',
-              border: '1px solid var(--color-neutral-300)',
+              border: `1px solid ${missing ? 'var(--color-accent-400)' : 'var(--color-neutral-300)'}`,
+              ...(missing
+                ? missingImageFill
+                : { background: data?.preview ? 'transparent' : 'var(--color-neutral-200)' }),
             }}
           >
             {data?.preview && <SlotImage slot={data} alt="" />}

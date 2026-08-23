@@ -207,6 +207,86 @@ export function draftImages(spreads: DraftSpread[]) {
     .flatMap((slot) => (slot.imageId && slot.file ? [{ id: slot.imageId, file: slot.file }] : []));
 }
 
+/**
+ * Ô vẫn giữ imageId nhưng máy này không có tệp: bản nháp mở lại từ tài khoản ở một thiết bị
+ * khác với thiết bị đã tải ảnh lên (xem hydrateDraftSpreads). Trong bản nháp chung ô này vẫn
+ * "có ảnh", chỉ là từ đây không hiển thị, không chia sẻ và không gửi xưởng được — nên phải
+ * hiện khác hẳn ô trống, đừng để khách tưởng mọi thứ vẫn đủ.
+ */
+export function slotImageMissing(slot: DraftSlot): slot is DraftSlot & { imageId: string } {
+  return slot.imageId !== null && slot.file === null;
+}
+
+/**
+ * Spread đã có ảnh khách đặt vào hay chưa. Xét imageId chứ không xét file: ở thiết bị không giữ
+ * blob thì mọi ô đều trông như trống, và những thao tác "chỉ đụng vào spread còn trống" (đổi chủ
+ * đề, dựng lại bố cục) sẽ xoá sạch tham chiếu ảnh của bản nháp mà không hỏi câu nào.
+ */
+export function spreadHasPlacedImages(spread: DraftSpread): boolean {
+  return spread.slots.some((slot) => slot.imageId !== null);
+}
+
+/** Số ảnh (không trùng) mà bản nháp tham chiếu nhưng máy này không có tệp. */
+export function missingImageIds(spreads: DraftSpread[]): string[] {
+  const ids = new Set<string>();
+  for (const spread of spreads) {
+    for (const slot of spread.slots) {
+      if (slotImageMissing(slot)) ids.add(slot.imageId);
+    }
+  }
+  return [...ids];
+}
+
+/** Spread đầu tiên có ô thiếu tệp, để đưa khách tới đúng chỗ cần chọn lại ảnh. */
+export function firstSpreadWithMissingImage(spreads: DraftSpread[]): number {
+  return spreads.findIndex((spread) => spread.slots.some(slotImageMissing));
+}
+
+/**
+ * Ảnh gửi kèm một payload multipart (share preview hoặc design), gộp theo imageId vì cùng một
+ * ảnh có thể nằm ở nhiều ô.
+ */
+export function uploadableImages(spreads: DraftSpread[]): Map<string, File> {
+  const images = new Map<string, File>();
+  for (const spread of spreads) {
+    for (const slot of spread.slots) {
+      if (slot.imageId && slot.file && !images.has(slot.imageId)) images.set(slot.imageId, slot.file);
+    }
+  }
+  return images;
+}
+
+/**
+ * Phần "spreads" của payload multipart. Bỏ imageId của những ô mà máy này không còn giữ blob
+ * (bản nháp mở lại từ server ở thiết bị khác cố tình giữ lại imageId để lần autosave sau không
+ * xoá ảnh khỏi bản nháp chung — xem hydrateDraftSpreads). Backend bắt buộc tập imageId trong
+ * metadata phải trùng khít tập ảnh tải lên, nên tham chiếu thừa sẽ làm cả request 400.
+ */
+export function uploadableSpreads(spreads: DraftSpread[]) {
+  return spreads.map((spread) => ({
+    position: spread.position,
+    layoutCode: spread.layoutCode,
+    backgroundColor: spread.backgroundColor,
+    slots: spread.slots.map((slot) => ({
+      imageId: slot.file ? slot.imageId : null,
+      zoom: slot.zoom,
+      panX: slot.panX,
+      panY: slot.panY,
+    })),
+    captions: spread.captions.map((caption) => ({
+      id: caption.id,
+      text: caption.text,
+      x: caption.x,
+      y: caption.y,
+      fontSize: caption.fontSize,
+      color: caption.color,
+      bold: caption.bold,
+      align: caption.align,
+      fontFamily: caption.fontFamily,
+    })),
+  }));
+}
+
 export function variantSnapshot(product: Product, size: PhotobookSize, priceAtPageCount: number): ProductVariant {
   return {
     id: size.variantId,
